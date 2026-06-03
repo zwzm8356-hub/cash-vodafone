@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>فودافون كاش - مدير التحويلات والمالية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0a0f1e;
+            font-family: 'Tajawal', sans-serif;
+            color: #e2e8f0;
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e3a5f;
+            border-radius: 4px;
+        }
+        .page-container {
+            animation: fadeIn 0.25s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0.7; transform: scale(0.99); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            50.1%, 100% { opacity: 0.5; }
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(30, 58, 95, 0.5);
+            border-top-color: #e40000;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Firebase SDK - يجب أن يكون قبل أي scripts أخرى -->
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDui8QbprvL2AAh5DGIlwEjrqF4TsOr1wc",
+            authDomain: "cash-vod.firebaseapp.com",
+            databaseURL: "https://cash-vod-default-rtdb.firebaseio.com",
+            projectId: "cash-vod",
+            storageBucket: "cash-vod.firebasestorage.app",
+            messagingSenderId: "576418809704",
+            appId: "1:576418809704:web:677a344658ebdc4647f8dd"
+        };
+
+        // Initialize Firebase
+        try {
+            firebase.initializeApp(firebaseConfig);
+        } catch (error) {
+            console.log('Firebase already initialized or error:', error.message);
+        }
+
+        const firebaseApp = firebase.app();
+        const db = firebase.database();
+
+        const LINES_LIMIT_MONTHLY = 200000;
+        const LINES_LIMIT_DAILY = 60000;
+        const VISA_LIMIT_MONTHLY = 200000;
+        const VISA_LIMIT_DAILY = 30000;
+
+        const initialLines = Array.from({ length: 16 }, (_, i) => ({
+            id: `line-${i + 1}`, name: `خط ${i + 1}`, number: "", usedToday: 0, usedMonth: 0,
+        }));
+        const initialVisas = Array.from({ length: 3 }, (_, i) => ({
+            id: `visa-${i + 1}`, name: `فيزا فوري ${i + 1}`, number: "", usedToday: 0, usedMonth: 0,
+        }));
+
+        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance"];
+        const ADMIN_PASSWORD = "ziad2005";
+        const USER_PASSWORD = "2007";
+
+        function pad(n) { return String(n).padStart(2, "0"); }
+        function nowStr() {
+            const d = new Date();
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+        function today() {
+            const d = new Date();
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        }
+        function currentMonthStr() {
+            const d = new Date();
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+        }
+        function formatNum(n) { return Number(n).toLocaleString("ar-EG"); }
+        function formatDateOnly(dateStr) {
+            if (!dateStr) return "";
+            const parts = dateStr.split(" ");
+            const dateParts = parts[0].split("-");
+            return `${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${parts[1]||""}`;
+        }
+        function formatDateArabic(dateStr) {
+            if (!dateStr) return "";
+            const parts = dateStr.split("-");
+            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+            const d = new Date(dateStr);
+            const dayName = days[d.getDay()];
+            return `${dayName} ${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        function ProgressBar({ used, limit, color }) {
+            const pct = Math.min((used / limit) * 100, 100);
+            const danger = pct >= 85; const warn = pct >= 60;
+            return (
+                <div style={{ width:"100%", background:"#1e293b", borderRadius:6, height:8, overflow:"hidden" }}>
+                    <div style={{ width:`${pct}%`, height:"100%", background: danger?"#ef4444":warn?"#f59e0b":color||"#22d3ee", borderRadius:6, transition:"width 0.4s ease" }} />
+                </div>
+            );
+        }
+
+        function LoginPage({ onLogin }) {
+            const [password, setPassword] = useState("");
+            const [error, setError] = useState("");
+            const [showPassword, setShowPassword] = useState(false);
+
+            const handleLogin = () => {
+                if (password === ADMIN_PASSWORD) {
+                    onLogin("admin");
+                    setPassword("");
+                    setError("");
+                } else if (password === USER_PASSWORD) {
+                    onLogin("user");
+                    setPassword("");
+                    setError("");
+                } else {
+                    setError("كلمة المرور خاطئة!");
+                    setPassword("");
+                }
+            };
+
+            const handleGuest = () => {
+                onLogin("guest");
+            };
+
+            return (
+                <div style={{minHeight:"100vh", background:"linear-gradient(135deg,#0a0f1e,#0f1e3d)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
+                    <div style={{width:"100%", maxWidth:380, textAlign:"center"}}>
+                        <div style={{width:80, height:80, borderRadius:20, background:"linear-gradient(135deg,#e40000,#cc0000)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, fontWeight:900, color:"#fff", boxShadow:"0 0 30px #e4000055", margin:"0 auto 30px"}}>V</div>
+                        
+                        <h1 style={{fontSize:28, fontWeight:900, color:"#fff", marginBottom:10}}>فودافون كاش</h1>
+                        <p style={{fontSize:14, color:"#94a3b8", marginBottom:40}}>مدير الخزينة والعمليات المالية</p>
+
+                        <div style={{background:"#0f1e3d", border:"1px solid #1e3a5f", borderRadius:16, padding:30, marginBottom:20}}>
+                            <div style={{position:"relative", marginBottom:20}}>
+                                <input 
+                                    type={showPassword ? "text" : "password"}
+                                    value={password}
+                                    onChange={e => {setPassword(e.target.value); setError("");}}
+                                    onKeyPress={e => e.key === "Enter" && handleLogin()}
+                                    placeholder="أدخل كلمة المرور"
+                                    style={{width:"100%", background:"#0a0f1e", border:"1px solid #1e3a5f", borderRadius:12, padding:"14px 40px 14px 14px", color:"#e2e8f0", fontSize:15, outline:"none", boxSizing:"border-box", textAlign:"right"}}
+                                />
+                                <button 
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={{position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#64748b", cursor:"pointer", fontSize:16}}
+                                >
+                                    {showPassword ? "👁️" : "👁️‍🗨️"}
+                                </button>
+                            </div>
+
+                            {error && <div style={{background:"#ef444420", border:"1px solid #ef4444", color:"#ef4444", padding:12, borderRadius:10, fontSize:13, marginBottom:20, fontWeight:600}}>{error}</div>}
+
+                            <button 
+                                onClick={handleLogin}
+                                style={{width:"100%", background:"linear-gradient(135deg,#e40000,#cc0000)", border:"none", borderRadius:12, padding:14, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 15px #e4000040", marginBottom:12}}
+                            >
+                                دخول
+                            </button>
+
+                            <button 
+                                onClick={handleGuest}
+                                style={{width:"100%", background:"#1e293b", border:"1px solid #334155", borderRadius:12, padding:14, color:"#94a3b8", fontSize:16, fontWeight:700, cursor:"pointer"}}
+                            >
+                                دخول كضيف 👤
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function App() {
+            const [userRole, setUserRole] = useState(() => {
+                const stored = sessionStorage.getItem("userRole");
+                return stored || null;
+            });
+            const [tab, setTab] = useState("dashboard");
+            const [lines, setLines] = useState(initialLines);
+            const [visas, setVisas] = useState(initialVisas);
+            const [transactions, setTransactions] = useState([]);
+            const [people, setPeople] = useState([]);
+            const [capital, setCapital] = useState(0);
+            const [financeLogs, setFinanceLogs] = useState([]);
+            const [syncStatus, setSyncStatus] = useState("✓ جاهز");
+
+            const [modal, setModal] = useState(null);
+            const [editLineId, setEditLineId] = useState(null);
+            const [selectedPersonId, setSelectedPersonId] = useState(null);
+            const [filter, setFilter] = useState("all");
+            const [searchQ, setSearchQ] = useState("");
+            const [toast, setToast] = useState(null);
+            
+            const [form, setForm] = useState({ 
+                type: "transfer",
+                date: today(), 
+                time: "12:00",
+                fromNumber: "", 
+                toNumber: "", 
+                personName: "", 
+                amount: "", 
+                sourceId: "", 
+                sourceType: "line", 
+                image: null 
+            });
+
+            const [financeForm, setFinanceForm] = useState({ type: "income", amount: "", desc: "" });
+            const [capitalInput, setCapitalInput] = useState("");
+            const [viewImg, setViewImg] = useState(null);
+            const fileRef = useRef();
+
+            const [peopleForm, setPeopleForm] = useState({ personName: "", initialDebt: "", desc: "" });
+            const [editPersonId, setEditPersonId] = useState(null);
+            const [confirmDelete, setConfirmDelete] = useState(null);
+
+            const touchStartX = useRef(0);
+            const touchEndX = useRef(0);
+
+            // Save to Firebase
+            const saveToFirebase = (path, data) => {
+                if (!userRole || userRole === "guest") return;
+                try {
+                    db.ref(path).set(data);
+                } catch (error) {
+                    console.error(`Error saving to Firebase:`, error);
+                }
+            };
+
+            // Load from Firebase
+            useEffect(() => {
+                if (!userRole || userRole === "guest") return;
+
+                try {
+                    db.ref('lines').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) setLines(data);
+                    });
+
+                    db.ref('visas').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) setVisas(data);
+                    });
+
+                    db.ref('transactions').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) setTransactions(Array.isArray(data) ? data : Object.values(data));
+                    });
+
+                    db.ref('people').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) setPeople(Array.isArray(data) ? data : Object.values(data));
+                    });
+
+                    db.ref('capital').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data !== null) setCapital(data);
+                    });
+
+                    db.ref('financeLogs').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) setFinanceLogs(Array.isArray(data) ? data : Object.values(data));
+                    });
+                } catch (error) {
+                    console.error('Error setting up Firebase listeners:', error);
+                }
+
+                return () => {
+                    db.ref('lines').off();
+                    db.ref('visas').off();
+                    db.ref('transactions').off();
+                    db.ref('people').off();
+                    db.ref('capital').off();
+                    db.ref('financeLogs').off();
+                };
+            }, [userRole]);
+
+            // Auto-save to Firebase
+            useEffect(() => { saveToFirebase('lines', lines); }, [lines]);
+            useEffect(() => { saveToFirebase('visas', visas); }, [visas]);
+            useEffect(() => { saveToFirebase('transactions', transactions); }, [transactions]);
+            useEffect(() => { saveToFirebase('people', people); }, [people]);
+            useEffect(() => { saveToFirebase('capital', capital); }, [capital]);
+            useEffect(() => { saveToFirebase('financeLogs', financeLogs); }, [financeLogs]);
+
+            if (!userRole) {
+                return <LoginPage onLogin={(role) => {
+                    setUserRole(role);
+                    sessionStorage.setItem("userRole", role);
+                }} />;
+            }
+
+            function logout() {
+                setUserRole(null);
+                sessionStorage.removeItem("userRole");
+                setTab("dashboard");
+            }
+
+            function showToast(msg, type="success") { setToast({msg,type}); setTimeout(()=>setToast(null),3000); }
+
+            const sources = [
+                ...lines.map(l => ({...l, type:"line", dailyLimit:LINES_LIMIT_DAILY, monthlyLimit:LINES_LIMIT_MONTHLY})),
+                ...visas.map(v => ({...v, type:"visa", dailyLimit:VISA_LIMIT_DAILY, monthlyLimit:VISA_LIMIT_MONTHLY})),
+            ];
+
+            function handleImagePick(e) {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => setForm(f => ({...f, image: ev.target.result}));
+                reader.readAsDataURL(file);
+            }
+
+            function addTransaction() {
+                const amount = parseFloat(form.amount);
+                if (!form.date || !form.time || !form.personName || !amount || !form.sourceId) { 
+                    showToast("أكمل كل البيانات","error"); 
+                    return; 
+                }
+
+                if (form.type === "transfer" && (!form.fromNumber || !form.toNumber)) {
+                    showToast("أكمل أرقام التحويل","error"); 
+                    return;
+                }
+
+                const personName = form.personName.trim();
+                const fullDateTime = `${form.date} ${form.time}`;
+                
+                const newTxn = {
+                    id: Date.now(),
+                    type: form.type,
+                    date: form.date,
+                    dateTime: fullDateTime,
+                    fromNumber: form.fromNumber,
+                    toNumber: form.toNumber,
+                    personName: personName,
+                    amount: amount,
+                    sourceId: form.sourceId,
+                    sourceType: form.sourceType,
+                    createdAt: nowStr(),
+                    image: form.image || null
+                };
+
+                setTransactions(prev => [newTxn, ...prev]);
+                updateSource(form.sourceId, form.sourceType, amount);
+
+                const existingPerson = people.find(p => p.personName.toLowerCase() === personName.toLowerCase());
+                if (existingPerson) {
+                    setPeople(prev => prev.map(p => {
+                        if (p.id !== existingPerson.id) return p;
+                        
+                        const newRecord = {
+                            id: Date.now(),
+                            type: form.type,
+                            amount: amount,
+                            date: fullDateTime,
+                            description: form.type === "transfer" ? `تحويل: ${form.fromNumber} → ${form.toNumber}` : "استلام"
+                        };
+
+                        return {
+                            ...p,
+                            records: [...(p.records || []), newRecord],
+                            lastUpdated: nowStr()
+                        };
+                    }));
+                    const action = form.type === "transfer" ? "تحويل لـ" : "استلام من";
+                    showToast(`${action} ${personName} تم التسجيل ✓`);
+                } else {
+                    const txnType = form.type === "transfer" ? "تحويل" : "استلام";
+                    showToast(`تم ${txnType} بنجاح ✓`);
+                }
+
+                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", image: null });
+                setModal(null);
+            }
+
+            function updateSource(sourceId, sourceType, amount) {
+                if (sourceType === "line") {
+                    setLines(prev => prev.map(l => 
+                        l.id === sourceId 
+                            ? {...l, usedToday: l.usedToday + amount, usedMonth: l.usedMonth + amount}
+                            : l
+                    ));
+                } else {
+                    setVisas(prev => prev.map(v => 
+                        v.id === sourceId 
+                            ? {...v, usedToday: v.usedToday + amount, usedMonth: v.usedMonth + amount}
+                            : v
+                    ));
+                }
+            }
+
+            function deleteTransaction(txn) {
+                setTransactions(prev => prev.filter(t => t.id !== txn.id));
+                if (txn.sourceType === "line") {
+                    setLines(prev => prev.map(l => 
+                        l.id === txn.sourceId 
+                            ? {...l, usedToday: Math.max(0, l.usedToday - txn.amount), usedMonth: Math.max(0, l.usedMonth - txn.amount)}
+                            : l
+                    ));
+                } else {
+                    setVisas(prev => prev.map(v => 
+                        v.id === txn.sourceId 
+                            ? {...v, usedToday: Math.max(0, v.usedToday - txn.amount), usedMonth: Math.max(0, v.usedMonth - txn.amount)}
+                            : v
+                    ));
+                }
+                setConfirmDelete(null);
+                showToast("تم حذف التحويل ✓");
+            }
+
+            function addOrUpdatePerson() {
+                const personName = peopleForm.personName.trim();
+                const initialDebt = parseFloat(peopleForm.initialDebt);
+                if (!personName || !initialDebt || initialDebt <= 0 || !peopleForm.desc.trim()) {
+                    showToast("أكمل كل البيانات بشكل صحيح", "error");
+                    return;
+                }
+
+                if (editPersonId) {
+                    setPeople(prev => prev.map(p => p.id === editPersonId ? {
+                        ...p, personName, initialDebt, desc: peopleForm.desc, lastUpdated: nowStr()
+                    } : p));
+                    showToast("تم تحديث الشخص ✓");
+                    setEditPersonId(null);
+                } else {
+                    const newPerson = {
+                        id: Date.now(),
+                        personName,
+                        initialDebt,
+                        desc: peopleForm.desc,
+                        records: [{
+                            id: Date.now(),
+                            type: "initial",
+                            amount: initialDebt,
+                            date: nowStr(),
+                            description: `دين أولي: ${formatNum(initialDebt)} ج`
+                        }],
+                        createdAt: nowStr(),
+                        lastUpdated: nowStr()
+                    };
+                    setPeople(prev => [newPerson, ...prev]);
+                    showToast("تم إضافة الشخص ✓");
+                }
+
+                setPeopleForm({ personName: "", initialDebt: "", desc: "" });
+                setModal(null);
+            }
+
+            function addPayment(personId, paymentAmount) {
+                const amt = parseFloat(paymentAmount);
+                if (!amt || amt <= 0) {
+                    showToast("أدخل مبلغ صحيح", "error");
+                    return;
+                }
+
+                setPeople(prev => prev.map(p => {
+                    if (p.id === personId) {
+                        const newRecord = {
+                            id: Date.now(),
+                            type: "payment",
+                            amount: -amt,
+                            date: nowStr(),
+                            description: `دفع: ${formatNum(amt)} ج`
+                        };
+                        return {...p, records: [...(p.records || []), newRecord], lastUpdated: nowStr()};
+                    }
+                    return p;
+                }));
+                showToast("تم تسجيل الدفعة ✓");
+            }
+
+            function deletePerson(person) {
+                setPeople(prev => prev.filter(p => p.id !== person.id));
+                setConfirmDelete(null);
+                showToast("تم حذف الشخص ✓");
+            }
+
+            function deletePersonRecord(personId, recordId) {
+                setPeople(prev => prev.map(p => {
+                    if (p.id === personId) {
+                        return {...p, records: p.records.filter(r => r.id !== recordId), lastUpdated: nowStr()};
+                    }
+                    return p;
+                }));
+                showToast("تم حذف السجل ✓");
+            }
+
+            function addFinanceLog() {
+                const amt = parseFloat(financeForm.amount);
+                if (!amt || amt <= 0 || !financeForm.desc.trim()) { 
+                    showToast("أكمل البيانات", "error"); 
+                    return; 
+                }
+
+                const newLog = {
+                    id: Date.now(),
+                    type: financeForm.type,
+                    amount: amt,
+                    desc: financeForm.desc,
+                    date: nowStr(),
+                    monthDate: currentMonthStr()
+                };
+
+                setFinanceLogs(prev => [newLog, ...prev]);
+                if (financeForm.type === "income") {
+                    setCapital(c => c + amt);
+                } else {
+                    setCapital(c => c - amt);
+                }
+
+                setFinanceForm({ type: "income", amount: "", desc: "" });
+                setModal(null);
+                showToast("تم تسجيل العملية ✓");
+            }
+
+            function updateCapitalDirectly() {
+                const amt = parseFloat(capitalInput);
+                if (isNaN(amt) || amt < 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
+                setCapital(amt);
+                setCapitalInput("");
+                setModal(null);
+                showToast("تم تحديث رأس المال ✓");
+            }
+
+            function resetDaily() { setLines(p=>p.map(l=>({...l,usedToday:0}))); setVisas(p=>p.map(v=>({...v,usedToday:0}))); showToast("تم تصفير اليومي ✓"); }
+            function resetMonthly() { setLines(p=>p.map(l=>({...l,usedToday:0,usedMonth:0}))); setVisas(p=>p.map(v=>({...v,usedToday:0,usedMonth:0}))); showToast("تم تصفير الشهري ✓"); }
+
+            function deleteFinanceLog(log) {
+                setFinanceLogs(prev => prev.filter(item => item.id !== log.id));
+                if (log.type === "income") {
+                    setCapital(c => c - log.amount);
+                } else {
+                    setCapital(c => c + log.amount);
+                }
+                showToast("تم حذف السجل ✓");
+            }
+
+            function handleTouchStart(e) {
+                if (modal || viewImg || e.target.closest('input') || e.target.closest('select')) return;
+                touchStartX.current = e.targetTouches[0]?.clientX;
+            }
+
+            function handleTouchEnd(e) {
+                if (modal || viewImg || e.target.closest('input') || e.target.closest('select')) return;
+                touchEndX.current = e.changedTouches[0]?.clientX;
+                const swipeDistance = touchStartX.current - touchEndX.current;
+                const minSwipeDistance = 60;
+                const currentIdx = TABS_ORDER.indexOf(tab);
+
+                if (swipeDistance > minSwipeDistance && currentIdx < TABS_ORDER.length - 1) {
+                    setTab(TABS_ORDER[currentIdx + 1]);
+                }
+                if (swipeDistance < -minSwipeDistance && currentIdx > 0) {
+                    setTab(TABS_ORDER[currentIdx - 1]);
+                }
+            }
+
+            const selectedSource = form.sourceId ? sources.find(s=>s.id===form.sourceId) : null;
+            const alertSources = sources.filter(s=>(s.usedMonth/s.monthlyLimit)>=0.8);
+            const todayTxns = transactions.filter(t => t.date === today());
+            
+            const getPersonBalance = (person) => {
+                let balance = person.initialDebt;
+                if (person.records && person.records.length > 0) {
+                    balance = person.initialDebt + person.records.reduce((sum, r) => sum + (r.amount || 0), 0);
+                }
+                return Math.max(0, balance);
+            };
+            
+            const totalDebt = people.reduce((s, p) => s + getPersonBalance(p), 0);
+
+            const thisMonth = currentMonthStr();
+            const monthlyLogs = financeLogs.filter(l => l.monthDate === thisMonth);
+            const monthIncome = monthlyLogs.filter(l => l.type === "income").reduce((s, l) => s + l.amount, 0);
+            const monthExpense = monthlyLogs.filter(l => l.type === "expense").reduce((s, l) => s + l.amount, 0);
+            const netMonthProfit = monthIncome - monthExpense;
+
+            const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
+            const isAdmin = userRole === "admin";
+            const isUser = userRole === "user";
+            const isGuest = userRole === "guest";
+
+            const tabs = isAdmin 
+                ? ["dashboard", "transactions", "people", "lines", "finance"]
+                : ["dashboard", "transactions", "people", "lines", "finance"];
+
+            const displayTabs = [
+                {id:"dashboard",icon:"🏠",label:"الرئيسية"},
+                {id:"transactions",icon:"💸",label:"العمليات"},
+                {id:"people",icon:"👥",label:"الأشخاص"},
+                {id:"lines",icon:"📱",label:"الخطوط"},
+                {id:"finance",icon:"💰",label:"المالية"}
+            ].filter(t => tabs.includes(t.id));
+
+            const getRoleName = () => {
+                if (isAdmin) return "👑 أدمن";
+                if (isUser) return "👤 مستخدم";
+                return "🌐 ضيف (قراءة فقط)";
+            };
+
+            return (
+                <div 
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                    style={{minHeight:"100vh",background:"#0a0f1e",direction:"rtl",color:"#e2e8f0",paddingBottom:80}}
+                >
+                    
+                    {/* Header */}
+                    <div style={{background:"linear-gradient(135deg,#0a0f1e,#0f1e3d)",borderBottom:"1px solid #1e3a5f",padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <div style={{width:38,height:38,borderRadius:10,background:"linear-gradient(135deg,#e40000,#cc0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:900,color:"#fff",boxShadow:"0 0 16px #e4000055"}}>V</div>
+                            <div>
+                                <div style={{fontSize:16,fontWeight:700,color:"#fff"}}>فودافون كاش</div>
+                                <div style={{fontSize:11,color:"#64748b"}}>{getRoleName()}</div>
+                            </div>
+                        </div>
+                        <div style={{display:"flex", gap:10, alignItems:"center"}}>
+                            <div style={{fontSize:10,color:"#10b981"}}>{syncStatus}</div>
+                            {alertSources.length>0 && <div style={{background:"#ef444420",border:"1px solid #ef4444",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#ef4444",animation:"blink 1s infinite"}}>⚠️ {alertSources.length}</div>}
+                            <button onClick={logout} style={{background:"#ef444420", border:"1px solid #ef4444", borderRadius:20, padding:"6px 14px", color:"#ef4444", fontSize:12, cursor:"pointer", fontWeight:600}}>خروج</button>
+                        </div>
+                    </div>
+
+                    {toast && <div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",background:toast.type==="error"?"#ef4444":"#10b981",color:"#fff",padding:"10px 24px",borderRadius:30,fontSize:14,fontWeight:600,zIndex:999,boxShadow:"0 4px 20px #0008"}}>{toast.msg}</div>}
+
+                    {/* Modal تأكيد الحذف */}
+                    {confirmDelete && (
+                        <div style={{position:"fixed",inset:0,background:"#000a",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <div style={{background:"#0a1628",borderRadius:16,border:"1px solid #1e3a5f",padding:24,width:"90%",maxWidth:320,textAlign:"center"}}>
+                                <div style={{fontSize:16,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>تأكيد الحذف</div>
+                                <div style={{fontSize:14,color:"#94a3b8",marginBottom:20}}>هل متأكد من الحذف؟</div>
+                                <div style={{display:"flex",gap:10}}>
+                                    <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:"#1e293b",border:"none",borderRadius:10,padding:12,color:"#94a3b8",cursor:"pointer",fontWeight:600}}>إلغاء</button>
+                                    <button onClick={()=>{
+                                        if (confirmDelete.type === "txn") deleteTransaction(confirmDelete.data);
+                                        else deletePerson(confirmDelete.data);
+                                    }} style={{flex:1,background:"#ef4444",border:"none",borderRadius:10,padding:12,color:"#fff",cursor:"pointer",fontWeight:600}}>حذف</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Image Viewer */}
+                    {viewImg && (
+                        <div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"#000d",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <img src={viewImg} style={{maxWidth:"95vw",maxHeight:"90vh",borderRadius:12,boxShadow:"0 0 40px #000"}}/>
+                            <button onClick={()=>setViewImg(null)} style={{position:"absolute",top:20,left:20,background:"#fff2",border:"none",borderRadius:20,color:"#fff",padding:"6px 14px",cursor:"pointer",fontSize:14}}>✕</button>
+                        </div>
+                    )}
+
+                    <style>{`@keyframes blink { 0%, 50% { opacity: 1; } 50.1%, 100% { opacity: 0.5; } }`}</style>
+
+                    <div className="page-container" key={tab} style={{padding:"16px 16px 0"}}>
+
+                        {/* DASHBOARD */}
+                        {tab==="dashboard" && (
+                            <div>
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                                    {[
+                                        {label:"اليوم",value:todayTxns.length,icon:"📊",color:"#22d3ee"},
+                                        {label:"رأس المال",value:formatNum(capital)+" ج",icon:"👑",color:"#f59e0b"},
+                                        {label:"الديون الباقية",value:formatNum(totalDebt)+" ج",icon:"💳",color:"#ef4444"},
+                                        {label:"صافي الشهر",value:formatNum(netMonthProfit)+" ج",icon:"📈",color:"#a78bfa"},
+                                    ].map((c,i)=>(
+                                        <div key={i} style={{background:"linear-gradient(135deg,#0f1e3d,#0a0f1e)",border:`1px solid ${c.color}30`,borderRadius:14,padding:"14px 16px"}}>
+                                            <div style={{fontSize:22}}>{c.icon}</div>
+                                            <div style={{fontSize:16,fontWeight:700,color:c.color,marginTop:4}}>{c.value}</div>
+                                            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{c.label}</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {alertSources.length>0 && (
+                                    <div style={{background:"#ef444410",border:"1px solid #ef444440",borderRadius:14,padding:14,marginBottom:16}}>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#ef4444",marginBottom:8}}>⚠️ خطوط قرب الانتهاء</div>
+                                        {alertSources.map(s=><div key={s.id} style={{fontSize:12,color:"#fca5a5",marginBottom:4}}>{s.name}: {Math.round((s.usedMonth/s.monthlyLimit)*100)}%</div>)}
+                                    </div>
+                                )}
+
+                                {isAdmin && (
+                                    <button onClick={()=>setModal("addTxn")} style={{width:"100%",background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ عملية جديدة</button>
+                                )}
+
+                                <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>آخر العمليات</div>
+                                {transactions.slice(0,5).map(t=>(
+                                    <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
+                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                            <div>
+                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{t.type === "transfer" ? "💸" : "📥"} {t.personName}</div>
+                                                <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateArabic(t.date)} - {t.time}</div>
+                                            </div>
+                                            <div style={{display:"flex",gap:8}}>
+                                                {t.image && <button onClick={()=>setViewImg(t.image)} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"4px 8px",color:"#94a3b8",cursor:"pointer"}}>🖼</button>}
+                                                {isAdmin && <button onClick={()=>setConfirmDelete({type:"txn",data:t})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>}
+                                            </div>
+                                        </div>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
+                                        {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8"}}>من: {t.fromNumber} → {t.toNumber}</div>}
+                                    </div>
+                                ))}
+                                {transactions.length===0 && <div style={{textAlign:"center",color:"#475569",padding:40}}>لا توجد عمليات</div>}
+                            </div>
+                        )}
+
+                        {/* TRANSACTIONS */}
+                        {tab==="transactions" && (
+                            <div>
+                                <input placeholder="🔍 ابحث" value={searchQ} onChange={e=>setSearchQ(e.target.value)}
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 16px",color:"#e2e8f0",fontSize:14,marginBottom:12,boxSizing:"border-box",outline:"none",textAlign:"right"}}/>
+                                
+                                {transactions.filter(t => !searchQ || t.personName.includes(searchQ) || t.fromNumber?.includes(searchQ)).map(t=>(
+                                    <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
+                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                            <div>
+                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{t.type === "transfer" ? "💸" : "📥"} {t.personName}</div>
+                                                <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateArabic(t.date)} - {t.time}</div>
+                                            </div>
+                                            {isAdmin && <button onClick={()=>setConfirmDelete({type:"txn",data:t})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>}
+                                        </div>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
+                                        {t.type === "transfer" && <>
+                                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>من: {t.fromNumber}</div>
+                                            <div style={{fontSize:11,color:"#94a3b8"}}>إلى: {t.toNumber}</div>
+                                        </>}
+                                        {t.image && <img src={t.image} onClick={()=>setViewImg(t.image)} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginTop:10,cursor:"pointer"}}/>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* PEOPLE */}
+                        {tab==="people" && !selectedPersonId && (
+                            <div>
+                                <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #a78bfa40",borderRadius:16,padding:16,marginBottom:16,textAlign:"center"}}>
+                                    <div style={{fontSize:13,color:"#94a3b8"}}>💳 إجمالي الديون</div>
+                                    <div style={{fontSize:28,fontWeight:900,color:"#a78bfa",margin:"8px 0"}}>{formatNum(totalDebt)} ج</div>
+                                </div>
+
+                                {isAdmin && (
+                                    <button onClick={()=>{setPeopleForm({personName:"",initialDebt:"",desc:""});setEditPersonId(null);setModal("addPerson");}} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ شخص جديد</button>
+                                )}
+
+                                {people.map(person => {
+                                    const balance = getPersonBalance(person);
+                                    return (
+                                        <div key={person.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:14,marginBottom:12,cursor:"pointer"}} onClick={()=>setSelectedPersonId(person.id)}>
+                                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                                <div>
+                                                    <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{person.personName}</div>
+                                                    <div style={{fontSize:11,color:"#475569",marginTop:4}}>{person.desc}</div>
+                                                </div>
+                                                <div style={{textAlign:"center"}}>
+                                                    <div style={{fontSize:18,fontWeight:900,color:balance>0?"#ef4444":"#10b981"}}>{formatNum(balance)} ج</div>
+                                                    <div style={{fontSize:10,color:"#475569"}}>الباقي</div>
+                                                </div>
+                                            </div>
+                                            <ProgressBar used={getPersonBalance(person)} limit={person.initialDebt} color="#a78bfa"/>
+                                        </div>
+                                    );
+                                })}
+                                {people.length === 0 && <div style={{textAlign:"center",color:"#475569",padding:30}}>لا توجد أشخاص</div>}
+                            </div>
+                        )}
+
+                        {/* PERSON DETAILS */}
+                        {tab==="people" && selectedPersonId && selectedPerson && (
+                            <div>
+                                <button onClick={()=>setSelectedPersonId(null)} style={{width:"100%",background:"#1e293b",border:"none",borderRadius:12,padding:12,color:"#94a3b8",marginBottom:16,cursor:"pointer"}}>← العودة</button>
+
+                                <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #a78bfa40",borderRadius:16,padding:16,marginBottom:16}}>
+                                    <div style={{fontSize:18,fontWeight:900,color:"#e2e8f0",marginBottom:8}}>{selectedPerson.personName}</div>
+                                    <div style={{fontSize:12,color:"#475569",marginBottom:12}}>{selectedPerson.desc}</div>
+                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                                        <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
+                                            <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{formatNum(selectedPerson.initialDebt)} ج</div>
+                                            <div style={{fontSize:10,color:"#475569"}}>الأولي</div>
+                                        </div>
+                                        <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
+                                            <div style={{fontSize:14,fontWeight:700,color:"#10b981"}}>{formatNum(Math.max(0, -selectedPerson.records?.filter(r => r.type === "payment").reduce((s, r) => s + r.amount, 0) || 0))} ج</div>
+                                            <div style={{fontSize:10,color:"#475569"}}>المدفوع</div>
+                                        </div>
+                                        <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
+                                            <div style={{fontSize:14,fontWeight:700,color:getPersonBalance(selectedPerson)>0?"#ef4444":"#10b981"}}>{formatNum(getPersonBalance(selectedPerson))} ج</div>
+                                            <div style={{fontSize:10,color:"#475569"}}>الباقي</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {isAdmin && (
+                                    <div style={{display:"flex",gap:10,marginBottom:16}}>
+                                        <button onClick={()=>{setPeopleForm({personName:selectedPerson.personName,initialDebt:selectedPerson.initialDebt.toString(),desc:selectedPerson.desc});setEditPersonId(selectedPerson.id);setModal("addPerson");}} style={{flex:1,background:"#22d3ee20",border:"1px solid #22d3ee40",borderRadius:12,padding:12,color:"#22d3ee",cursor:"pointer",fontWeight:600}}>✏️ تعديل</button>
+                                        <button onClick={()=>setConfirmDelete({type:"person",data:selectedPerson})} style={{flex:1,background:"#ef444420",border:"1px solid #ef444440",borderRadius:12,padding:12,color:"#ef4444",cursor:"pointer",fontWeight:600}}>🗑️ حذف</button>
+                                    </div>
+                                )}
+
+                                <div style={{display:"flex",gap:8,marginBottom:16}}>
+                                    <input type="number" placeholder="مبلغ الدفعة" style={{flex:1,background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,outline:"none",textAlign:"right"}} id={`payment-input`}/>
+                                    <button onClick={()=>{const val=document.getElementById(`payment-input`).value;addPayment(selectedPerson.id,val);document.getElementById(`payment-input`).value="";}} style={{background:"#10b98120",border:"1px solid #10b98140",borderRadius:8,padding:"8px 12px",color:"#10b981",cursor:"pointer",fontSize:12,fontWeight:600}}>✓ دفع</button>
+                                </div>
+
+                                <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>📜 السجل المفصل</div>
+                                {selectedPerson.records && [...selectedPerson.records].reverse().map((record, idx) => (
+                                    <div key={record.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:12,marginBottom:8}}>
+                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
+                                            <div>
+                                                <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{record.description}</div>
+                                                <div style={{fontSize:10,color:"#475569",marginTop:4}}>{formatDateOnly(record.date)}</div>
+                                            </div>
+                                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                <span style={{fontSize:14,fontWeight:700,color: record.amount >= 0 ? "#ef4444" : "#10b981"}}>
+                                                    {record.amount >= 0 ? "+ " : ""}{formatNum(Math.abs(record.amount))} ج
+                                                </span>
+                                                {isAdmin && (
+                                                    <button onClick={()=>deletePersonRecord(selectedPerson.id, record.id)} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:12}}>🗑️</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {idx === selectedPerson.records.length - 1 && (
+                                            <div style={{fontSize:10,color:"#64748b",fontStyle:"italic"}}>الأقدم</div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* LINES */}
+                        {tab==="lines" && (
+                            <div>
+                                <div style={{marginBottom:20}}>
+                                    <div style={{fontSize:14,fontWeight:700,color:"#22d3ee",marginBottom:10}}>📱 الخطوط</div>
+                                    {lines.map(l=>{
+                                        const mp = (l.usedMonth/LINES_LIMIT_MONTHLY)*100;
+                                        const isDanger = mp >= 80;
+                                        return (
+                                            <div key={l.id} style={{background:"#0f1e3d",border:`1px solid ${isDanger?"#ef444440":"#1e3a5f"}`,borderRadius:12,padding:12,marginBottom:8}}>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                                    <div>
+                                                        <span style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>{l.name}</span>
+                                                        <span style={{fontSize:11,color:l.number?"#64748b":"#334155",marginRight:8,cursor:l.number?"copy":"auto"}} onClick={()=>{if(l.number) {navigator.clipboard.writeText(l.number); showToast("تم النسخ ✓");}}} title={l.number ? "انقر للنسخ" : ""}>{l.number ? `${l.number} 📋` : "بلا"}</span>
+                                                    </div>
+                                                    {isAdmin && <button onClick={()=>{setEditLineId(l.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                </div>
+                                                <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>شهري: {formatNum(l.usedMonth)} / {formatNum(LINES_LIMIT_MONTHLY)}</div>
+                                                <ProgressBar used={l.usedMonth} limit={LINES_LIMIT_MONTHLY} color="#22d3ee"/>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div style={{marginBottom:20}}>
+                                    <div style={{fontSize:14,fontWeight:700,color:"#a78bfa",marginBottom:10}}>💳 الفيزا</div>
+                                    {visas.map(v=>{
+                                        const mp = (v.usedMonth/VISA_LIMIT_MONTHLY)*100;
+                                        const isDanger = mp >= 80;
+                                        return (
+                                            <div key={v.id} style={{background:"#0f1e3d",border:`1px solid ${isDanger?"#ef444440":"#1e3a5f"}`,borderRadius:12,padding:12,marginBottom:8}}>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                                    <div>
+                                                        <span style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>{v.name}</span>
+                                                        <span style={{fontSize:11,color:v.number?"#64748b":"#334155",marginRight:8,cursor:v.number?"copy":"auto"}} onClick={()=>{if(v.number) {navigator.clipboard.writeText(v.number); showToast("تم النسخ ✓");}}} title={v.number ? "انقر للنسخ" : ""}>{v.number ? `${v.number} 📋` : "بلا"}</span>
+                                                    </div>
+                                                    {isAdmin && <button onClick={()=>{setEditLineId(v.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                </div>
+                                                <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>شهري: {formatNum(v.usedMonth)} / {formatNum(VISA_LIMIT_MONTHLY)}</div>
+                                                <ProgressBar used={v.usedMonth} limit={VISA_LIMIT_MONTHLY} color="#a78bfa"/>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {isAdmin && (
+                                    <div style={{display:"flex",gap:10}}>
+                                        <button onClick={resetDaily} style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:12,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer"}}>تصفير يومي</button>
+                                        <button onClick={resetMonthly} style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:12,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer"}}>تصفير شهري</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* FINANCE */}
+                        {tab==="finance" && (
+                            <div>
+                                <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #3b82f640",borderRadius:16,padding:16,marginBottom:16,textAlign:"center"}}>
+                                    <div style={{fontSize:13,color:"#94a3b8"}}>👑 رأس المال</div>
+                                    <div style={{fontSize:28,fontWeight:900,color:"#3b82f6",margin:"8px 0"}}>{formatNum(capital)} ج</div>
+                                    {isAdmin && <button onClick={()=>{setCapitalInput(capital.toString()); setModal("editCapital");}} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"6px 14px",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>✏️ تعديل</button>}
+                                </div>
+
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                                    <div style={{background:"#10b9810a",border:"1px solid #10b98120",borderRadius:12,padding:12,textAlign:"center"}}>
+                                        <div style={{fontSize:16,fontWeight:700,color:"#10b981"}}>{formatNum(monthIncome)} ج</div>
+                                        <div style={{fontSize:10,color:"#475569"}}>المكاسب</div>
+                                    </div>
+                                    <div style={{background:"#ef44440a",border:"1px solid #ef444420",borderRadius:12,padding:12,textAlign:"center"}}>
+                                        <div style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>{formatNum(monthExpense)} ج</div>
+                                        <div style={{fontSize:10,color:"#475569"}}>المصاريف</div>
+                                    </div>
+                                </div>
+
+                                {isAdmin && (
+                                    <button onClick={()=>setModal("addFinance")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ عملية جديدة</button>
+                                )}
+
+                                <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>📜 السجل</div>
+                                {financeLogs.filter(l => l.monthDate === thisMonth).map(log => (
+                                    <div key={log.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div>
+                                            <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{log.desc}</div>
+                                            <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateOnly(log.date)}</div>
+                                        </div>
+                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                            <span style={{fontSize:14,fontWeight:700,color: log.type === "income" ? "#10b981" : "#ef4444"}}>
+                                                {log.type === "income" ? `+ ${formatNum(log.amount)}` : `- ${formatNum(log.amount)}`}
+                                            </span>
+                                            {isAdmin && <button onClick={()=>deleteFinanceLog(log)} style={{background:"none",border:"none",color:"#475569",cursor:"pointer"}}>🗑️</button>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Bottom Nav */}
+                    <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#0a0f1e",borderTop:"1px solid #1e293b",display:"flex",padding:"8px 0",zIndex:100}}>
+                        {displayTabs.map(item=>(
+                            <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"6px 0"}}>
+                                <span style={{fontSize:20}}>{item.icon}</span>
+                                <span style={{fontSize:11,color:tab===item.id?"#22d3ee":"#475569",fontWeight:tab===item.id?700:400}}>{item.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* MODAL: Add Transaction */}
+                    {modal==="addTxn" && (
+                        <Modal title="عملية جديدة" onClose={()=>setModal(null)}>
+                            <Field label="نوع العملية">
+                                <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none"}}>
+                                    <option value="transfer">💸 تحويل (شيل فلوس)</option>
+                                    <option value="receive">📥 استلام (أخذ فلوس)</option>
+                                </select>
+                            </Field>
+
+                            <Field label="التاريخ"><Input value={form.date} onChange={v=>setForm(f=>({...f,date:v}))} type="date"/></Field>
+                            <Field label="الوقت"><Input value={form.time} onChange={v=>setForm(f=>({...f,time:v}))} type="time"/></Field>
+
+                            {form.type === "transfer" && (
+                                <>
+                                    <Field label="رقم المحول من"><Input value={form.fromNumber} onChange={v=>setForm(f=>({...f,fromNumber:v}))} placeholder="01xxxxxxxxx"/></Field>
+                                    <Field label="رقم المحول إليه"><Input value={form.toNumber} onChange={v=>setForm(f=>({...f,toNumber:v}))} placeholder="01xxxxxxxxx"/></Field>
+                                </>
+                            )}
+
+                            <Field label="اسم الشخص"><Input value={form.personName} onChange={v=>setForm(f=>({...f,personName:v}))} placeholder="محمود..."/></Field>
+                            <Field label="المبلغ"><Input value={form.amount} onChange={v=>setForm(f=>({...f,amount:v}))} placeholder="0" type="number"/></Field>
+                            
+                            <Field label="الخط/الفيزا">
+                                <select value={form.sourceId} onChange={e=>{const sel=sources.find(s=>s.id===e.target.value);setForm(f=>({...f,sourceId:e.target.value,sourceType:sel?.type||"line"}));}}
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:form.sourceId?"#e2e8f0":"#64748b",fontSize:14,outline:"none"}}>
+                                    <option value="">اختر</option>
+                                    <optgroup label="الخطوط">{lines.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</optgroup>
+                                    <optgroup label="الفيزا">{visas.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</optgroup>
+                                </select>
+                            </Field>
+
+                            {form.type === "transfer" && (
+                                <Field label="صورة">
+                                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                                        <button onClick={()=>fileRef.current.click()} style={{background:"#1e293b",border:"1px dashed #334155",borderRadius:10,padding:"10px 18px",color:"#94a3b8",fontSize:13,cursor:"pointer",flex:1}}>📷</button>
+                                        {form.image && <>
+                                            <img src={form.image} onClick={()=>setViewImg(form.image)} style={{width:50,height:50,borderRadius:8,objectFit:"cover",cursor:"pointer"}}/>
+                                            <button onClick={()=>setForm(f=>({...f,image:null}))} style={{background:"#ef444420",border:"none",borderRadius:8,color:"#ef4444",padding:"8px 10px",cursor:"pointer"}}>✕</button>
+                                        </>}
+                                    </div>
+                                    <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImagePick}/>
+                                </Field>
+                            )}
+
+                            <button onClick={addTransaction} style={{width:"100%",background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                        </Modal>
+                    )}
+
+                    {/* MODAL: Add Person */}
+                    {modal==="addPerson" && (
+                        <Modal title={editPersonId ? "تعديل" : "شخص جديد"} onClose={()=>setModal(null)}>
+                            <Field label="الاسم"><Input value={peopleForm.personName} onChange={v=>setPeopleForm(f=>({...f,personName:v}))} placeholder="محمود..."/></Field>
+                            <Field label="الدين الأولي"><Input value={peopleForm.initialDebt} onChange={v=>setPeopleForm(f=>({...f,initialDebt:v}))} placeholder="0" type="number"/></Field>
+                            <Field label="الوصف"><Input value={peopleForm.desc} onChange={v=>setPeopleForm(f=>({...f,desc:v}))} placeholder="ملاحظة..."/></Field>
+                            <button onClick={addOrUpdatePerson} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                        </Modal>
+                    )}
+
+                    {/* MODAL: Add Finance */}
+                    {modal==="addFinance" && (
+                        <Modal title="عملية مالية" onClose={()=>setModal(null)}>
+                            <Field label="النوع">
+                                <select value={financeForm.type} onChange={e=>setFinanceForm(f=>({...f, type: e.target.value}))}
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none"}}>
+                                    <option value="income">مكسب</option>
+                                    <option value="expense">مصاريف</option>
+                                </select>
+                            </Field>
+                            <Field label="المبلغ"><Input value={financeForm.amount} onChange={v=>setFinanceForm(f=>({...f, amount: v}))} placeholder="0" type="number"/></Field>
+                            <Field label="الوصف"><Input value={financeForm.desc} onChange={v=>setFinanceForm(f=>({...f, desc: v}))} placeholder="..."/></Field>
+                            <button onClick={addFinanceLog} style={{width:"100%",background: financeForm.type === "income" ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                        </Modal>
+                    )}
+
+                    {/* MODAL: Edit Capital */}
+                    {modal==="editCapital" && (
+                        <Modal title="تعديل رأس المال" onClose={()=>setModal(null)}>
+                            <Field label="المبلغ"><Input value={capitalInput} onChange={setCapitalInput} placeholder="0" type="number"/></Field>
+                            <button onClick={updateCapitalDirectly} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                        </Modal>
+                    )}
+
+                    {/* MODAL: Edit Line */}
+                    {modal==="editLine" && editLineId && (
+                        <EditSourceModal
+                            source={[...lines,...visas].find(s=>s.id===editLineId)}
+                            isVisa={editLineId.startsWith("visa")}
+                            onSave={updated=>{
+                                if (editLineId.startsWith("visa")) setVisas(p=>p.map(v=>v.id===editLineId?{...v,...updated}:v));
+                                else setLines(p=>p.map(l=>l.id===editLineId?{...l,...updated}:l));
+                                setModal(null); showToast("تم التحديث ✓");
+                            }}
+                            onClose={()=>setModal(null)}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        function Modal({title, onClose, children}) {
+            return (
+                <div style={{position:"fixed",inset:0,background:"#000a",zIndex:200,display:"flex",alignItems:"flex-end"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div style={{background:"#0a1628",borderRadius:"20px 20px 0 0",border:"1px solid #1e3a5f",padding:20,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                            <div style={{fontSize:17,fontWeight:700,color:"#e2e8f0"}}>{title}</div>
+                            <button onClick={onClose} style={{background:"#1e293b",border:"none",borderRadius:8,width:32,height:32,color:"#94a3b8",cursor:"pointer",fontSize:16}}>×</button>
+                        </div>
+                        {children}
+                    </div>
+                </div>
+            );
+        }
+
+        function Field({label, children}) {
+            return <div style={{marginBottom:14}}><div style={{fontSize:12,color:"#64748b",marginBottom:6,fontWeight:600}}>{label}</div>{children}</div>;
+        }
+
+        function Input({value, onChange, placeholder, type="text"}) {
+            return <input type={type} value={value} placeholder={placeholder} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",textAlign:"right"}}/>;
+        }
+
+        function EditSourceModal({source, isVisa, onSave, onClose}) {
+            const [name, setName] = useState(source.name);
+            const [number, setNumber] = useState(source.number||"");
+            return (
+                <Modal title="تعديل" onClose={onClose}>
+                    <Field label="الاسم"><Input value={name} onChange={setName} placeholder="..."/></Field>
+                    <Field label="الرقم"><Input value={number} onChange={setNumber} placeholder="01xxxxxxxxx"/></Field>
+                    <button onClick={()=>onSave({name,number})} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                </Modal>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
