@@ -932,11 +932,9 @@
                 const lastResetDay = loadFromLocalStorage('lastResetDay', null);
                 const todayStr = today();
                 if (lastResetDay && lastResetDay !== todayStr) {
-                    // أرشفة اليوم السابق أوتوماتيك
-                    saveDailySummary(true);
                     setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
                     setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
-                    showToast("تم التصفير والأرشفة اليومية التلقائية ✓");
+                    setTimeout(() => showToast("تم التصفير اليومي التلقائي ✓"), 500);
                 }
                 saveToLocalStorage('lastResetDay', todayStr);
             }, []);
@@ -947,7 +945,7 @@
                 sources.forEach(s => {
                     const pct = (s.usedMonth / s.monthlyLimit) * 100;
                     if (pct >= 80 && !warned.includes(s.id)) {
-                        showToast(`⚠️ ${s.name} وصل ${Math.round(pct)}% من الحد الشهري`, "error");
+                        setTimeout(() => showToast(`⚠️ ${s.name} وصل ${Math.round(pct)}% من الحد الشهري`, "error"), 100);
                         saveToLocalStorage('warnedSources', [...warned, s.id]);
                     }
                 });
