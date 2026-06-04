@@ -55,7 +55,7 @@
 <body>
     <div id="root"></div>
 
-    <!-- Firebase SDK - يجب أن يكون قبل أي scripts أخرى -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
@@ -83,22 +83,47 @@
 
         const firebaseApp = firebase.app();
         const db = firebase.database();
+        const auth = firebase.auth();
 
+        // ⭐ الحدود الصحيحة
         const LINES_LIMIT_MONTHLY = 200000;
         const LINES_LIMIT_DAILY = 60000;
         const VISA_LIMIT_MONTHLY = 200000;
         const VISA_LIMIT_DAILY = 30000;
 
         const initialLines = Array.from({ length: 16 }, (_, i) => ({
-            id: `line-${i + 1}`, name: `خط ${i + 1}`, number: "", usedToday: 0, usedMonth: 0,
+            id: `line-${i + 1}`, name: `خط ${i + 1}`, number: "", 
+            usedTodayTransfer: 0, usedMonthTransfer: 0,
+            usedTodayReceive: 0, usedMonthReceive: 0,
+            balance: 0, available: true,
         }));
         const initialVisas = Array.from({ length: 3 }, (_, i) => ({
-            id: `visa-${i + 1}`, name: `فيزا فوري ${i + 1}`, number: "", usedToday: 0, usedMonth: 0,
+            id: `visa-${i + 1}`, name: `فيزا فوري ${i + 1}`, number: "", 
+            usedTodayTransfer: 0, usedMonthTransfer: 0,
+            usedTodayReceive: 0, usedMonthReceive: 0,
+            balance: 0, available: true,
         }));
 
         const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance"];
-        const ADMIN_PASSWORD = "ziad2005";
-        const USER_PASSWORD = "2007";
+
+        // ⭐ localStorage Functions
+        const saveToLocalStorage = (key, data) => {
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (error) {
+                console.error(`Error saving to localStorage:`, error);
+            }
+        };
+
+        const loadFromLocalStorage = (key, defaultValue) => {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : defaultValue;
+            } catch (error) {
+                console.error(`Error loading from localStorage:`, error);
+                return defaultValue;
+            }
+        };
 
         function pad(n) { return String(n).padStart(2, "0"); }
         function nowStr() {
@@ -129,6 +154,58 @@
             return `${dayName} ${parts[2]}/${parts[1]}/${parts[0]}`;
         }
 
+        // ⭐ دالة ذكية لاستخراج البيانات من الرسالة
+        function parseSmartMessage(text, lines, visas) {
+            const result = {
+                amount: null,
+                personNumber: null,
+                lineId: null,
+                lineNum: null,
+                extractedText: ""
+            };
+
+            if (!text.trim()) return result;
+
+            // البحث عن المبلغ (رقم كبير مثل 1000 أو 500)
+            const amountMatch = text.match(/(\d{2,}(?:\.\d{1,2})?)/);
+            if (amountMatch) {
+                result.amount = parseFloat(amountMatch[1]);
+            }
+
+            // البحث عن رقم العميل (01XXXXXXXXX)
+            const phoneMatch = text.match(/(?:^|\s)(01[0-9]{9})(?:\s|$)/);
+            if (phoneMatch) {
+                result.personNumber = phoneMatch[1];
+            }
+
+            // البحث عن اسم الخط أو رقمه (خط 1، خط 2، الخط الأول، إلخ)
+            const allSources = [...lines, ...visas];
+            
+            // البحث بالاسم
+            for (const source of allSources) {
+                if (source.name && text.includes(source.name)) {
+                    result.lineId = source.id;
+                    break;
+                }
+            }
+
+            // البحث برقم الخط (1-16)
+            if (!result.lineId) {
+                const lineNumMatch = text.match(/خط\s*(\d+)|الخط\s*(\d+)|line\s*(\d+)/i);
+                if (lineNumMatch) {
+                    const num = lineNumMatch[1] || lineNumMatch[2] || lineNumMatch[3];
+                    const lineSource = allSources.find(s => s.name.includes(`خط ${num}`));
+                    if (lineSource) {
+                        result.lineId = lineSource.id;
+                        result.lineNum = num;
+                    }
+                }
+            }
+
+            result.extractedText = text;
+            return result;
+        }
+
         function ProgressBar({ used, limit, color }) {
             const pct = Math.min((used / limit) * 100, 100);
             const danger = pct >= 85; const warn = pct >= 60;
@@ -140,27 +217,42 @@
         }
 
         function LoginPage({ onLogin }) {
+            const [email, setEmail] = useState("");
             const [password, setPassword] = useState("");
             const [error, setError] = useState("");
+            const [loading, setLoading] = useState(false);
             const [showPassword, setShowPassword] = useState(false);
 
-            const handleLogin = () => {
-                if (password === ADMIN_PASSWORD) {
-                    onLogin("admin");
-                    setPassword("");
-                    setError("");
-                } else if (password === USER_PASSWORD) {
-                    onLogin("user");
-                    setPassword("");
-                    setError("");
-                } else {
-                    setError("كلمة المرور خاطئة!");
-                    setPassword("");
+            // ADMIN_EMAIL يحدده أنت من Firebase Console
+            const ADMIN_EMAIL = "ziad@gmail.com";
+
+            const handleLogin = async () => {
+                if (!email.trim() || !password.trim()) {
+                    setError("أدخل الإيميل وكلمة المرور");
+                    return;
+                }
+                setLoading(true);
+                setError("");
+                try {
+                    const result = await auth.signInWithEmailAndPassword(email.trim(), password);
+                    const role = result.user.email === ADMIN_EMAIL ? "admin" : "user";
+                    onLogin(role, result.user);
+                } catch (err) {
+                    const msgs = {
+                        "auth/user-not-found": "الإيميل غير موجود",
+                        "auth/wrong-password": "كلمة المرور خاطئة",
+                        "auth/invalid-email": "صيغة الإيميل غير صحيحة",
+                        "auth/too-many-requests": "محاولات كثيرة، حاول لاحقاً",
+                        "auth/invalid-credential": "بيانات الدخول غير صحيحة",
+                    };
+                    setError(msgs[err.code] || "خطأ في تسجيل الدخول");
+                } finally {
+                    setLoading(false);
                 }
             };
 
             const handleGuest = () => {
-                onLogin("guest");
+                onLogin("guest", null);
             };
 
             return (
@@ -172,13 +264,25 @@
                         <p style={{fontSize:14, color:"#94a3b8", marginBottom:40}}>مدير الخزينة والعمليات المالية</p>
 
                         <div style={{background:"#0f1e3d", border:"1px solid #1e3a5f", borderRadius:16, padding:30, marginBottom:20}}>
+                            
+                            <div style={{marginBottom:16}}>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={e => { setEmail(e.target.value); setError(""); }}
+                                    onKeyPress={e => e.key === "Enter" && handleLogin()}
+                                    placeholder="الإيميل"
+                                    style={{width:"100%", background:"#0a0f1e", border:"1px solid #1e3a5f", borderRadius:12, padding:"14px", color:"#e2e8f0", fontSize:15, outline:"none", boxSizing:"border-box", textAlign:"right", direction:"ltr"}}
+                                />
+                            </div>
+
                             <div style={{position:"relative", marginBottom:20}}>
                                 <input 
                                     type={showPassword ? "text" : "password"}
                                     value={password}
                                     onChange={e => {setPassword(e.target.value); setError("");}}
                                     onKeyPress={e => e.key === "Enter" && handleLogin()}
-                                    placeholder="أدخل كلمة المرور"
+                                    placeholder="كلمة المرور"
                                     style={{width:"100%", background:"#0a0f1e", border:"1px solid #1e3a5f", borderRadius:12, padding:"14px 40px 14px 14px", color:"#e2e8f0", fontSize:15, outline:"none", boxSizing:"border-box", textAlign:"right"}}
                                 />
                                 <button 
@@ -193,9 +297,10 @@
 
                             <button 
                                 onClick={handleLogin}
-                                style={{width:"100%", background:"linear-gradient(135deg,#e40000,#cc0000)", border:"none", borderRadius:12, padding:14, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 15px #e4000040", marginBottom:12}}
+                                disabled={loading}
+                                style={{width:"100%", background: loading ? "#666" : "linear-gradient(135deg,#e40000,#cc0000)", border:"none", borderRadius:12, padding:14, color:"#fff", fontSize:16, fontWeight:700, cursor: loading ? "not-allowed" : "pointer", boxShadow:"0 4px 15px #e4000040", marginBottom:12, opacity: loading ? 0.7 : 1}}
                             >
-                                دخول
+                                {loading ? "جاري الدخول..." : "دخول"}
                             </button>
 
                             <button 
@@ -211,18 +316,38 @@
         }
 
         function App() {
-            const [userRole, setUserRole] = useState(() => {
-                const stored = sessionStorage.getItem("userRole");
-                return stored || null;
-            });
+            const [userRole, setUserRole] = useState(null);
+            const [firebaseUser, setFirebaseUser] = useState(null);
+            const [authLoading, setAuthLoading] = useState(true);
             const [tab, setTab] = useState("dashboard");
-            const [lines, setLines] = useState(initialLines);
-            const [visas, setVisas] = useState(initialVisas);
-            const [transactions, setTransactions] = useState([]);
-            const [people, setPeople] = useState([]);
-            const [capital, setCapital] = useState(0);
-            const [financeLogs, setFinanceLogs] = useState([]);
+            
+            // ⭐ Load from localStorage on first load
+            const [lines, setLines] = useState(() => loadFromLocalStorage('lines', initialLines));
+            const [visas, setVisas] = useState(() => loadFromLocalStorage('visas', initialVisas));
+            const [transactions, setTransactions] = useState(() => loadFromLocalStorage('transactions', []));
+            const [people, setPeople] = useState(() => loadFromLocalStorage('people', []));
+            const [capital, setCapital] = useState(() => loadFromLocalStorage('capital', 0));
+            const [financeLogs, setFinanceLogs] = useState(() => loadFromLocalStorage('financeLogs', []));
+            
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
+
+            // ⭐ Firebase Auth Listener - يحفظ الجلسة أوتوماتيك
+            useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        const ADMIN_EMAIL = "ziad@gmail.com";
+                        const role = user.email === ADMIN_EMAIL ? "admin" : "user";
+                        setFirebaseUser(user);
+                        setUserRole(role);
+                    } else {
+                        // مش logged in - لو كان guest نحتفظ بيه
+                        setFirebaseUser(null);
+                        setUserRole(prev => prev === "guest" ? "guest" : null);
+                    }
+                    setAuthLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
 
             const [modal, setModal] = useState(null);
             const [editLineId, setEditLineId] = useState(null);
@@ -230,6 +355,7 @@
             const [filter, setFilter] = useState("all");
             const [searchQ, setSearchQ] = useState("");
             const [toast, setToast] = useState(null);
+            const [financeTab, setFinanceTab] = useState("daily");
             
             const [form, setForm] = useState({ 
                 type: "transfer",
@@ -244,12 +370,15 @@
                 image: null 
             });
 
+            // ⭐ حقل Paste الذكي الجديد
+            const [smartPaste, setSmartPaste] = useState("");
+
             const [financeForm, setFinanceForm] = useState({ type: "income", amount: "", desc: "" });
             const [capitalInput, setCapitalInput] = useState("");
             const [viewImg, setViewImg] = useState(null);
             const fileRef = useRef();
 
-            const [peopleForm, setPeopleForm] = useState({ personName: "", initialDebt: "", desc: "" });
+            const [peopleForm, setPeopleForm] = useState({ personName: "", debtAmount: "", desc: "" });
             const [editPersonId, setEditPersonId] = useState(null);
             const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -259,6 +388,7 @@
             // Save to Firebase
             const saveToFirebase = (path, data) => {
                 if (!userRole || userRole === "guest") return;
+                if (!auth.currentUser) return;
                 try {
                     db.ref(path).set(data);
                 } catch (error) {
@@ -314,39 +444,121 @@
                 };
             }, [userRole]);
 
-            // Auto-save to Firebase
-            useEffect(() => { saveToFirebase('lines', lines); }, [lines]);
-            useEffect(() => { saveToFirebase('visas', visas); }, [visas]);
-            useEffect(() => { saveToFirebase('transactions', transactions); }, [transactions]);
-            useEffect(() => { saveToFirebase('people', people); }, [people]);
-            useEffect(() => { saveToFirebase('capital', capital); }, [capital]);
-            useEffect(() => { saveToFirebase('financeLogs', financeLogs); }, [financeLogs]);
+            // ⭐ Auto-save to localStorage AND Firebase
+            useEffect(() => { 
+                saveToLocalStorage('lines', lines);
+                saveToFirebase('lines', lines); 
+            }, [lines, userRole]);
+            
+            useEffect(() => { 
+                saveToLocalStorage('visas', visas);
+                saveToFirebase('visas', visas); 
+            }, [visas, userRole]);
+            
+            useEffect(() => { 
+                saveToLocalStorage('transactions', transactions);
+                saveToFirebase('transactions', transactions); 
+            }, [transactions, userRole]);
+            
+            useEffect(() => { 
+                saveToLocalStorage('people', people);
+                saveToFirebase('people', people); 
+            }, [people, userRole]);
+            
+            useEffect(() => { 
+                saveToLocalStorage('capital', capital);
+                saveToFirebase('capital', capital); 
+            }, [capital, userRole]);
+            
+            useEffect(() => { 
+                saveToLocalStorage('financeLogs', financeLogs);
+                saveToFirebase('financeLogs', financeLogs); 
+            }, [financeLogs, userRole]);
+
+            if (authLoading) {
+                return (
+                    <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <div style={{textAlign:"center"}}>
+                            <div style={{width:60,height:60,borderRadius:15,background:"linear-gradient(135deg,#e40000,#cc0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,fontWeight:900,color:"#fff",margin:"0 auto 20px"}}>V</div>
+                            <div className="loading-spinner" style={{margin:"0 auto"}}></div>
+                        </div>
+                    </div>
+                );
+            }
 
             if (!userRole) {
-                return <LoginPage onLogin={(role) => {
+                return <LoginPage onLogin={(role, user) => {
                     setUserRole(role);
-                    sessionStorage.setItem("userRole", role);
+                    setFirebaseUser(user);
                 }} />;
             }
 
             function logout() {
+                if (firebaseUser) {
+                    auth.signOut();
+                }
                 setUserRole(null);
-                sessionStorage.removeItem("userRole");
+                setFirebaseUser(null);
                 setTab("dashboard");
             }
 
             function showToast(msg, type="success") { setToast({msg,type}); setTimeout(()=>setToast(null),3000); }
 
             const sources = [
-                ...lines.map(l => ({...l, type:"line", dailyLimit:LINES_LIMIT_DAILY, monthlyLimit:LINES_LIMIT_MONTHLY})),
-                ...visas.map(v => ({...v, type:"visa", dailyLimit:VISA_LIMIT_DAILY, monthlyLimit:VISA_LIMIT_MONTHLY})),
+                ...lines.map(l => ({...l, type:"line", dailyLimit:LINES_LIMIT_DAILY, monthlyLimit:LINES_LIMIT_MONTHLY,
+                    usedToday: (l.usedTodayTransfer||0)+(l.usedTodayReceive||0),
+                    usedMonth: (l.usedMonthTransfer||0)+(l.usedMonthReceive||0),
+                })),
+                ...visas.map(v => ({...v, type:"visa", dailyLimit:VISA_LIMIT_DAILY, monthlyLimit:VISA_LIMIT_MONTHLY,
+                    usedToday: (v.usedTodayTransfer||0)+(v.usedTodayReceive||0),
+                    usedMonth: (v.usedMonthTransfer||0)+(v.usedMonthReceive||0),
+                })),
             ];
 
             function handleImagePick(e) {
                 const file = e.target.files[0]; if (!file) return;
+                // ⭐ الصورة تتحفظ في localStorage فقط - Database بيشيل المفتاح بس
+                const imageKey = `img_${Date.now()}`;
                 const reader = new FileReader();
-                reader.onload = ev => setForm(f => ({...f, image: ev.target.result}));
+                reader.onload = ev => {
+                    try {
+                        localStorage.setItem(imageKey, ev.target.result);
+                        setForm(f => ({...f, image: imageKey}));
+                        showToast("✓ تم حفظ الصورة");
+                    } catch (err) {
+                        showToast("فشل حفظ الصورة - جرب صورة أصغر", "error");
+                    }
+                };
                 reader.readAsDataURL(file);
+            }
+
+            // ⭐ جلب الصورة الحقيقية من localStorage باستخدام المفتاح
+            function getImageSrc(imageRef) {
+                if (!imageRef) return null;
+                if (imageRef.startsWith("http") || imageRef.startsWith("data:")) return imageRef;
+                return localStorage.getItem(imageRef) || null;
+            }
+
+            // ⭐ دالة معالجة الـ Smart Paste
+            function handleSmartPaste() {
+                const parsed = parseSmartMessage(smartPaste, lines, visas);
+                
+                if (parsed.amount) {
+                    setForm(f => ({...f, amount: String(parsed.amount)}));
+                }
+                
+                if (parsed.personNumber) {
+                    setForm(f => ({...f, toNumber: parsed.personNumber}));
+                }
+                
+                if (parsed.lineId) {
+                    const source = sources.find(s => s.id === parsed.lineId);
+                    setForm(f => ({...f, sourceId: parsed.lineId, sourceType: source?.type || "line"}));
+                    showToast(`✅ تم تحديد ${source?.name} تلقائياً`);
+                }
+                
+                setSmartPaste("");
+                showToast("✓ تم استخراج البيانات");
             }
 
             function addTransaction() {
@@ -380,7 +592,7 @@
                 };
 
                 setTransactions(prev => [newTxn, ...prev]);
-                updateSource(form.sourceId, form.sourceType, amount);
+                updateSource(form.sourceId, form.sourceType, amount, form.type);
 
                 const existingPerson = people.find(p => p.personName.toLowerCase() === personName.toLowerCase());
                 if (existingPerson) {
@@ -412,76 +624,169 @@
                 setModal(null);
             }
 
-            function updateSource(sourceId, sourceType, amount) {
+            function updateSource(sourceId, sourceType, amount, txnType) {
+                const delta = txnType === "transfer" ? -amount : amount;
                 if (sourceType === "line") {
-                    setLines(prev => prev.map(l => 
-                        l.id === sourceId 
-                            ? {...l, usedToday: l.usedToday + amount, usedMonth: l.usedMonth + amount}
-                            : l
-                    ));
+                    setLines(prev => prev.map(l => {
+                        if (l.id !== sourceId) return l;
+                        return {
+                            ...l,
+                            usedTodayTransfer: (l.usedTodayTransfer||0) + (txnType==="transfer" ? amount : 0),
+                            usedMonthTransfer: (l.usedMonthTransfer||0) + (txnType==="transfer" ? amount : 0),
+                            usedTodayReceive:  (l.usedTodayReceive||0)  + (txnType==="receive"  ? amount : 0),
+                            usedMonthReceive:  (l.usedMonthReceive||0)  + (txnType==="receive"  ? amount : 0),
+                            balance: (l.balance||0) + delta
+                        };
+                    }));
                 } else {
-                    setVisas(prev => prev.map(v => 
-                        v.id === sourceId 
-                            ? {...v, usedToday: v.usedToday + amount, usedMonth: v.usedMonth + amount}
-                            : v
-                    ));
+                    setVisas(prev => prev.map(v => {
+                        if (v.id !== sourceId) return v;
+                        return {
+                            ...v,
+                            usedTodayTransfer: (v.usedTodayTransfer||0) + (txnType==="transfer" ? amount : 0),
+                            usedMonthTransfer: (v.usedMonthTransfer||0) + (txnType==="transfer" ? amount : 0),
+                            usedTodayReceive:  (v.usedTodayReceive||0)  + (txnType==="receive"  ? amount : 0),
+                            usedMonthReceive:  (v.usedMonthReceive||0)  + (txnType==="receive"  ? amount : 0),
+                            balance: (v.balance||0) + delta
+                        };
+                    }));
                 }
             }
 
             function deleteTransaction(txn) {
                 setTransactions(prev => prev.filter(t => t.id !== txn.id));
+                const delta = txn.type === "transfer" ? txn.amount : -txn.amount;
                 if (txn.sourceType === "line") {
-                    setLines(prev => prev.map(l => 
-                        l.id === txn.sourceId 
-                            ? {...l, usedToday: Math.max(0, l.usedToday - txn.amount), usedMonth: Math.max(0, l.usedMonth - txn.amount)}
-                            : l
-                    ));
+                    setLines(prev => prev.map(l => {
+                        if (l.id !== txn.sourceId) return l;
+                        return {
+                            ...l,
+                            usedTodayTransfer: Math.max(0, (l.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedMonthTransfer: Math.max(0, (l.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedTodayReceive:  Math.max(0, (l.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            usedMonthReceive:  Math.max(0, (l.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            balance: (l.balance||0) + delta
+                        };
+                    }));
                 } else {
-                    setVisas(prev => prev.map(v => 
-                        v.id === txn.sourceId 
-                            ? {...v, usedToday: Math.max(0, v.usedToday - txn.amount), usedMonth: Math.max(0, v.usedMonth - txn.amount)}
-                            : v
-                    ));
+                    setVisas(prev => prev.map(v => {
+                        if (v.id !== txn.sourceId) return v;
+                        return {
+                            ...v,
+                            usedTodayTransfer: Math.max(0, (v.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedMonthTransfer: Math.max(0, (v.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedTodayReceive:  Math.max(0, (v.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            usedMonthReceive:  Math.max(0, (v.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            balance: (v.balance||0) + delta
+                        };
+                    }));
                 }
                 setConfirmDelete(null);
                 showToast("تم حذف التحويل ✓");
             }
 
-            function addOrUpdatePerson() {
+            // ⭐ عكس العملية - بيرجع الأرقام كأن شيئاً لم يكن
+            function reverseTransaction(txn) {
+                // نوع معكوس: لو كان transfer يبقى receive والعكس
+                const reversedType = txn.type === "transfer" ? "receive" : "transfer";
+                const delta = txn.type === "transfer" ? txn.amount : -txn.amount;
+
+                // نحذف العملية من القائمة
+                setTransactions(prev => prev.filter(t => t.id !== txn.id));
+
+                // نعكس أرقام الخط/الفيزا
+                if (txn.sourceType === "line") {
+                    setLines(prev => prev.map(l => {
+                        if (l.id !== txn.sourceId) return l;
+                        return {
+                            ...l,
+                            usedTodayTransfer: Math.max(0, (l.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedMonthTransfer: Math.max(0, (l.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedTodayReceive:  Math.max(0, (l.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            usedMonthReceive:  Math.max(0, (l.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            balance: (l.balance||0) + delta
+                        };
+                    }));
+                } else {
+                    setVisas(prev => prev.map(v => {
+                        if (v.id !== txn.sourceId) return v;
+                        return {
+                            ...v,
+                            usedTodayTransfer: Math.max(0, (v.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedMonthTransfer: Math.max(0, (v.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                            usedTodayReceive:  Math.max(0, (v.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            usedMonthReceive:  Math.max(0, (v.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                            balance: (v.balance||0) + delta
+                        };
+                    }));
+                }
+
+                // نعكس سجل الشخص لو موجود
+                setPeople(prev => prev.map(p => {
+                    if (p.personName.toLowerCase() !== txn.personName?.toLowerCase()) return p;
+                    return {
+                        ...p,
+                        records: (p.records || []).filter(r => !(
+                            Math.abs(r.amount) === txn.amount &&
+                            r.date === (txn.dateTime || txn.date)
+                        )),
+                        lastUpdated: nowStr()
+                    };
+                }));
+
+                setConfirmDelete(null);
+                showToast("↩️ تم عكس العملية وإرجاع الأرقام ✓");
+            }
+
+            // ⭐ إضافة دين جديد للشخص
+            function addDebtToPerson() {
                 const personName = peopleForm.personName.trim();
-                const initialDebt = parseFloat(peopleForm.initialDebt);
-                if (!personName || !initialDebt || initialDebt <= 0 || !peopleForm.desc.trim()) {
+                const debtAmount = parseFloat(peopleForm.debtAmount);
+                if (!personName || !debtAmount || debtAmount <= 0 || !peopleForm.desc.trim()) {
                     showToast("أكمل كل البيانات بشكل صحيح", "error");
                     return;
                 }
 
-                if (editPersonId) {
-                    setPeople(prev => prev.map(p => p.id === editPersonId ? {
-                        ...p, personName, initialDebt, desc: peopleForm.desc, lastUpdated: nowStr()
-                    } : p));
-                    showToast("تم تحديث الشخص ✓");
-                    setEditPersonId(null);
+                const existingPerson = people.find(p => p.personName.toLowerCase() === personName.toLowerCase());
+                if (existingPerson) {
+                    // إضافة دين جديد للشخص الموجود
+                    setPeople(prev => prev.map(p => {
+                        if (p.id !== existingPerson.id) return p;
+                        const newRecord = {
+                            id: Date.now(),
+                            type: "debt",
+                            amount: debtAmount,
+                            date: nowStr(),
+                            description: `دين جديد: ${formatNum(debtAmount)} ج - ${peopleForm.desc}`
+                        };
+                        return {
+                            ...p,
+                            records: [...(p.records || []), newRecord],
+                            lastUpdated: nowStr()
+                        };
+                    }));
+                    showToast(`تم إضافة دين جديد لـ ${personName} ✓`);
                 } else {
+                    // إنشاء شخص جديد بأول دين
                     const newPerson = {
                         id: Date.now(),
                         personName,
-                        initialDebt,
                         desc: peopleForm.desc,
                         records: [{
                             id: Date.now(),
-                            type: "initial",
-                            amount: initialDebt,
+                            type: "debt",
+                            amount: debtAmount,
                             date: nowStr(),
-                            description: `دين أولي: ${formatNum(initialDebt)} ج`
+                            description: `دين أولي: ${formatNum(debtAmount)} ج`
                         }],
                         createdAt: nowStr(),
                         lastUpdated: nowStr()
                     };
                     setPeople(prev => [newPerson, ...prev]);
-                    showToast("تم إضافة الشخص ✓");
+                    showToast("تم إضافة الشخص بنجاح ✓");
                 }
 
-                setPeopleForm({ personName: "", initialDebt: "", desc: "" });
+                setPeopleForm({ personName: "", debtAmount: "", desc: "" });
                 setModal(null);
             }
 
@@ -537,7 +842,8 @@
                     amount: amt,
                     desc: financeForm.desc,
                     date: nowStr(),
-                    monthDate: currentMonthStr()
+                    monthDate: currentMonthStr(),
+                    logType: financeTab,
                 };
 
                 setFinanceLogs(prev => [newLog, ...prev]);
@@ -561,8 +867,91 @@
                 showToast("تم تحديث رأس المال ✓");
             }
 
-            function resetDaily() { setLines(p=>p.map(l=>({...l,usedToday:0}))); setVisas(p=>p.map(v=>({...v,usedToday:0}))); showToast("تم تصفير اليومي ✓"); }
-            function resetMonthly() { setLines(p=>p.map(l=>({...l,usedToday:0,usedMonth:0}))); setVisas(p=>p.map(v=>({...v,usedToday:0,usedMonth:0}))); showToast("تم تصفير الشهري ✓"); }
+            function saveDailySummary(isAutomatic = false) {
+                const todayStr = today();
+                const todayTxnsToArchive = transactions.filter(t => t.date === todayStr);
+                const todayIncome = financeLogs.filter(l => l.date && l.date.startsWith(todayStr) && l.type === "income").reduce((s, l) => s + l.amount, 0);
+                const todayExpense = financeLogs.filter(l => l.date && l.date.startsWith(todayStr) && l.type === "expense").reduce((s, l) => s + l.amount, 0);
+                
+                const totalTransferred = todayTxnsToArchive.filter(t => t.type === "transfer").reduce((s, t) => s + t.amount, 0);
+                const totalReceived = todayTxnsToArchive.filter(t => t.type === "receive").reduce((s, t) => s + t.amount, 0);
+
+                const summary = {
+                    date: todayStr,
+                    savedAt: nowStr(),
+                    isAutomatic,
+                    totalTransactions: todayTxnsToArchive.length,
+                    totalTransferred,
+                    totalReceived,
+                    income: todayIncome,
+                    expense: todayExpense,
+                    netProfit: todayIncome - todayExpense,
+                    capital,
+                    linesSnapshot: lines.map(l => ({
+                        id: l.id, name: l.name, number: l.number,
+                        usedTodayTransfer: l.usedTodayTransfer || 0,
+                        usedTodayReceive: l.usedTodayReceive || 0,
+                        usedMonthTransfer: l.usedMonthTransfer || 0,
+                        usedMonthReceive: l.usedMonthReceive || 0,
+                        balance: l.balance || 0,
+                    })),
+                    visasSnapshot: visas.map(v => ({
+                        id: v.id, name: v.name, number: v.number,
+                        usedTodayTransfer: v.usedTodayTransfer || 0,
+                        usedTodayReceive: v.usedTodayReceive || 0,
+                        usedMonthTransfer: v.usedMonthTransfer || 0,
+                        usedMonthReceive: v.usedMonthReceive || 0,
+                        balance: v.balance || 0,
+                    })),
+                };
+
+                // حفظ في Firebase تحت daily_summaries/YYYY-MM-DD
+                if (auth.currentUser) {
+                    db.ref(`daily_summaries/${todayStr}`).set(summary)
+                        .then(() => showToast(`✓ تم أرشفة يوم ${todayStr}`))
+                        .catch(() => showToast("فشل الأرشفة", "error"));
+                }
+                
+                return summary;
+            }
+
+            function resetDaily() {
+                saveDailySummary(false);
+                setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0}))); 
+                setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0}))); 
+                showToast("تم الأرشفة والتصفير اليومي ✓"); 
+            }
+            function resetMonthly() { 
+                setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}))); 
+                setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}))); 
+                showToast("تم تصفير الشهري ✓"); 
+            }
+
+            // ⭐ Auto daily reset + أرشفة تلقائية
+            useEffect(() => {
+                const lastResetDay = loadFromLocalStorage('lastResetDay', null);
+                const todayStr = today();
+                if (lastResetDay && lastResetDay !== todayStr) {
+                    // أرشفة اليوم السابق أوتوماتيك
+                    saveDailySummary(true);
+                    setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
+                    setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                    showToast("تم التصفير والأرشفة اليومية التلقائية ✓");
+                }
+                saveToLocalStorage('lastResetDay', todayStr);
+            }, []);
+
+            // ⭐ Alert when line hits 80%
+            useEffect(() => {
+                const warned = loadFromLocalStorage('warnedSources', []);
+                sources.forEach(s => {
+                    const pct = (s.usedMonth / s.monthlyLimit) * 100;
+                    if (pct >= 80 && !warned.includes(s.id)) {
+                        showToast(`⚠️ ${s.name} وصل ${Math.round(pct)}% من الحد الشهري`, "error");
+                        saveToLocalStorage('warnedSources', [...warned, s.id]);
+                    }
+                });
+            }, [lines, visas]);
 
             function deleteFinanceLog(log) {
                 setFinanceLogs(prev => prev.filter(item => item.id !== log.id));
@@ -599,9 +988,9 @@
             const todayTxns = transactions.filter(t => t.date === today());
             
             const getPersonBalance = (person) => {
-                let balance = person.initialDebt;
+                let balance = 0;
                 if (person.records && person.records.length > 0) {
-                    balance = person.initialDebt + person.records.reduce((sum, r) => sum + (r.amount || 0), 0);
+                    balance = person.records.reduce((sum, r) => sum + (r.amount || 0), 0);
                 }
                 return Math.max(0, balance);
             };
@@ -610,8 +999,15 @@
 
             const thisMonth = currentMonthStr();
             const monthlyLogs = financeLogs.filter(l => l.monthDate === thisMonth);
-            const monthIncome = monthlyLogs.filter(l => l.type === "income").reduce((s, l) => s + l.amount, 0);
-            const monthExpense = monthlyLogs.filter(l => l.type === "expense").reduce((s, l) => s + l.amount, 0);
+            
+            // ⭐ فصل اليومي والشهري
+            const dailyLogs = monthlyLogs.filter(l => l.logType === "daily");
+            const monthlyFinanceLogs = monthlyLogs.filter(l => l.logType === "monthly");
+            
+            const currentLogs = financeTab === "daily" ? dailyLogs : monthlyFinanceLogs;
+            
+            const monthIncome = currentLogs.filter(l => l.type === "income").reduce((s, l) => s + l.amount, 0);
+            const monthExpense = currentLogs.filter(l => l.type === "expense").reduce((s, l) => s + l.amount, 0);
             const netMonthProfit = monthIncome - monthExpense;
 
             const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
@@ -619,9 +1015,7 @@
             const isUser = userRole === "user";
             const isGuest = userRole === "guest";
 
-            const tabs = isAdmin 
-                ? ["dashboard", "transactions", "people", "lines", "finance"]
-                : ["dashboard", "transactions", "people", "lines", "finance"];
+            const tabs = ["dashboard", "transactions", "people", "lines", "finance"];
 
             const displayTabs = [
                 {id:"dashboard",icon:"🏠",label:"الرئيسية"},
@@ -667,13 +1061,18 @@
                         <div style={{position:"fixed",inset:0,background:"#000a",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
                             <div style={{background:"#0a1628",borderRadius:16,border:"1px solid #1e3a5f",padding:24,width:"90%",maxWidth:320,textAlign:"center"}}>
                                 <div style={{fontSize:16,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>تأكيد الحذف</div>
-                                <div style={{fontSize:14,color:"#94a3b8",marginBottom:20}}>هل متأكد من الحذف؟</div>
+                                <div style={{fontSize:14,color:"#94a3b8",marginBottom:20}}>
+                                    {confirmDelete.type==="reverse" ? "هيتم عكس العملية وإرجاع الأرقام كأن شيئاً لم يكن" : "هل متأكد من الحذف؟"}
+                                </div>
                                 <div style={{display:"flex",gap:10}}>
                                     <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:"#1e293b",border:"none",borderRadius:10,padding:12,color:"#94a3b8",cursor:"pointer",fontWeight:600}}>إلغاء</button>
                                     <button onClick={()=>{
                                         if (confirmDelete.type === "txn") deleteTransaction(confirmDelete.data);
+                                        else if (confirmDelete.type === "reverse") reverseTransaction(confirmDelete.data);
                                         else deletePerson(confirmDelete.data);
-                                    }} style={{flex:1,background:"#ef4444",border:"none",borderRadius:10,padding:12,color:"#fff",cursor:"pointer",fontWeight:600}}>حذف</button>
+                                    }} style={{flex:1,background:confirmDelete.type==="reverse"?"#f59e0b":"#ef4444",border:"none",borderRadius:10,padding:12,color:"#fff",cursor:"pointer",fontWeight:600}}>
+                                        {confirmDelete.type==="reverse" ? "↩️ عكس" : "حذف"}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -696,7 +1095,7 @@
                             <div>
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
                                     {[
-                                        {label:"اليوم",value:todayTxns.length,icon:"📊",color:"#22d3ee"},
+                                        {label:"عمليات اليوم",value:todayTxns.length,icon:"📊",color:"#22d3ee"},
                                         {label:"رأس المال",value:formatNum(capital)+" ج",icon:"👑",color:"#f59e0b"},
                                         {label:"الديون الباقية",value:formatNum(totalDebt)+" ج",icon:"💳",color:"#ef4444"},
                                         {label:"صافي الشهر",value:formatNum(netMonthProfit)+" ج",icon:"📈",color:"#a78bfa"},
@@ -707,6 +1106,25 @@
                                             <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{c.label}</div>
                                         </div>
                                     ))}
+                                </div>
+
+                                {/* ⭐ ملخص اليوم */}
+                                <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #22d3ee30",borderRadius:14,padding:14,marginBottom:16}}>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#22d3ee",marginBottom:10}}>📅 ملخص اليوم</div>
+                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                                        <div style={{textAlign:"center"}}>
+                                            <div style={{fontSize:18,fontWeight:900,color:"#e2e8f0"}}>{todayTxns.length}</div>
+                                            <div style={{fontSize:10,color:"#64748b"}}>عملية</div>
+                                        </div>
+                                        <div style={{textAlign:"center"}}>
+                                            <div style={{fontSize:18,fontWeight:900,color:"#10b981"}}>{formatNum(todayTxns.filter(t=>t.type==="transfer").reduce((s,t)=>s+t.amount,0))}</div>
+                                            <div style={{fontSize:10,color:"#64748b"}}>تحويل ج</div>
+                                        </div>
+                                        <div style={{textAlign:"center"}}>
+                                            <div style={{fontSize:18,fontWeight:900,color:"#f59e0b"}}>{formatNum(todayTxns.filter(t=>t.type==="receive").reduce((s,t)=>s+t.amount,0))}</div>
+                                            <div style={{fontSize:10,color:"#64748b"}}>استلام ج</div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {alertSources.length>0 && (
@@ -730,7 +1148,14 @@
                                             </div>
                                             <div style={{display:"flex",gap:8}}>
                                                 {t.image && <button onClick={()=>setViewImg(t.image)} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"4px 8px",color:"#94a3b8",cursor:"pointer"}}>🖼</button>}
-                                                {isAdmin && <button onClick={()=>setConfirmDelete({type:"txn",data:t})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>}
+                                                {isAdmin && (
+                                                <div style={{display:"flex",gap:6}}>
+                                                    <button onClick={()=>setConfirmDelete({type:"reverse",data:t})} 
+                                                        style={{background:"#f59e0b20",border:"1px solid #f59e0b",borderRadius:8,padding:"4px 10px",color:"#f59e0b",cursor:"pointer",fontSize:12,fontWeight:700}}>↩️ عكس</button>
+                                                    <button onClick={()=>setConfirmDelete({type:"txn",data:t})} 
+                                                        style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>
+                                                </div>
+                                            )}
                                             </div>
                                         </div>
                                         <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
@@ -744,24 +1169,42 @@
                         {/* TRANSACTIONS */}
                         {tab==="transactions" && (
                             <div>
-                                <input placeholder="🔍 ابحث" value={searchQ} onChange={e=>setSearchQ(e.target.value)}
+                                <input placeholder="🔍 ابحث باسم، رقم، مبلغ، تاريخ" value={searchQ} onChange={e=>setSearchQ(e.target.value)}
                                     style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 16px",color:"#e2e8f0",fontSize:14,marginBottom:12,boxSizing:"border-box",outline:"none",textAlign:"right"}}/>
                                 
-                                {transactions.filter(t => !searchQ || t.personName.includes(searchQ) || t.fromNumber?.includes(searchQ)).map(t=>(
+                                {isAdmin && (
+                                    <button onClick={()=>{
+                                        const rows = [["الاسم","النوع","المبلغ","من","إلى","التاريخ"],...transactions.map(t=>[t.personName,t.type==="transfer"?"تحويل":"استلام",t.amount,t.fromNumber||"",t.toNumber||"",t.dateTime||t.date])];
+                                        const csv = rows.map(r=>r.join(",")).join("\n");
+                                        const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement("a"); a.href=url; a.download="transactions.csv"; a.click();
+                                        URL.revokeObjectURL(url);
+                                    }} style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:11,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:12}}>📥 تصدير CSV</button>
+                                )}
+                                
+                                {transactions.filter(t => !searchQ || t.personName.includes(searchQ) || t.fromNumber?.includes(searchQ) || t.toNumber?.includes(searchQ) || String(t.amount).includes(searchQ) || t.date?.includes(searchQ)).map(t=>(
                                     <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                             <div>
                                                 <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{t.type === "transfer" ? "💸" : "📥"} {t.personName}</div>
                                                 <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateArabic(t.date)} - {t.time}</div>
                                             </div>
-                                            {isAdmin && <button onClick={()=>setConfirmDelete({type:"txn",data:t})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>}
+                                            {isAdmin && (
+                                                <div style={{display:"flex",gap:6}}>
+                                                    <button onClick={()=>setConfirmDelete({type:"reverse",data:t})} 
+                                                        style={{background:"#f59e0b20",border:"1px solid #f59e0b",borderRadius:8,padding:"4px 10px",color:"#f59e0b",cursor:"pointer",fontSize:12,fontWeight:700}}>↩️ عكس</button>
+                                                    <button onClick={()=>setConfirmDelete({type:"txn",data:t})} 
+                                                        style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>
+                                                </div>
+                                            )}
                                         </div>
                                         <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
                                         {t.type === "transfer" && <>
                                             <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>من: {t.fromNumber}</div>
                                             <div style={{fontSize:11,color:"#94a3b8"}}>إلى: {t.toNumber}</div>
                                         </>}
-                                        {t.image && <img src={t.image} onClick={()=>setViewImg(t.image)} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginTop:10,cursor:"pointer"}}/>}
+                                        {t.image && getImageSrc(t.image) && <img src={getImageSrc(t.image)} onClick={()=>setViewImg(getImageSrc(t.image))} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginTop:10,cursor:"pointer"}}/>}
                                     </div>
                                 ))}
                             </div>
@@ -776,7 +1219,7 @@
                                 </div>
 
                                 {isAdmin && (
-                                    <button onClick={()=>{setPeopleForm({personName:"",initialDebt:"",desc:""});setEditPersonId(null);setModal("addPerson");}} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ شخص جديد</button>
+                                    <button onClick={()=>{setPeopleForm({personName:"",debtAmount:"",desc:""});setEditPersonId(null);setModal("addDebt");}} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ دين جديد</button>
                                 )}
 
                                 {people.map(person => {
@@ -793,7 +1236,7 @@
                                                     <div style={{fontSize:10,color:"#475569"}}>الباقي</div>
                                                 </div>
                                             </div>
-                                            <ProgressBar used={getPersonBalance(person)} limit={person.initialDebt} color="#a78bfa"/>
+                                            <ProgressBar used={getPersonBalance(person)} limit={person.records?.reduce((s, r) => s + (r.type === "debt" ? r.amount : 0), 0) || 1} color="#a78bfa"/>
                                         </div>
                                     );
                                 })}
@@ -809,14 +1252,10 @@
                                 <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #a78bfa40",borderRadius:16,padding:16,marginBottom:16}}>
                                     <div style={{fontSize:18,fontWeight:900,color:"#e2e8f0",marginBottom:8}}>{selectedPerson.personName}</div>
                                     <div style={{fontSize:12,color:"#475569",marginBottom:12}}>{selectedPerson.desc}</div>
-                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                                         <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
-                                            <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{formatNum(selectedPerson.initialDebt)} ج</div>
-                                            <div style={{fontSize:10,color:"#475569"}}>الأولي</div>
-                                        </div>
-                                        <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
-                                            <div style={{fontSize:14,fontWeight:700,color:"#10b981"}}>{formatNum(Math.max(0, -selectedPerson.records?.filter(r => r.type === "payment").reduce((s, r) => s + r.amount, 0) || 0))} ج</div>
-                                            <div style={{fontSize:10,color:"#475569"}}>المدفوع</div>
+                                            <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{formatNum(selectedPerson.records?.filter(r => r.type === "debt").reduce((s, r) => s + r.amount, 0) || 0)} ج</div>
+                                            <div style={{fontSize:10,color:"#475569"}}>إجمالي الديون</div>
                                         </div>
                                         <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
                                             <div style={{fontSize:14,fontWeight:700,color:getPersonBalance(selectedPerson)>0?"#ef4444":"#10b981"}}>{formatNum(getPersonBalance(selectedPerson))} ج</div>
@@ -827,7 +1266,6 @@
 
                                 {isAdmin && (
                                     <div style={{display:"flex",gap:10,marginBottom:16}}>
-                                        <button onClick={()=>{setPeopleForm({personName:selectedPerson.personName,initialDebt:selectedPerson.initialDebt.toString(),desc:selectedPerson.desc});setEditPersonId(selectedPerson.id);setModal("addPerson");}} style={{flex:1,background:"#22d3ee20",border:"1px solid #22d3ee40",borderRadius:12,padding:12,color:"#22d3ee",cursor:"pointer",fontWeight:600}}>✏️ تعديل</button>
                                         <button onClick={()=>setConfirmDelete({type:"person",data:selectedPerson})} style={{flex:1,background:"#ef444420",border:"1px solid #ef444440",borderRadius:12,padding:12,color:"#ef4444",cursor:"pointer",fontWeight:600}}>🗑️ حذف</button>
                                     </div>
                                 )}
@@ -854,9 +1292,6 @@
                                                 )}
                                             </div>
                                         </div>
-                                        {idx === selectedPerson.records.length - 1 && (
-                                            <div style={{fontSize:10,color:"#64748b",fontStyle:"italic"}}>الأقدم</div>
-                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -868,19 +1303,46 @@
                                 <div style={{marginBottom:20}}>
                                     <div style={{fontSize:14,fontWeight:700,color:"#22d3ee",marginBottom:10}}>📱 الخطوط</div>
                                     {lines.map(l=>{
-                                        const mp = (l.usedMonth/LINES_LIMIT_MONTHLY)*100;
-                                        const isDanger = mp >= 80;
+                                        const mtPct = ((l.usedMonthTransfer||0)/LINES_LIMIT_MONTHLY)*100;
+                                        const mrPct = ((l.usedMonthReceive||0)/LINES_LIMIT_MONTHLY)*100;
+                                        const isDanger = mtPct >= 80 || mrPct >= 80;
+                                        const isAvail = l.available !== false;
+                                        const borderColor = isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
+                                        const availColor = isAvail ? "#22c55e" : "#ef4444";
+                                        const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const balance = l.balance || 0;
                                         return (
-                                            <div key={l.id} style={{background:"#0f1e3d",border:`1px solid ${isDanger?"#ef444440":"#1e3a5f"}`,borderRadius:12,padding:12,marginBottom:8}}>
-                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                                                    <div>
-                                                        <span style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>{l.name}</span>
-                                                        <span style={{fontSize:11,color:l.number?"#64748b":"#334155",marginRight:8,cursor:l.number?"copy":"auto"}} onClick={()=>{if(l.number) {navigator.clipboard.writeText(l.number); showToast("تم النسخ ✓");}}} title={l.number ? "انقر للنسخ" : ""}>{l.number ? `${l.number} 📋` : "بلا"}</span>
+                                            <div key={l.id} style={{background:"#0f1e3d",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                                                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#22d3ee" : "#94a3b8"}}>{l.name}</span>
+                                                        <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
                                                     </div>
-                                                    {isAdmin && <button onClick={()=>{setEditLineId(l.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                                                        {isAdmin && <button onClick={()=>setLines(p=>p.map(x=>x.id===l.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
+                                                        {isAdmin && <button onClick={()=>{setEditLineId(l.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                    </div>
                                                 </div>
-                                                <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>شهري: {formatNum(l.usedMonth)} / {formatNum(LINES_LIMIT_MONTHLY)}</div>
-                                                <ProgressBar used={l.usedMonth} limit={LINES_LIMIT_MONTHLY} color="#22d3ee"/>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                                    <span style={{fontSize:11,color:l.number?"#64748b":"#334155",cursor:l.number?"copy":"auto"}} onClick={()=>{if(l.number){navigator.clipboard.writeText(l.number);showToast("تم النسخ ✓");}}}>{l.number ? `${l.number} 📋` : "بلا رقم"}</span>
+                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
+                                                </div>
+                                                {/* تحويل */}
+                                                <div style={{marginBottom:6}}>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
+                                                        <span>💸 تحويل اليوم: <b style={{color:"#f59e0b"}}>{formatNum(l.usedTodayTransfer||0)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
+                                                        <span>الشهر: <b style={{color: mtPct>=80?"#ef4444":"#f59e0b"}}>{formatNum(l.usedMonthTransfer||0)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
+                                                    </div>
+                                                    <ProgressBar used={l.usedMonthTransfer||0} limit={LINES_LIMIT_MONTHLY} color="#f59e0b"/>
+                                                </div>
+                                                {/* استلام */}
+                                                <div>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
+                                                        <span>📥 استلام اليوم: <b style={{color:"#22d3ee"}}>{formatNum(l.usedTodayReceive||0)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
+                                                        <span>الشهر: <b style={{color: mrPct>=80?"#ef4444":"#22d3ee"}}>{formatNum(l.usedMonthReceive||0)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
+                                                    </div>
+                                                    <ProgressBar used={l.usedMonthReceive||0} limit={LINES_LIMIT_MONTHLY} color="#22d3ee"/>
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -889,19 +1351,46 @@
                                 <div style={{marginBottom:20}}>
                                     <div style={{fontSize:14,fontWeight:700,color:"#a78bfa",marginBottom:10}}>💳 الفيزا</div>
                                     {visas.map(v=>{
-                                        const mp = (v.usedMonth/VISA_LIMIT_MONTHLY)*100;
-                                        const isDanger = mp >= 80;
+                                        const mtPct = ((v.usedMonthTransfer||0)/VISA_LIMIT_MONTHLY)*100;
+                                        const mrPct = ((v.usedMonthReceive||0)/VISA_LIMIT_MONTHLY)*100;
+                                        const isDanger = mtPct >= 80 || mrPct >= 80;
+                                        const isAvail = v.available !== false;
+                                        const borderColor = isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
+                                        const availColor = isAvail ? "#22c55e" : "#ef4444";
+                                        const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const balance = v.balance || 0;
                                         return (
-                                            <div key={v.id} style={{background:"#0f1e3d",border:`1px solid ${isDanger?"#ef444440":"#1e3a5f"}`,borderRadius:12,padding:12,marginBottom:8}}>
-                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                                                    <div>
-                                                        <span style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>{v.name}</span>
-                                                        <span style={{fontSize:11,color:v.number?"#64748b":"#334155",marginRight:8,cursor:v.number?"copy":"auto"}} onClick={()=>{if(v.number) {navigator.clipboard.writeText(v.number); showToast("تم النسخ ✓");}}} title={v.number ? "انقر للنسخ" : ""}>{v.number ? `${v.number} 📋` : "بلا"}</span>
+                                            <div key={v.id} style={{background:"#0f1e3d",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                                                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#a78bfa" : "#94a3b8"}}>{v.name}</span>
+                                                        <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
                                                     </div>
-                                                    {isAdmin && <button onClick={()=>{setEditLineId(v.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                                                        {isAdmin && <button onClick={()=>setVisas(p=>p.map(x=>x.id===v.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
+                                                        {isAdmin && <button onClick={()=>{setEditLineId(v.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                    </div>
                                                 </div>
-                                                <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>شهري: {formatNum(v.usedMonth)} / {formatNum(VISA_LIMIT_MONTHLY)}</div>
-                                                <ProgressBar used={v.usedMonth} limit={VISA_LIMIT_MONTHLY} color="#a78bfa"/>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                                    <span style={{fontSize:11,color:v.number?"#64748b":"#334155",cursor:v.number?"copy":"auto"}} onClick={()=>{if(v.number){navigator.clipboard.writeText(v.number);showToast("تم النسخ ✓");}}}>{v.number ? `${v.number} 📋` : "بلا رقم"}</span>
+                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
+                                                </div>
+                                                {/* تحويل */}
+                                                <div style={{marginBottom:6}}>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
+                                                        <span>💸 تحويل اليوم: <b style={{color:"#f59e0b"}}>{formatNum(v.usedTodayTransfer||0)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
+                                                        <span>الشهر: <b style={{color: mtPct>=80?"#ef4444":"#f59e0b"}}>{formatNum(v.usedMonthTransfer||0)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                    </div>
+                                                    <ProgressBar used={v.usedMonthTransfer||0} limit={VISA_LIMIT_MONTHLY} color="#f59e0b"/>
+                                                </div>
+                                                {/* استلام */}
+                                                <div>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
+                                                        <span>📥 استلام اليوم: <b style={{color:"#a78bfa"}}>{formatNum(v.usedTodayReceive||0)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
+                                                        <span>الشهر: <b style={{color: mrPct>=80?"#ef4444":"#a78bfa"}}>{formatNum(v.usedMonthReceive||0)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                    </div>
+                                                    <ProgressBar used={v.usedMonthReceive||0} limit={VISA_LIMIT_MONTHLY} color="#a78bfa"/>
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -910,7 +1399,7 @@
                                 {isAdmin && (
                                     <div style={{display:"flex",gap:10}}>
                                         <button onClick={resetDaily} style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:12,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer"}}>تصفير يومي</button>
-                                        <button onClick={resetMonthly} style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:12,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer"}}>تصفير شهري</button>
+                                        <button onClick={()=>{if(window.confirm("هتتصفر كل الأرقام الشهرية واليومية. متأكد؟")) resetMonthly();}} style={{flex:1,background:"#ef444415",border:"1px solid #ef444440",borderRadius:12,padding:12,color:"#ef4444",fontSize:13,fontWeight:600,cursor:"pointer"}}>تصفير شهري</button>
                                     </div>
                                 )}
                             </div>
@@ -925,6 +1414,12 @@
                                     {isAdmin && <button onClick={()=>{setCapitalInput(capital.toString()); setModal("editCapital");}} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"6px 14px",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>✏️ تعديل</button>}
                                 </div>
 
+                                {/* ⭐ Tabs للمالية اليومية والشهرية */}
+                                <div style={{display:"flex",gap:10,marginBottom:16}}>
+                                    <button onClick={()=>setFinanceTab("daily")} style={{flex:1,background:financeTab==="daily"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:12,padding:12,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>📅 يومي</button>
+                                    <button onClick={()=>setFinanceTab("monthly")} style={{flex:1,background:financeTab==="monthly"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:12,padding:12,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>📆 شهري</button>
+                                </div>
+
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
                                     <div style={{background:"#10b9810a",border:"1px solid #10b98120",borderRadius:12,padding:12,textAlign:"center"}}>
                                         <div style={{fontSize:16,fontWeight:700,color:"#10b981"}}>{formatNum(monthIncome)} ج</div>
@@ -937,24 +1432,28 @@
                                 </div>
 
                                 {isAdmin && (
-                                    <button onClick={()=>setModal("addFinance")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ عملية جديدة</button>
+                                    <button onClick={()=>setModal("addFinance")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ عملية {financeTab === "daily" ? "يومية" : "شهرية"}</button>
                                 )}
 
                                 <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>📜 السجل</div>
-                                {financeLogs.filter(l => l.monthDate === thisMonth).map(log => (
-                                    <div key={log.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                        <div>
-                                            <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{log.desc}</div>
-                                            <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateOnly(log.date)}</div>
+                                {currentLogs.length > 0 ? (
+                                    currentLogs.map(log => (
+                                        <div key={log.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                            <div>
+                                                <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{log.desc}</div>
+                                                <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateOnly(log.date)}</div>
+                                            </div>
+                                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                <span style={{fontSize:14,fontWeight:700,color: log.type === "income" ? "#10b981" : "#ef4444"}}>
+                                                    {log.type === "income" ? `+ ${formatNum(log.amount)}` : `- ${formatNum(log.amount)}`}
+                                                </span>
+                                                {isAdmin && <button onClick={()=>deleteFinanceLog(log)} style={{background:"none",border:"none",color:"#475569",cursor:"pointer"}}>🗑️</button>}
+                                            </div>
                                         </div>
-                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                                            <span style={{fontSize:14,fontWeight:700,color: log.type === "income" ? "#10b981" : "#ef4444"}}>
-                                                {log.type === "income" ? `+ ${formatNum(log.amount)}` : `- ${formatNum(log.amount)}`}
-                                            </span>
-                                            {isAdmin && <button onClick={()=>deleteFinanceLog(log)} style={{background:"none",border:"none",color:"#475569",cursor:"pointer"}}>🗑️</button>}
-                                        </div>
-                                    </div>
-                                ))}
+                                    ))
+                                ) : (
+                                    <div style={{textAlign:"center",color:"#475569",padding:20}}>لا توجد عمليات</div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -972,6 +1471,13 @@
                     {/* MODAL: Add Transaction */}
                     {modal==="addTxn" && (
                         <Modal title="عملية جديدة" onClose={()=>setModal(null)}>
+                            {/* ⭐ حقل Paste الذكي الجديد */}
+                            <Field label="📋 Paste ذكي (من تطبيق آخر)">
+                                <textarea value={smartPaste} onChange={e=>setSmartPaste(e.target.value)} placeholder="الصق الرسالة من تطبيق آخر هنا..."
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #22d3ee60",borderRadius:10,padding:"10px 14px",color:"#e2e8f0",fontSize:13,outline:"none",boxSizing:"border-box",textAlign:"right",fontFamily:"'Tajawal', sans-serif",minHeight:80,resize:"vertical"}}/>
+                                {smartPaste && <button onClick={handleSmartPaste} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:10,padding:10,color:"#0a0f1e",fontSize:13,fontWeight:700,cursor:"pointer",marginTop:8}}>✨ استخراج البيانات</button>}
+                            </Field>
+
                             <Field label="نوع العملية">
                                 <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}
                                     style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none"}}>
@@ -991,7 +1497,31 @@
                             )}
 
                             <Field label="اسم الشخص"><Input value={form.personName} onChange={v=>setForm(f=>({...f,personName:v}))} placeholder="محمود..."/></Field>
-                            <Field label="المبلغ"><Input value={form.amount} onChange={v=>setForm(f=>({...f,amount:v}))} placeholder="0" type="number"/></Field>
+                            <Field label="المبلغ (يقبل: 450+50 أو 1000*1.01)">
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={form.amount}
+                                    placeholder="0 أو 450+50"
+                                    onChange={e => setForm(f=>({...f, amount: e.target.value}))}
+                                    onBlur={e => {
+                                        const val = e.target.value.trim();
+                                        if (!val) return;
+                                        const hasOp = val.indexOf("+") > 0 || val.indexOf("-") > 0 || val.indexOf("*") > 0 || val.indexOf("/") > 0;
+                                        if (hasOp) {
+                                            try {
+                                                const safe = val.replace(/[^0-9+\-*\/.()\s]/g, "");
+                                                // eslint-disable-next-line no-new-func
+                                                const result = new Function("return (" + safe + ")")();
+                                                if (!isNaN(result) && isFinite(result) && result > 0) {
+                                                    setForm(f=>({...f, amount: String(Math.round(result * 100) / 100)}));
+                                                }
+                                            } catch(err) {}
+                                        }
+                                    }}
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",textAlign:"right"}}
+                                />
+                            </Field>
                             
                             <Field label="الخط/الفيزا">
                                 <select value={form.sourceId} onChange={e=>{const sel=sources.find(s=>s.id===e.target.value);setForm(f=>({...f,sourceId:e.target.value,sourceType:sel?.type||"line"}));}}
@@ -1006,8 +1536,8 @@
                                 <Field label="صورة">
                                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
                                         <button onClick={()=>fileRef.current.click()} style={{background:"#1e293b",border:"1px dashed #334155",borderRadius:10,padding:"10px 18px",color:"#94a3b8",fontSize:13,cursor:"pointer",flex:1}}>📷</button>
-                                        {form.image && <>
-                                            <img src={form.image} onClick={()=>setViewImg(form.image)} style={{width:50,height:50,borderRadius:8,objectFit:"cover",cursor:"pointer"}}/>
+                                        {form.image && getImageSrc(form.image) && <>
+                                            <img src={getImageSrc(form.image)} onClick={()=>setViewImg(getImageSrc(form.image))} style={{width:50,height:50,borderRadius:8,objectFit:"cover",cursor:"pointer"}}/>
                                             <button onClick={()=>setForm(f=>({...f,image:null}))} style={{background:"#ef444420",border:"none",borderRadius:8,color:"#ef4444",padding:"8px 10px",cursor:"pointer"}}>✕</button>
                                         </>}
                                     </div>
@@ -1019,19 +1549,19 @@
                         </Modal>
                     )}
 
-                    {/* MODAL: Add Person */}
-                    {modal==="addPerson" && (
-                        <Modal title={editPersonId ? "تعديل" : "شخص جديد"} onClose={()=>setModal(null)}>
-                            <Field label="الاسم"><Input value={peopleForm.personName} onChange={v=>setPeopleForm(f=>({...f,personName:v}))} placeholder="محمود..."/></Field>
-                            <Field label="الدين الأولي"><Input value={peopleForm.initialDebt} onChange={v=>setPeopleForm(f=>({...f,initialDebt:v}))} placeholder="0" type="number"/></Field>
-                            <Field label="الوصف"><Input value={peopleForm.desc} onChange={v=>setPeopleForm(f=>({...f,desc:v}))} placeholder="ملاحظة..."/></Field>
-                            <button onClick={addOrUpdatePerson} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                    {/* MODAL: Add Debt */}
+                    {modal==="addDebt" && (
+                        <Modal title="دين جديد" onClose={()=>setModal(null)}>
+                            <Field label="اسم الشخص"><Input value={peopleForm.personName} onChange={v=>setPeopleForm(f=>({...f,personName:v}))} placeholder="محمود..."/></Field>
+                            <Field label="مبلغ الدين"><Input value={peopleForm.debtAmount} onChange={v=>setPeopleForm(f=>({...f,debtAmount:v}))} placeholder="0" type="number"/></Field>
+                            <Field label="الوصف/الملاحظة"><Input value={peopleForm.desc} onChange={v=>setPeopleForm(f=>({...f,desc:v}))} placeholder="ملاحظة..."/></Field>
+                            <button onClick={addDebtToPerson} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
                         </Modal>
                     )}
 
                     {/* MODAL: Add Finance */}
                     {modal==="addFinance" && (
-                        <Modal title="عملية مالية" onClose={()=>setModal(null)}>
+                        <Modal title={`عملية مالية ${financeTab === "daily" ? "يومية" : "شهرية"}`} onClose={()=>setModal(null)}>
                             <Field label="النوع">
                                 <select value={financeForm.type} onChange={e=>setFinanceForm(f=>({...f, type: e.target.value}))}
                                     style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none"}}>
@@ -1095,11 +1625,13 @@
         function EditSourceModal({source, isVisa, onSave, onClose}) {
             const [name, setName] = useState(source.name);
             const [number, setNumber] = useState(source.number||"");
+            const [balance, setBalance] = useState(String(source.balance || 0));
             return (
                 <Modal title="تعديل" onClose={onClose}>
                     <Field label="الاسم"><Input value={name} onChange={setName} placeholder="..."/></Field>
                     <Field label="الرقم"><Input value={number} onChange={setNumber} placeholder="01xxxxxxxxx"/></Field>
-                    <button onClick={()=>onSave({name,number})} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                    <Field label="الرصيد الحالي (ج)"><Input value={balance} onChange={setBalance} placeholder="0" type="number"/></Field>
+                    <button onClick={()=>onSave({name,number,balance:parseFloat(balance)||0})} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
                 </Modal>
             );
         }
