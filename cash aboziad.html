@@ -1654,7 +1654,9 @@
                                 />
                             </Field>
                             <button onClick={()=>{
-                                setTransactions(prev=>prev.map(t=>t.id===viewerNote.txnId?{...t,notes:viewerNote.text}:t));
+                                const updatedTxns = transactions.map(t=>t.id===viewerNote.txnId?{...t,notes:viewerNote.text}:t);
+                                setTransactions(updatedTxns);
+                                try { db.ref('transactions').set(updatedTxns); } catch(e){}
                                 setViewerNote(null);
                                 showToast("تم حفظ الملاحظة ✓");
                             }} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
