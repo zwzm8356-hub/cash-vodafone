@@ -220,8 +220,8 @@
             const [loading, setLoading] = useState(false);
             const [showPassword, setShowPassword] = useState(false);
 
+            // ADMIN_EMAIL يحدده أنت من Firebase Console
             const ADMIN_EMAIL = "ziad@gmail.com";
-            const VIEWER_EMAIL = "omar@gmail.com"; // ⭐ غيّر ده للإيميل التاني
 
             const handleLogin = async () => {
                 if (!email.trim() || !password.trim()) {
@@ -232,8 +232,7 @@
                 setError("");
                 try {
                     const result = await auth.signInWithEmailAndPassword(email.trim(), password);
-                    const e = result.user.email;
-                    const role = e === ADMIN_EMAIL ? "admin" : e === VIEWER_EMAIL ? "viewer" : "user";
+                    const role = result.user.email === ADMIN_EMAIL ? "admin" : "user";
                     onLogin(role, result.user);
                 } catch (err) {
                     const msgs = {
@@ -363,7 +362,6 @@
             const [peopleForm, setPeopleForm] = useState({ personName: "", debtAmount: "", desc: "" });
             const [editPersonId, setEditPersonId] = useState(null);
             const [confirmDelete, setConfirmDelete] = useState(null);
-            const [viewerNote, setViewerNote] = useState(null); // {txnId, text}
 
             const touchStartX = useRef(0);
             const touchEndX = useRef(0);
@@ -373,9 +371,7 @@
                 const unsubscribe = auth.onAuthStateChanged((user) => {
                     if (user) {
                         const ADMIN_EMAIL = "ziad@gmail.com";
-                    const VIEWER_EMAIL = "omar@gmail.com";
-                        const e = user.email;
-                        const role = e === ADMIN_EMAIL ? "admin" : e === VIEWER_EMAIL ? "viewer" : "user";
+                        const role = user.email === ADMIN_EMAIL ? "admin" : "user";
                         setFirebaseUser(user);
                         setUserRole(role);
                     } else {
@@ -438,32 +434,32 @@
             // ⭐ Auto-save to localStorage AND Firebase
             useEffect(() => { 
                 saveToLocalStorage('lines', lines);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('lines').set(lines); } catch(e){} }
+                if (userRole && userRole !== "guest" && auth.currentUser) { try { db.ref('lines').set(lines); } catch(e){} }
             }, [lines, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('visas', visas);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('visas').set(visas); } catch(e){} }
+                if (userRole && userRole !== "guest" && auth.currentUser) { try { db.ref('visas').set(visas); } catch(e){} }
             }, [visas, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('transactions', transactions);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('transactions').set(transactions); } catch(e){} }
+                if (userRole && userRole !== "guest" && auth.currentUser) { try { db.ref('transactions').set(transactions); } catch(e){} }
             }, [transactions, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('people', people);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('people').set(people); } catch(e){} }
+                if (userRole && userRole !== "guest" && auth.currentUser) { try { db.ref('people').set(people); } catch(e){} }
             }, [people, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('capital', capital);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('capital').set(capital); } catch(e){} }
+                if (userRole && userRole !== "guest" && auth.currentUser) { try { db.ref('capital').set(capital); } catch(e){} }
             }, [capital, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('financeLogs', financeLogs);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
+                if (userRole && userRole !== "guest" && auth.currentUser) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
             }, [financeLogs, userRole]);
 
             // ⭐ Auto daily reset (must be before early returns)
@@ -1012,7 +1008,6 @@
 
             const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
             const isAdmin = userRole === "admin";
-            const isViewer = userRole === "viewer";
             const isUser = userRole === "user";
             const isGuest = userRole === "guest";
 
@@ -1028,7 +1023,6 @@
 
             const getRoleName = () => {
                 if (isAdmin) return "👑 أدمن";
-                if (isViewer) return "👁 يوزر";
                 if (isUser) return "👤 مستخدم";
                 return "🌐 ضيف (قراءة فقط)";
             };
@@ -1161,12 +1155,7 @@
                                             </div>
                                         </div>
                                         <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
-                                        {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                                                من: {t.fromNumber}
-                                                {(isViewer||isAdmin) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
-                                                ← إلى: {t.toNumber}
-                                                {(isViewer||isAdmin) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
-                                            </div>}
+                                        {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8"}}>من: {t.fromNumber} → {t.toNumber}</div>}
                                     </div>
                                 ))}
                                 {transactions.length===0 && <div style={{textAlign:"center",color:"#475569",padding:40}}>لا توجد عمليات</div>}
@@ -1208,17 +1197,9 @@
                                         </div>
                                         <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
                                         {t.type === "transfer" && <>
-                                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
-                                                من: {t.fromNumber}
-                                                {(isViewer||isAdmin) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
-                                            </div>
-                                            <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6}}>
-                                                إلى: {t.toNumber}
-                                                {(isViewer||isAdmin) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
-                                            </div>
+                                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>من: {t.fromNumber}</div>
+                                            <div style={{fontSize:11,color:"#94a3b8"}}>إلى: {t.toNumber}</div>
                                         </>}
-                                        {t.notes && <div style={{fontSize:11,color:"#94a3b8",marginTop:8,background:"#0a0f1e",borderRadius:8,padding:"6px 10px"}}>📝 {t.notes}</div>}
-                                        {isViewer && <button onClick={()=>setViewerNote({txnId:t.id,text:t.notes||""}) } style={{marginTop:8,background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"5px 12px",color:"#22d3ee",cursor:"pointer",fontSize:12,fontWeight:600}}>📝 {t.notes ? "تعديل ملاحظة" : "+ ملاحظة"}</button>}
                                         {t.image && getImageSrc(t.image) && <img src={getImageSrc(t.image)} onClick={()=>setViewImg(getImageSrc(t.image))} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginTop:10,cursor:"pointer"}}/>}
                                     </div>
                                 ))}
@@ -1621,25 +1602,6 @@
                             >
                                 ✓ حفظ العملية وتحديث الأرصدة
                             </button>
-                        </Modal>
-                    )}
-
-                    {/* MODAL: Viewer Note */}
-                    {viewerNote && (
-                        <Modal title="📝 ملاحظة" onClose={()=>setViewerNote(null)}>
-                            <Field label="اكتب ملاحظتك">
-                                <textarea
-                                    value={viewerNote.text}
-                                    onChange={e=>setViewerNote(v=>({...v, text: e.target.value}))}
-                                    rows={4}
-                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",textAlign:"right",resize:"vertical",fontFamily:"'Tajawal', sans-serif"}}
-                                />
-                            </Field>
-                            <button onClick={()=>{
-                                setTransactions(prev=>prev.map(t=>t.id===viewerNote.txnId?{...t,notes:viewerNote.text}:t));
-                                setViewerNote(null);
-                                showToast("تم حفظ الملاحظة ✓");
-                            }} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
                         </Modal>
                     )}
 
