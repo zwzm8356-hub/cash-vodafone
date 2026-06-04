@@ -106,23 +106,27 @@
 
         const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance"];
 
-        // ⭐ localStorage Functions
+        // ⭐ Safe Storage (localStorage مع fallback لـ in-memory لو مش متاح)
+        const _memStore = {};
         const saveToLocalStorage = (key, data) => {
             try {
-                localStorage.setItem(key, JSON.stringify(data));
+                const str = JSON.stringify(data);
+                _memStore[key] = str;
+                localStorage.setItem(key, str);
             } catch (error) {
-                console.error(`Error saving to localStorage:`, error);
+                _memStore[key] = JSON.stringify(data);
             }
         };
 
         const loadFromLocalStorage = (key, defaultValue) => {
             try {
                 const data = localStorage.getItem(key);
-                return data ? JSON.parse(data) : defaultValue;
-            } catch (error) {
-                console.error(`Error loading from localStorage:`, error);
-                return defaultValue;
-            }
+                if (data) return JSON.parse(data);
+            } catch (e) {}
+            try {
+                if (_memStore[key]) return JSON.parse(_memStore[key]);
+            } catch (e) {}
+            return defaultValue;
         };
 
         function pad(n) { return String(n).padStart(2, "0"); }
@@ -155,57 +159,50 @@
         }
 
         // ⭐ دالة ذكية لاستخراج البيانات من الرسالة
-        function parseSmartMessage(text, lines, visas) {
+        const evaluateExpression = (input) => {
+            try {
+                const sanitized = input.replace(/[^0-9+\-*/.]/g, '');
+                if (!sanitized) return "";
+                const result = Function(`"use strict"; return (${sanitized})`)();
+                return isNaN(result) ? input : String(result);
+            } catch (e) {
+                return input;
+            }
+        };
+
+                function parseSmartMessage(text, lines = [], visas = []) {
             const result = {
-                amount: null,
-                personNumber: null,
-                lineId: null,
-                lineNum: null,
-                extractedText: ""
+                amount: "",
+                personNumber: "",
+                lineId: "",
+                type: "transfer",
+                notes: ""
             };
-
             if (!text.trim()) return result;
-
-            // البحث عن المبلغ (رقم كبير مثل 1000 أو 500)
-            const amountMatch = text.match(/(\d{2,}(?:\.\d{1,2})?)/);
-            if (amountMatch) {
-                result.amount = parseFloat(amountMatch[1]);
+            // 1. استخراج المبلغ الذكي
+            const amountMatch = text.match(/(?:مبلغ|قيمة)\s*(\d+(?:\.\d+)?)/) || text.match(/(\d{2,}(?:\.\d{1,2})?)\s*(?:جنيه|EGP)/) || text.match(/(\d{2,}(?:\.\d{1,2})?)/);
+            if (amountMatch) result.amount = amountMatch[1];
+            // 2. استخراج رقم تليفون العميل
+            const phoneMatch = text.match(/(01[0-9]{9})/);
+            if (phoneMatch) result.personNumber = phoneMatch[1];
+            // 3. تحديد نوع العملية أوتوماتيك
+            if (text.includes("تم استلام") || text.includes("إيداع") || text.includes("حوّل لك") || text.includes("تم استقبال")) {
+                result.type = "receive";
+            } else if (text.includes("تم تحويل") || text.includes("سحب") || text.includes("خصم")) {
+                result.type = "transfer";
             }
-
-            // البحث عن رقم العميل (01XXXXXXXXX)
-            const phoneMatch = text.match(/(?:^|\s)(01[0-9]{9})(?:\s|$)/);
-            if (phoneMatch) {
-                result.personNumber = phoneMatch[1];
-            }
-
-            // البحث عن اسم الخط أو رقمه (خط 1، خط 2، الخط الأول، إلخ)
+            // 4. التعرف الذكي على اسم الخط أو الفيزا
             const allSources = [...lines, ...visas];
-            
-            // البحث بالاسم
             for (const source of allSources) {
                 if (source.name && text.includes(source.name)) {
                     result.lineId = source.id;
                     break;
                 }
             }
-
-            // البحث برقم الخط (1-16)
-            if (!result.lineId) {
-                const lineNumMatch = text.match(/خط\s*(\d+)|الخط\s*(\d+)|line\s*(\d+)/i);
-                if (lineNumMatch) {
-                    const num = lineNumMatch[1] || lineNumMatch[2] || lineNumMatch[3];
-                    const lineSource = allSources.find(s => s.name.includes(`خط ${num}`));
-                    if (lineSource) {
-                        result.lineId = lineSource.id;
-                        result.lineNum = num;
-                    }
-                }
-            }
-
-            result.extractedText = text;
+            // 5. حفظ نص الرسالة في الملاحظات
+            result.notes = `[رسالة تلقائية]: ${text.trim()}`;
             return result;
         }
-
         function ProgressBar({ used, limit, color }) {
             const pct = Math.min((used / limit) * 100, 100);
             const danger = pct >= 85; const warn = pct >= 60;
@@ -223,8 +220,8 @@
             const [loading, setLoading] = useState(false);
             const [showPassword, setShowPassword] = useState(false);
 
-            // ADMIN_EMAIL يحدده أنت من Firebase Console
             const ADMIN_EMAIL = "ziad@gmail.com";
+            const VIEWER_EMAIL = "omar@gmail.com"; // ⭐ غيّر ده للإيميل التاني
 
             const handleLogin = async () => {
                 if (!email.trim() || !password.trim()) {
@@ -235,7 +232,8 @@
                 setError("");
                 try {
                     const result = await auth.signInWithEmailAndPassword(email.trim(), password);
-                    const role = result.user.email === ADMIN_EMAIL ? "admin" : "user";
+                    const e = result.user.email;
+                    const role = e === ADMIN_EMAIL ? "admin" : e === VIEWER_EMAIL ? "viewer" : "user";
                     onLogin(role, result.user);
                 } catch (err) {
                     const msgs = {
@@ -331,23 +329,6 @@
             
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
 
-            // ⭐ Firebase Auth Listener - يحفظ الجلسة أوتوماتيك
-            useEffect(() => {
-                const unsubscribe = auth.onAuthStateChanged((user) => {
-                    if (user) {
-                        const ADMIN_EMAIL = "ziad@gmail.com";
-                        const role = user.email === ADMIN_EMAIL ? "admin" : "user";
-                        setFirebaseUser(user);
-                        setUserRole(role);
-                    } else {
-                        // مش logged in - لو كان guest نحتفظ بيه
-                        setFirebaseUser(null);
-                        setUserRole(prev => prev === "guest" ? "guest" : null);
-                    }
-                    setAuthLoading(false);
-                });
-                return () => unsubscribe();
-            }, []);
 
             const [modal, setModal] = useState(null);
             const [editLineId, setEditLineId] = useState(null);
@@ -367,6 +348,7 @@
                 amount: "", 
                 sourceId: "", 
                 sourceType: "line", 
+                notes: "",
                 image: null 
             });
 
@@ -381,20 +363,29 @@
             const [peopleForm, setPeopleForm] = useState({ personName: "", debtAmount: "", desc: "" });
             const [editPersonId, setEditPersonId] = useState(null);
             const [confirmDelete, setConfirmDelete] = useState(null);
+            const [viewerNote, setViewerNote] = useState(null); // {txnId, text}
 
             const touchStartX = useRef(0);
             const touchEndX = useRef(0);
 
-            // Save to Firebase
-            const saveToFirebase = (path, data) => {
-                if (!userRole || userRole === "guest") return;
-                if (!auth.currentUser) return;
-                try {
-                    db.ref(path).set(data);
-                } catch (error) {
-                    console.error(`Error saving to Firebase:`, error);
-                }
-            };
+            // ⭐ Firebase Auth Listener
+            useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        const ADMIN_EMAIL = "ziad@gmail.com";
+                    const VIEWER_EMAIL = "omar@gmail.com";
+                        const e = user.email;
+                        const role = e === ADMIN_EMAIL ? "admin" : e === VIEWER_EMAIL ? "viewer" : "user";
+                        setFirebaseUser(user);
+                        setUserRole(role);
+                    } else {
+                        setFirebaseUser(null);
+                        setUserRole(null);
+                    }
+                    setAuthLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
 
             // Load from Firebase
             useEffect(() => {
@@ -403,32 +394,32 @@
                 try {
                     db.ref('lines').on('value', (snapshot) => {
                         const data = snapshot.val();
-                        if (data) setLines(data);
+                        if (data) setTimeout(() => setLines(data), 0);
                     });
 
                     db.ref('visas').on('value', (snapshot) => {
                         const data = snapshot.val();
-                        if (data) setVisas(data);
+                        if (data) setTimeout(() => setVisas(data), 0);
                     });
 
                     db.ref('transactions').on('value', (snapshot) => {
                         const data = snapshot.val();
-                        if (data) setTransactions(Array.isArray(data) ? data : Object.values(data));
+                        if (data) setTimeout(() => setTransactions(Array.isArray(data) ? data : Object.values(data)), 0);
                     });
 
                     db.ref('people').on('value', (snapshot) => {
                         const data = snapshot.val();
-                        if (data) setPeople(Array.isArray(data) ? data : Object.values(data));
+                        if (data) setTimeout(() => setPeople(Array.isArray(data) ? data : Object.values(data)), 0);
                     });
 
                     db.ref('capital').on('value', (snapshot) => {
                         const data = snapshot.val();
-                        if (data !== null) setCapital(data);
+                        if (data !== null) setTimeout(() => setCapital(data), 0);
                     });
 
                     db.ref('financeLogs').on('value', (snapshot) => {
                         const data = snapshot.val();
-                        if (data) setFinanceLogs(Array.isArray(data) ? data : Object.values(data));
+                        if (data) setTimeout(() => setFinanceLogs(Array.isArray(data) ? data : Object.values(data)), 0);
                     });
                 } catch (error) {
                     console.error('Error setting up Firebase listeners:', error);
@@ -447,33 +438,64 @@
             // ⭐ Auto-save to localStorage AND Firebase
             useEffect(() => { 
                 saveToLocalStorage('lines', lines);
-                saveToFirebase('lines', lines); 
+                if (userRole === "admin" && auth.currentUser) { try { db.ref('lines').set(lines); } catch(e){} }
             }, [lines, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('visas', visas);
-                saveToFirebase('visas', visas); 
+                if (userRole === "admin" && auth.currentUser) { try { db.ref('visas').set(visas); } catch(e){} }
             }, [visas, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('transactions', transactions);
-                saveToFirebase('transactions', transactions); 
+                if (userRole === "admin" && auth.currentUser) { try { db.ref('transactions').set(transactions); } catch(e){} }
             }, [transactions, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('people', people);
-                saveToFirebase('people', people); 
+                if (userRole === "admin" && auth.currentUser) { try { db.ref('people').set(people); } catch(e){} }
             }, [people, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('capital', capital);
-                saveToFirebase('capital', capital); 
+                if (userRole === "admin" && auth.currentUser) { try { db.ref('capital').set(capital); } catch(e){} }
             }, [capital, userRole]);
             
             useEffect(() => { 
                 saveToLocalStorage('financeLogs', financeLogs);
-                saveToFirebase('financeLogs', financeLogs); 
+                if (userRole === "admin" && auth.currentUser) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
             }, [financeLogs, userRole]);
+
+            // ⭐ Auto daily reset (must be before early returns)
+            useEffect(() => {
+                const lastResetDay = loadFromLocalStorage('lastResetDay', null);
+                const todayStr = today();
+                if (lastResetDay && lastResetDay !== todayStr) {
+                    setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
+                    setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                }
+                saveToLocalStorage('lastResetDay', todayStr);
+            }, []);
+
+            // ⭐ Alert when line hits 80%
+            useEffect(() => {
+                const warned = loadFromLocalStorage('warnedSources', []);
+                const newWarned = [...warned];
+                let changed = false;
+                [...lines, ...visas].forEach(s => {
+                    const monthlyLimit = s.id.startsWith('visa') ? VISA_LIMIT_MONTHLY : LINES_LIMIT_MONTHLY;
+                    const usedMonth = (s.usedMonthTransfer||0) + (s.usedMonthReceive||0);
+                    const pct = (usedMonth / monthlyLimit) * 100;
+                    if (pct >= 80 && !newWarned.includes(s.id)) {
+                        const msg = `⚠️ ${s.name} وصل ${Math.round(pct)}% من الحد الشهري`;
+                        setTimeout(() => setToast({msg, type:"error"}), 100);
+                        setTimeout(() => setToast(null), 4000);
+                        newWarned.push(s.id);
+                        changed = true;
+                    }
+                });
+                if (changed) saveToLocalStorage('warnedSources', newWarned);
+            }, [lines, visas]);
 
             if (authLoading) {
                 return (
@@ -517,12 +539,12 @@
 
             function handleImagePick(e) {
                 const file = e.target.files[0]; if (!file) return;
-                // ⭐ الصورة تتحفظ في localStorage فقط - Database بيشيل المفتاح بس
                 const imageKey = `img_${Date.now()}`;
                 const reader = new FileReader();
                 reader.onload = ev => {
                     try {
-                        localStorage.setItem(imageKey, ev.target.result);
+                        try { localStorage.setItem(imageKey, ev.target.result); } catch(err) {}
+                        _memStore[imageKey] = ev.target.result;
                         setForm(f => ({...f, image: imageKey}));
                         showToast("✓ تم حفظ الصورة");
                     } catch (err) {
@@ -532,28 +554,29 @@
                 reader.readAsDataURL(file);
             }
 
-            // ⭐ جلب الصورة الحقيقية من localStorage باستخدام المفتاح
+            // ⭐ جلب الصورة الحقيقية من localStorage أو memory باستخدام المفتاح
             function getImageSrc(imageRef) {
                 if (!imageRef) return null;
                 if (imageRef.startsWith("http") || imageRef.startsWith("data:")) return imageRef;
-                return localStorage.getItem(imageRef) || null;
+                try { const v = localStorage.getItem(imageRef); if (v) return v; } catch(e) {}
+                return _memStore[imageRef] || null;
             }
 
             // ⭐ دالة معالجة الـ Smart Paste
             function handleSmartPaste() {
                 const parsed = parseSmartMessage(smartPaste, lines, visas);
                 
-                if (parsed.amount) {
-                    setForm(f => ({...f, amount: String(parsed.amount)}));
-                }
-                
-                if (parsed.personNumber) {
-                    setForm(f => ({...f, toNumber: parsed.personNumber}));
-                }
-                
+                setForm(f => ({
+                    ...f,
+                    amount: parsed.amount || f.amount,
+                    toNumber: parsed.personNumber || f.toNumber,
+                    type: parsed.type || f.type,
+                    sourceId: parsed.lineId ? parsed.lineId : f.sourceId,
+                    sourceType: parsed.lineId ? (sources.find(s => s.id === parsed.lineId)?.type || "line") : f.sourceType,
+                }));
+
                 if (parsed.lineId) {
                     const source = sources.find(s => s.id === parsed.lineId);
-                    setForm(f => ({...f, sourceId: parsed.lineId, sourceType: source?.type || "line"}));
                     showToast(`✅ تم تحديد ${source?.name} تلقائياً`);
                 }
                 
@@ -588,7 +611,8 @@
                     sourceId: form.sourceId,
                     sourceType: form.sourceType,
                     createdAt: nowStr(),
-                    image: form.image || null
+                    notes: form.notes || "",
+                    image: null
                 };
 
                 setTransactions(prev => [newTxn, ...prev]);
@@ -620,7 +644,7 @@
                     showToast(`تم ${txnType} بنجاح ✓`);
                 }
 
-                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", image: null });
+                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
                 setModal(null);
             }
 
@@ -927,29 +951,7 @@
                 showToast("تم تصفير الشهري ✓"); 
             }
 
-            // ⭐ Auto daily reset + أرشفة تلقائية
-            useEffect(() => {
-                const lastResetDay = loadFromLocalStorage('lastResetDay', null);
-                const todayStr = today();
-                if (lastResetDay && lastResetDay !== todayStr) {
-                    setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
-                    setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
-                    setTimeout(() => showToast("تم التصفير اليومي التلقائي ✓"), 500);
-                }
-                saveToLocalStorage('lastResetDay', todayStr);
-            }, []);
 
-            // ⭐ Alert when line hits 80%
-            useEffect(() => {
-                const warned = loadFromLocalStorage('warnedSources', []);
-                sources.forEach(s => {
-                    const pct = (s.usedMonth / s.monthlyLimit) * 100;
-                    if (pct >= 80 && !warned.includes(s.id)) {
-                        setTimeout(() => showToast(`⚠️ ${s.name} وصل ${Math.round(pct)}% من الحد الشهري`, "error"), 100);
-                        saveToLocalStorage('warnedSources', [...warned, s.id]);
-                    }
-                });
-            }, [lines, visas]);
 
             function deleteFinanceLog(log) {
                 setFinanceLogs(prev => prev.filter(item => item.id !== log.id));
@@ -1010,6 +1012,7 @@
 
             const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
             const isAdmin = userRole === "admin";
+            const isViewer = userRole === "viewer";
             const isUser = userRole === "user";
             const isGuest = userRole === "guest";
 
@@ -1025,6 +1028,7 @@
 
             const getRoleName = () => {
                 if (isAdmin) return "👑 أدمن";
+                if (isViewer) return "👁 يوزر";
                 if (isUser) return "👤 مستخدم";
                 return "🌐 ضيف (قراءة فقط)";
             };
@@ -1157,7 +1161,12 @@
                                             </div>
                                         </div>
                                         <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
-                                        {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8"}}>من: {t.fromNumber} → {t.toNumber}</div>}
+                                        {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                                                من: {t.fromNumber}
+                                                {(isViewer||isAdmin) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                                ← إلى: {t.toNumber}
+                                                {(isViewer||isAdmin) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                            </div>}
                                     </div>
                                 ))}
                                 {transactions.length===0 && <div style={{textAlign:"center",color:"#475569",padding:40}}>لا توجد عمليات</div>}
@@ -1199,9 +1208,17 @@
                                         </div>
                                         <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
                                         {t.type === "transfer" && <>
-                                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>من: {t.fromNumber}</div>
-                                            <div style={{fontSize:11,color:"#94a3b8"}}>إلى: {t.toNumber}</div>
+                                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+                                                من: {t.fromNumber}
+                                                {(isViewer||isAdmin) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                            </div>
+                                            <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6}}>
+                                                إلى: {t.toNumber}
+                                                {(isViewer||isAdmin) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                            </div>
                                         </>}
+                                        {t.notes && <div style={{fontSize:11,color:"#94a3b8",marginTop:8,background:"#0a0f1e",borderRadius:8,padding:"6px 10px"}}>📝 {t.notes}</div>}
+                                        {isViewer && <button onClick={()=>setViewerNote({txnId:t.id,text:t.notes||""}) } style={{marginTop:8,background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"5px 12px",color:"#22d3ee",cursor:"pointer",fontSize:12,fontWeight:600}}>📝 {t.notes ? "تعديل ملاحظة" : "+ ملاحظة"}</button>}
                                         {t.image && getImageSrc(t.image) && <img src={getImageSrc(t.image)} onClick={()=>setViewImg(getImageSrc(t.image))} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginTop:10,cursor:"pointer"}}/>}
                                     </div>
                                 ))}
@@ -1468,82 +1485,161 @@
 
                     {/* MODAL: Add Transaction */}
                     {modal==="addTxn" && (
-                        <Modal title="عملية جديدة" onClose={()=>setModal(null)}>
-                            {/* ⭐ حقل Paste الذكي الجديد */}
-                            <Field label="📋 Paste ذكي (من تطبيق آخر)">
-                                <textarea value={smartPaste} onChange={e=>setSmartPaste(e.target.value)} placeholder="الصق الرسالة من تطبيق آخر هنا..."
-                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #22d3ee60",borderRadius:10,padding:"10px 14px",color:"#e2e8f0",fontSize:13,outline:"none",boxSizing:"border-box",textAlign:"right",fontFamily:"'Tajawal', sans-serif",minHeight:80,resize:"vertical"}}/>
-                                {smartPaste && <button onClick={handleSmartPaste} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:10,padding:10,color:"#0a0f1e",fontSize:13,fontWeight:700,cursor:"pointer",marginTop:8}}>✨ استخراج البيانات</button>}
-                            </Field>
+                        <Modal title="إضافة عملية جديدة" onClose={() => setModal(null)}>
+                            {/* 1. حقل اللصق الذكي (Smart Paste) في بداية الفورم */}
+                            <div style={{ marginBottom: 20, background: "#162545", padding: 15, borderRadius: 12, border: "1px dashed #1e3a5f" }}>
+                                <label style={{ display: "block", fontSize: 13, color: "#22d3ee", marginBottom: 8, fontWeight: "bold" }}>
+                                    📋 صندوق الرسائل الذكي (انسخ الرسالة هنا لتعبئة البيانات تلقائياً):
+                                </label>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <textarea
+                                        value={smartPaste}
+                                        onChange={(e) => setSmartPaste(e.target.value)}
+                                        placeholder="ضع نص رسالة فودافون كاش أو إنستا باي هنا..."
+                                        rows="2"
+                                        style={{
+                                            flex: 1,
+                                            background: "#0a0f1e",
+                                            border: "1px solid #1e3a5f",
+                                            borderRadius: 10,
+                                            padding: 10,
+                                            color: "#e2e8f0",
+                                            fontSize: 13,
+                                            outline: "none",
+                                            resize: "none",
+                                            textAlign: "right",
+                                            fontFamily: "'Tajawal', sans-serif"
+                                        }}
+                                    />
+                                    <button
+                                        onClick={handleSmartPaste}
+                                        style={{
+                                            background: "linear-gradient(135deg,#22d3ee,#0891b2)",
+                                            border: "none",
+                                            borderRadius: 10,
+                                            padding: "0 15px",
+                                            color: "#0a0f1e",
+                                            fontSize: 14,
+                                            fontWeight: "bold",
+                                            cursor: "pointer"
+                                        }}
+                                    >
+                                        تطبيق
+                                    </button>
+                                </div>
+                            </div>
 
+                            {/* 2. باقي حقول الفورم */}
                             <Field label="نوع العملية">
-                                <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}
-                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none"}}>
-                                    <option value="transfer">💸 تحويل (شيل فلوس)</option>
-                                    <option value="receive">📥 استلام (أخذ فلوس)</option>
+                                <select
+                                    value={form.type}
+                                    onChange={e => setForm({...form, type: e.target.value})}
+                                    style={{ width: "100%", background: "#0f1e3d", border: "1px solid #1e3a5f", borderRadius: 10, padding: 11, color: "#e2e8f0" }}
+                                >
+                                    <option value="transfer">تحويل (سحب من المحفظة) ↙</option>
+                                    <option value="receive">استلام (إيداع في المحفظة) ↗</option>
                                 </select>
                             </Field>
 
-                            <Field label="التاريخ"><Input value={form.date} onChange={v=>setForm(f=>({...f,date:v}))} type="date"/></Field>
-                            <Field label="الوقت"><Input value={form.time} onChange={v=>setForm(f=>({...f,time:v}))} type="time"/></Field>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                                <Field label="التاريخ"><Input type="date" value={form.date} onChange={v => setForm({...form, date: v})}/></Field>
+                                <Field label="الوقت"><Input type="time" value={form.time} onChange={v => setForm({...form, time: v})}/></Field>
+                            </div>
 
-                            {form.type === "transfer" && (
-                                <>
-                                    <Field label="رقم المحول من"><Input value={form.fromNumber} onChange={v=>setForm(f=>({...f,fromNumber:v}))} placeholder="01xxxxxxxxx"/></Field>
-                                    <Field label="رقم المحول إليه"><Input value={form.toNumber} onChange={v=>setForm(f=>({...f,toNumber:v}))} placeholder="01xxxxxxxxx"/></Field>
-                                </>
-                            )}
-
-                            <Field label="اسم الشخص"><Input value={form.personName} onChange={v=>setForm(f=>({...f,personName:v}))} placeholder="محمود..."/></Field>
-                            <Field label="المبلغ (يقبل: 450+50 أو 1000*1.01)">
+                            <Field label="المبلغ (ج)">
                                 <input
                                     type="text"
-                                    inputMode="decimal"
-                                    value={form.amount}
-                                    placeholder="0 أو 450+50"
-                                    onChange={e => setForm(f=>({...f, amount: e.target.value}))}
-                                    onBlur={e => {
+                                    value={form.amount || ""}
+                                    placeholder="0.00 (يمكنك كتابة حسبة مثل 1000+20)"
+                                    onChange={(e) => setForm({...form, amount: e.target.value})}
+                                    onBlur={(e) => {
                                         const val = e.target.value.trim();
                                         if (!val) return;
-                                        const hasOp = val.indexOf("+") > 0 || val.indexOf("-") > 0 || val.indexOf("*") > 0 || val.indexOf("/") > 0;
-                                        if (hasOp) {
-                                            try {
-                                                const safe = val.replace(/[^0-9+\-*\/.()\s]/g, "");
-                                                // eslint-disable-next-line no-new-func
-                                                const result = new Function("return (" + safe + ")")();
-                                                if (!isNaN(result) && isFinite(result) && result > 0) {
-                                                    setForm(f=>({...f, amount: String(Math.round(result * 100) / 100)}));
-                                                }
-                                            } catch(err) {}
+                                        const evaluated = evaluateExpression(val);
+                                        const num = parseFloat(evaluated);
+                                        if (!isNaN(num) && isFinite(num) && num > 0) {
+                                            setForm({...form, amount: String(Math.round(num * 100) / 100)});
                                         }
                                     }}
-                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",textAlign:"right"}}
+                                    style={{
+                                        width: "100%",
+                                        background: "#0f1e3d",
+                                        border: "1px solid #1e3a5f",
+                                        borderRadius: 10,
+                                        padding: "11px 14px",
+                                        color: "#e2e8f0",
+                                        fontSize: 14,
+                                        outline: "none",
+                                        boxSizing: "border-box",
+                                        textAlign: "right"
+                                    }}
                                 />
                             </Field>
-                            
-                            <Field label="الخط/الفيزا">
-                                <select value={form.sourceId} onChange={e=>{const sel=sources.find(s=>s.id===e.target.value);setForm(f=>({...f,sourceId:e.target.value,sourceType:sel?.type||"line"}));}}
-                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:form.sourceId?"#e2e8f0":"#64748b",fontSize:14,outline:"none"}}>
-                                    <option value="">اختر</option>
-                                    <optgroup label="الخطوط">{lines.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</optgroup>
-                                    <optgroup label="الفيزا">{visas.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</optgroup>
-                                </select>
+
+                            <Field label="اسم العميل">
+                                <Input value={form.personName} onChange={v => setForm({...form, personName: v})} placeholder="اسم الشخص أو العميل"/>
                             </Field>
 
                             {form.type === "transfer" && (
-                                <Field label="صورة">
-                                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                                        <button onClick={()=>fileRef.current.click()} style={{background:"#1e293b",border:"1px dashed #334155",borderRadius:10,padding:"10px 18px",color:"#94a3b8",fontSize:13,cursor:"pointer",flex:1}}>📷</button>
-                                        {form.image && getImageSrc(form.image) && <>
-                                            <img src={getImageSrc(form.image)} onClick={()=>setViewImg(getImageSrc(form.image))} style={{width:50,height:50,borderRadius:8,objectFit:"cover",cursor:"pointer"}}/>
-                                            <button onClick={()=>setForm(f=>({...f,image:null}))} style={{background:"#ef444420",border:"none",borderRadius:8,color:"#ef4444",padding:"8px 10px",cursor:"pointer"}}>✕</button>
-                                        </>}
-                                    </div>
-                                    <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImagePick}/>
-                                </Field>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                                    <Field label="من رقم المحفظة"><Input value={form.fromNumber} onChange={v => setForm({...form, fromNumber: v})} placeholder="01xxxxxxxxx"/></Field>
+                                    <Field label="إلى رقم المحفظة"><Input value={form.toNumber} onChange={v => setForm({...form, toNumber: v})} placeholder="01xxxxxxxxx"/></Field>
+                                </div>
                             )}
 
-                            <button onClick={addTransaction} style={{width:"100%",background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                            <Field label="اختر الخط أو الفيزا">
+                                <select
+                                    value={form.sourceId}
+                                    onChange={e => {
+                                        const sel = sources.find(s => s.id === e.target.value);
+                                        setForm({...form, sourceId: e.target.value, sourceType: sel ? sel.type : "line"});
+                                    }}
+                                    style={{ width: "100%", background: "#0f1e3d", border: "1px solid #1e3a5f", borderRadius: 10, padding: 11, color: "#e2e8f0" }}
+                                >
+                                    <option value="">-- اختر خط العملية --</option>
+                                    {sources.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name} (رصيده: {formatNum(s.balance || 0)} ج)</option>
+                                    ))}
+                                </select>
+                            </Field>
+
+                            <button
+                                onClick={addTransaction}
+                                style={{
+                                    width: "100%",
+                                    background: "linear-gradient(135deg,#e40000,#cc0000)",
+                                    border: "none",
+                                    borderRadius: 12,
+                                    padding: 14,
+                                    color: "#fff",
+                                    fontSize: 15,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    marginTop: 10,
+                                    boxShadow: "0 4px 15px #e4000030"
+                                }}
+                            >
+                                ✓ حفظ العملية وتحديث الأرصدة
+                            </button>
+                        </Modal>
+                    )}
+
+                    {/* MODAL: Viewer Note */}
+                    {viewerNote && (
+                        <Modal title="📝 ملاحظة" onClose={()=>setViewerNote(null)}>
+                            <Field label="اكتب ملاحظتك">
+                                <textarea
+                                    value={viewerNote.text}
+                                    onChange={e=>setViewerNote(v=>({...v, text: e.target.value}))}
+                                    rows={4}
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",textAlign:"right",resize:"vertical",fontFamily:"'Tajawal', sans-serif"}}
+                                />
+                            </Field>
+                            <button onClick={()=>{
+                                setTransactions(prev=>prev.map(t=>t.id===viewerNote.txnId?{...t,notes:viewerNote.text}:t));
+                                setViewerNote(null);
+                                showToast("تم حفظ الملاحظة ✓");
+                            }} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
                         </Modal>
                     )}
 
