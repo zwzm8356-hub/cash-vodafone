@@ -63,6 +63,10 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        // ✅ إصلاح: إيميلات في مكان واحد بس — Single Source of Truth
+        const ADMIN_EMAIL = "ziad@gmail.com";
+        const VIEWER_EMAIL = "omar@gmail.com";
+
         // Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDui8QbprvL2AAh5DGIlwEjrqF4TsOr1wc",
@@ -88,23 +92,61 @@
         // ⭐ الحدود الصحيحة
         const LINES_LIMIT_MONTHLY = 200000;
         const LINES_LIMIT_DAILY = 60000;
-        const VISA_LIMIT_MONTHLY = 200000;
-        const VISA_LIMIT_DAILY = 30000;
+        const VISA_FAWRY_LIMIT_MONTHLY = 200000;
+        const VISA_FAWRY_LIMIT_DAILY = 30000;
+        const VISA_INSTA_LIMIT_MONTHLY = 400000;
+        const VISA_INSTA_LIMIT_DAILY = 60000;
+
+        // دالة حساب خصم الفوري: 0.57% + 15 ج ثابتة
+        function calcFawryFee(amount) {
+            return Math.round(amount * 0.0057 + 15);
+        }
+        // دالة حساب خصم البنك: 1%
+        function calcBankFee(amount) {
+            return Math.round(amount * 0.01);
+        }
+
+        const makeNewLine = (i, prefix="line") => ({
+            id: `${prefix}-${Date.now()}-${i}`, name: `خط ${i + 1}`, number: "",
+            usedTodayTransfer: 0, usedMonthTransfer: 0,
+            usedTodayReceive: 0, usedMonthReceive: 0,
+            balance: 0, available: true, visaType: "line"
+        });
+        const makeNewFawryVisa = (i) => ({
+            id: `visa-fawry-${Date.now()}-${i}`, name: `فيزا فوري ${i + 1}`, number: "",
+            usedTodayTransfer: 0, usedMonthTransfer: 0,
+            usedTodayReceive: 0, usedMonthReceive: 0,
+            balance: 0, available: true, visaType: "fawry"
+        });
+        const makeNewInstaVisa = (i) => ({
+            id: `visa-insta-${Date.now()}-${i}`, name: `فيزا إنستا ${i + 1}`, number: "",
+            usedTodayTransfer: 0, usedMonthTransfer: 0,
+            usedTodayReceive: 0, usedMonthReceive: 0,
+            balance: 0, available: true, visaType: "insta"
+        });
 
         const initialLines = Array.from({ length: 16 }, (_, i) => ({
             id: `line-${i + 1}`, name: `خط ${i + 1}`, number: "", 
             usedTodayTransfer: 0, usedMonthTransfer: 0,
             usedTodayReceive: 0, usedMonthReceive: 0,
-            balance: 0, available: true,
+            balance: 0, available: true, visaType: "line"
         }));
-        const initialVisas = Array.from({ length: 3 }, (_, i) => ({
-            id: `visa-${i + 1}`, name: `فيزا فوري ${i + 1}`, number: "", 
-            usedTodayTransfer: 0, usedMonthTransfer: 0,
-            usedTodayReceive: 0, usedMonthReceive: 0,
-            balance: 0, available: true,
-        }));
+        const initialVisas = [
+            ...Array.from({ length: 3 }, (_, i) => ({
+                id: `visa-${i + 1}`, name: `فيزا فوري ${i + 1}`, number: "", 
+                usedTodayTransfer: 0, usedMonthTransfer: 0,
+                usedTodayReceive: 0, usedMonthReceive: 0,
+                balance: 0, available: true, visaType: "fawry"
+            })),
+            ...Array.from({ length: 3 }, (_, i) => ({
+                id: `visa-insta-${i + 1}`, name: `فيزا إنستا ${i + 1}`, number: "", 
+                usedTodayTransfer: 0, usedMonthTransfer: 0,
+                usedTodayReceive: 0, usedMonthReceive: 0,
+                balance: 0, available: true, visaType: "insta"
+            })),
+        ];
 
-        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance"];
+        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi"];
 
         // ⭐ Safe Storage (localStorage مع fallback لـ in-memory لو مش متاح)
         const _memStore = {};
@@ -130,6 +172,33 @@
         };
 
         function pad(n) { return String(n).padStart(2, "0"); }
+        // ✅ ضغط الصورة قبل الحفظ — يوفر ~80% من المساحة
+        function compressImage(base64Str, maxWidth = 400, maxHeight = 400) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height) {
+                        if (width > maxWidth) { height = Math.round(height * maxWidth / width); width = maxWidth; }
+                    } else {
+                        if (height > maxHeight) { width = Math.round(width * maxHeight / height); height = maxHeight; }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                };
+                img.onerror = () => resolve(base64Str); // fallback لو فشل الضغط
+                img.src = base64Str;
+            });
+        }
+
+        function getCurrentTime() {
+            const now = new Date();
+            return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        }
         function nowStr() {
             const d = new Date();
             return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -158,49 +227,136 @@
             return `${dayName} ${parts[2]}/${parts[1]}/${parts[0]}`;
         }
 
-        // ⭐ دالة ذكية لاستخراج البيانات من الرسالة
-        const evaluateExpression = (input) => {
+        // ⭐ Math Parser آمن 100% — بدون eval أو Function
+        const evaluateExpression = (expr) => {
             try {
-                const sanitized = input.replace(/[^0-9+\-*/.]/g, '');
-                if (!sanitized) return "";
-                const result = Function(`"use strict"; return (${sanitized})`)();
-                return isNaN(result) ? input : String(result);
+                // 1. تنظيف الإدخال — أرقام وعمليات فقط
+                let clean = String(expr)
+                    .replace(/\s/g, '')           // شيل المسافات
+                    .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632) // أرقام عربية → إنجليزية
+                    .replace(/[^0-9+\-*/().]/g, ''); // شيل أي حاجة تانية
+
+                if (!clean) return 0;
+
+                // 2. Tokenizer — بيقسم النص لأرقام وعمليات
+                const tokenize = (s) => {
+                    const tokens = [];
+                    let i = 0;
+                    while (i < s.length) {
+                        if (/\d|\./.test(s[i])) {
+                            let num = '';
+                            while (i < s.length && /[\d.]/.test(s[i])) num += s[i++];
+                            tokens.push({ type: 'num', val: parseFloat(num) || 0 });
+                        } else if ('+-*/()'.includes(s[i])) {
+                            tokens.push({ type: 'op', val: s[i++] });
+                        } else {
+                            i++;
+                        }
+                    }
+                    return tokens;
+                };
+
+                // 3. Parser تعاودي (Recursive Descent) — يتعامل مع الأولويات والأقواس
+                const tokens = tokenize(clean);
+                let pos = 0;
+
+                const peek = () => tokens[pos] || null;
+                const consume = () => tokens[pos++] || null;
+
+                const parseExpr = () => {
+                    let left = parseTerm();
+                    while (peek() && (peek().val === '+' || peek().val === '-')) {
+                        const op = consume().val;
+                        const right = parseTerm();
+                        left = op === '+' ? left + right : left - right;
+                    }
+                    return left;
+                };
+
+                const parseTerm = () => {
+                    let left = parseFactor();
+                    while (peek() && (peek().val === '*' || peek().val === '/')) {
+                        const op = consume().val;
+                        const right = parseFactor();
+                        if (op === '*') left *= right;
+                        else left = right !== 0 ? left / right : 0;
+                    }
+                    return left;
+                };
+
+                const parseFactor = () => {
+                    const t = peek();
+                    if (!t) return 0;
+                    if (t.val === '(') {
+                        consume(); // شيل (
+                        const val = parseExpr();
+                        if (peek() && peek().val === ')') consume(); // شيل )
+                        return val;
+                    }
+                    if (t.val === '-') { consume(); return -parseFactor(); } // unary minus
+                    if (t.val === '+') { consume(); return parseFactor(); }  // unary plus
+                    if (t.type === 'num') { consume(); return t.val; }
+                    consume(); return 0;
+                };
+
+                const result = parseExpr();
+                return isNaN(result) || !isFinite(result) ? 0 : Math.round(result * 100) / 100;
             } catch (e) {
-                return input;
+                return 0;
             }
         };
 
-                function parseSmartMessage(text, lines = [], visas = []) {
-            const result = {
-                amount: "",
-                personNumber: "",
-                lineId: "",
-                type: "transfer",
-                notes: ""
-            };
+        // ⭐ قراءة ذكية للرسائل — بيفرق بين رقمك ورقم العميل
+        function parseSmartMessage(text, lines = [], visas = []) {
+            const result = { amount: "", personNumber: "", fromNumber: "", toNumber: "", lineId: "", type: "transfer", notes: "" };
             if (!text.trim()) return result;
-            // 1. استخراج المبلغ الذكي
-            const amountMatch = text.match(/(?:مبلغ|قيمة)\s*(\d+(?:\.\d+)?)/) || text.match(/(\d{2,}(?:\.\d{1,2})?)\s*(?:جنيه|EGP)/) || text.match(/(\d{2,}(?:\.\d{1,2})?)/);
-            if (amountMatch) result.amount = amountMatch[1];
-            // 2. استخراج رقم تليفون العميل
-            const phoneMatch = text.match(/(01[0-9]{9})/);
-            if (phoneMatch) result.personNumber = phoneMatch[1];
-            // 3. تحديد نوع العملية أوتوماتيك
-            if (text.includes("تم استلام") || text.includes("إيداع") || text.includes("حوّل لك") || text.includes("تم استقبال")) {
+
+            // 1. استخراج المبلغ — بالأولوية: كلمة مرفقة → جنيه → أول رقم منطقي
+            const amountMatch =
+                text.match(/(?:مبلغ|قيمة|شحن|تم تحويل|حوّل)\s*([\d,]+(?:\.\d{1,2})?)/i) ||
+                text.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:جنيه|ج\.م|EGP|LE)/i) ||
+                text.match(/(\d{2,}(?:\.\d{1,2})?)/);
+            if (amountMatch) {
+                const raw = (amountMatch[1] || amountMatch[2] || "").replace(/,/g, '');
+                result.amount = raw;
+            }
+
+            // 2. استخراج الأرقام — يفرق بذكاء بين "من رقم" و"إلى رقم"
+            const allPhones = [...(text.matchAll(/01[0125]\d{8}/g))].map(m => m[0]);
+            const fromMatch = text.match(/(?:من رقم|من|المرسل)\s*(01[0125]\d{8})/);
+            const toMatch   = text.match(/(?:إلى رقم|لرقم|إلى|المستلم|لـ)\s*(01[0125]\d{8})/);
+
+            if (allPhones.length === 1) {
+                result.personNumber = allPhones[0];
+            } else if (allPhones.length > 1) {
+                if (fromMatch) result.fromNumber = fromMatch[1];
+                if (toMatch)   result.toNumber   = toMatch[1];
+                // رقم العميل = اللي مش رقم الخط
+                const lineNumbers = [...lines, ...visas].map(s => s.number).filter(Boolean);
+                const clientPhone = allPhones.find(p => !lineNumbers.includes(p));
+                result.personNumber = clientPhone || allPhones[0];
+            }
+
+            // 3. نوع العملية من الكلمات المفتاحية
+            const receiveKeywords = ["تم استلام", "إيداع", "حوّل لك", "تم استقبال", "وصلك", "استلمت"];
+            const transferKeywords = ["تم تحويل", "سحب", "خصم", "أرسلت", "تم إرسال"];
+            if (receiveKeywords.some(k => text.includes(k))) {
                 result.type = "receive";
-            } else if (text.includes("تم تحويل") || text.includes("سحب") || text.includes("خصم")) {
+            } else if (transferKeywords.some(k => text.includes(k))) {
                 result.type = "transfer";
             }
-            // 4. التعرف الذكي على اسم الخط أو الفيزا
-            const allSources = [...lines, ...visas];
-            for (const source of allSources) {
-                if (source.name && text.includes(source.name)) {
-                    result.lineId = source.id;
-                    break;
-                }
+
+            // 4. مطابقة اسم الخط/الفيزا من الرسالة
+            for (const source of [...lines, ...visas]) {
+                if (source.name && text.includes(source.name)) { result.lineId = source.id; break; }
+                if (source.number && text.includes(source.number)) { result.lineId = source.id; break; }
             }
-            // 5. حفظ نص الرسالة في الملاحظات
-            result.notes = `[رسالة تلقائية]: ${text.trim()}`;
+
+            // 5. ملاحظة تلقائية
+            result.notes = result.type === "receive"
+                ? "استلام تلقائي عبر الرسالة"
+                : "تحويل تلقائي عبر الرسالة";
+
             return result;
         }
         function ProgressBar({ used, limit, color }) {
@@ -220,8 +376,7 @@
             const [loading, setLoading] = useState(false);
             const [showPassword, setShowPassword] = useState(false);
 
-            const ADMIN_EMAIL = "ziad@gmail.com";
-            const VIEWER_EMAIL = "omar@gmail.com"; // ⭐ غيّر ده للإيميل التاني
+            // ✅ إصلاح: بنستخدم ADMIN_EMAIL و VIEWER_EMAIL المعرّفين في الأعلى
 
             const handleLogin = async () => {
                 if (!email.trim() || !password.trim()) {
@@ -323,12 +478,14 @@
             const [lines, setLines] = useState(() => loadFromLocalStorage('lines', initialLines));
             const [visas, setVisas] = useState(() => loadFromLocalStorage('visas', initialVisas));
             const [transactions, setTransactions] = useState(() => loadFromLocalStorage('transactions', []));
+            // ✅ نحمّل من localStorage كـ initial — Firebase بيحل محله لما يوصل
             const [people, setPeople] = useState(() => loadFromLocalStorage('people', []));
             const [capital, setCapital] = useState(() => loadFromLocalStorage('capital', 0));
             const [financeLogs, setFinanceLogs] = useState(() => loadFromLocalStorage('financeLogs', []));
             
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
             const firebaseLoaded = React.useRef(false);
+            const isDeletingPerson = React.useRef(false); // ✅ flag لمنع الـ listener من رجوع الشخص المحذوف
 
 
             const [modal, setModal] = useState(null);
@@ -340,9 +497,10 @@
             const [financeTab, setFinanceTab] = useState("daily");
             
             const [form, setForm] = useState({ 
+                txnType: "person",
                 type: "transfer",
                 date: today(), 
-                time: "12:00",
+                time: getCurrentTime(),
                 fromNumber: "", 
                 toNumber: "", 
                 personName: "", 
@@ -363,8 +521,21 @@
 
             const [peopleForm, setPeopleForm] = useState({ personName: "", debtAmount: "", desc: "" });
             const [editPersonId, setEditPersonId] = useState(null);
+            const [commissionModal, setCommissionModal] = useState(null);
+            const [feeModal, setFeeModal] = useState(null);
+            const [feeForm, setFeeForm] = useState({amount:"", fee:"", desc:""});
             const [confirmDelete, setConfirmDelete] = useState(null);
             const [viewerNote, setViewerNote] = useState(null); // {txnId, text}
+            // ✅ تعديل الديون والدفعات
+            const [editEntryModal, setEditEntryModal] = useState(null); // {type:"debt"|"payment", sessionId, entryId, amount, date, personId}
+
+            // ⭐ أبو عدي state
+            const [abuadiDays, setAbuadiDays] = useState(() => loadFromLocalStorage("abuadiDays", []));
+            const [abuadiActiveDay, setAbuadiActiveDay] = useState(null);
+            const [abuadiRecording, setAbuadiRecording] = useState(false);
+            const [abuadiMediaRecorder, setAbuadiMediaRecorder] = useState(null);
+            const abuadiAudioChunks = useRef([]);
+            const [abuadiQuickAmt, setAbuadiQuickAmt] = useState("");
 
             const touchStartX = useRef(0);
             const touchEndX = useRef(0);
@@ -373,8 +544,7 @@
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged((user) => {
                     if (user) {
-                        const ADMIN_EMAIL = "ziad@gmail.com";
-                    const VIEWER_EMAIL = "omar@gmail.com";
+                        // ✅ إصلاح: بنستخدم الثوابت المعرّفة في مكان واحد
                         const e = user.email;
                         const role = e === ADMIN_EMAIL ? "admin" : e === VIEWER_EMAIL ? "viewer" : "user";
                         setFirebaseUser(user);
@@ -388,7 +558,11 @@
                 return () => unsubscribe();
             }, []);
 
-            // Load from Firebase
+            // ✅ إصلاح: نحفظ userRole في ref عشان الـ listeners ميتسجلوش تاني لما يتغير
+            const userRoleRef = React.useRef(userRole);
+            useEffect(() => { userRoleRef.current = userRole; }, [userRole]);
+
+            // Load from Firebase — بيشتغل مرة واحدة بس بعد الـ login
             useEffect(() => {
                 if (!userRole) return;
 
@@ -426,8 +600,19 @@
                     });
 
                     db.ref('people').on('value', (snapshot) => {
+                        if (isDeletingPerson.current) return;
                         const data = snapshot.val();
-                        if (data) setTimeout(() => setPeople(Array.isArray(data) ? data : Object.values(data)), 0);
+                        if (data) {
+                            // ✅ Firebase فيه بيانات — هو المصدر
+                            const arr = Array.isArray(data) ? data : Object.values(data);
+                            setTimeout(() => {
+                                if (isDeletingPerson.current) return;
+                                setPeople(arr);
+                                saveToLocalStorage('people', arr);
+                            }, 0);
+                        }
+                        // ✅ لو Firebase رجع null — منمسحش الـ localStorage أو الـ state
+                        // الـ null ممكن يكون بسبب بطء الاتصال مش حذف حقيقي
                     });
 
                     db.ref('capital').on('value', (snapshot) => {
@@ -438,6 +623,12 @@
                     db.ref('financeLogs').on('value', (snapshot) => {
                         const data = snapshot.val();
                         if (data) setTimeout(() => setFinanceLogs(Array.isArray(data) ? data : Object.values(data)), 0);
+                    });
+
+                    // ✅ إصلاح: تحميل بيانات أبو عدي من Firebase
+                    db.ref('abuadiDays').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) setTimeout(() => setAbuadiDays(Array.isArray(data) ? data : Object.values(data)), 0);
                     });
                 } catch (error) {
                     console.error('Error setting up Firebase listeners:', error);
@@ -450,58 +641,203 @@
                     db.ref('people').off();
                     db.ref('capital').off();
                     db.ref('financeLogs').off();
+                    db.ref('abuadiDays').off();
                 };
-            }, [userRole]);
+            // ✅ إصلاح جوهري: [] بدل [userRole] — الـ listeners بيتسجلوا مرة واحدة بس
+            // userRoleRef.current بيتحدث تلقائياً بدون ما يعيد تشغيل الـ effect
+            }, []);
 
-            // ⭐ Auto-save to localStorage AND Firebase (بعد ما البيانات تتحمل)
-            useEffect(() => { 
-                saveToLocalStorage('lines', lines);
-                if (userRole === "admin" && auth.currentUser && firebaseLoaded.current) { try { db.ref('lines').set(lines); } catch(e){} }
-            }, [lines, userRole]);
-            
-            useEffect(() => { 
-                saveToLocalStorage('visas', visas);
-                if (userRole === "admin" && auth.currentUser && firebaseLoaded.current) { try { db.ref('visas').set(visas); } catch(e){} }
-            }, [visas, userRole]);
-            
-            useEffect(() => { 
-                saveToLocalStorage('transactions', transactions);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('transactions').set(transactions); } catch(e){} }
-            }, [transactions, userRole]);
-            
-            useEffect(() => { 
-                saveToLocalStorage('people', people);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('people').set(people); } catch(e){} }
-            }, [people, userRole]);
-            
-            useEffect(() => { 
-                saveToLocalStorage('capital', capital);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('capital').set(capital); } catch(e){} }
-            }, [capital, userRole]);
-            
-            useEffect(() => { 
-                saveToLocalStorage('financeLogs', financeLogs);
-                if (userRole === "admin" && auth.currentUser) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
-            }, [financeLogs, userRole]);
+            // ✅ دوال الحفظ الآمنة - تُستدعى يدوياً فقط عند العمليات الفعلية
+            // تستخدم .child(id).update() بدل .set() لمنع تضارب البيانات بين المستخدمين
+
+            function persistSources(updatedLines, updatedVisas) {
+                saveToLocalStorage('lines', updatedLines);
+                saveToLocalStorage('visas', updatedVisas);
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try {
+                        updatedLines.forEach(l => db.ref('lines').child(l.id).update(l));
+                        updatedVisas.forEach(v => db.ref('visas').child(v.id).update(v));
+                    } catch(e) {}
+                }
+            }
+
+            function persistTransaction(txn, allTransactions) {
+                // ✅ localStorage — بنحفظ العنصر الجديد بس جنب باقي البيانات
+                const updated = [txn, ...allTransactions.filter(t => t.id !== txn.id)];
+                saveToLocalStorage('transactions', updated);
+                // ✅ Firebase — update فردي بدون ما يمسح باقي البيانات
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try { db.ref('transactions').child(String(txn.id)).set(txn); } catch(e) {}
+                }
+            }
+
+            function persistTransactionDelete(txnId, allTransactions) {
+                // ✅ localStorage
+                const updated = allTransactions.filter(t => t.id !== txnId);
+                saveToLocalStorage('transactions', updated);
+                // ✅ Firebase — حذف عنصر واحد بس
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try { db.ref('transactions').child(String(txnId)).remove(); } catch(e) {}
+                }
+            }
+
+            function persistPeople(updatedPeople) {
+                saveToLocalStorage('people', updatedPeople);
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try {
+                        // ✅ إصلاح التكرار: بنستخدم String(id) ثابت كـ key في Firebase
+                        updatedPeople.forEach(p => db.ref('people').child(String(p.id)).set({...p, id: String(p.id)}));
+                    } catch(e) {}
+                }
+            }
+
+            function persistPersonDelete(personId) {
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try { db.ref('people').child(String(personId)).remove(); } catch(e) {}
+                }
+            }
+
+            function persistCapital(newCapital) {
+                saveToLocalStorage('capital', newCapital);
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try { db.ref('capital').set(newCapital); } catch(e) {}
+                }
+            }
+
+            function persistFinanceLog(newLog) {
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try { db.ref('financeLogs').child(String(newLog.id)).set(newLog); } catch(e) {}
+                }
+            }
+
+            function persistFinanceLogDelete(logId) {
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try { db.ref('financeLogs').child(String(logId)).remove(); } catch(e) {}
+                }
+            }
+
+            function persistAbuadiDays(days) {
+                saveToLocalStorage("abuadiDays", days);
+                // ✅ إصلاح: حفظ بيانات أبو عدي في Firebase كمان عشان متتمسحش
+                if (userRoleRef.current === "admin" && auth.currentUser) {
+                    try { db.ref('abuadiDays').set(days); } catch(e) {}
+                }
+            }
+
+            function abuadiGetOrCreateToday() {
+                const todayKey = today();
+                let days = abuadiDays;
+                const existing = days.find(d => d.dateKey === todayKey);
+                if (existing) return existing;
+                const newDay = { dateKey: todayKey, entries: [], closed: false, total: 0 };
+                const updated = [newDay, ...days];
+                setAbuadiDays(updated);
+                persistAbuadiDays(updated);
+                return newDay;
+            }
+
+            function abuadiAddEntry(amount, audioUrl) {
+                const todayKey = today();
+                const now = new Date();
+                const timeStr = pad(now.getHours()) + ":" + pad(now.getMinutes());
+                const days = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+                const dayName = days[now.getDay()];
+                const newEntry = { id: Date.now(), amount: parseFloat(amount), time: timeStr, dayName, audioUrl: audioUrl||null };
+                setAbuadiDays(prev => {
+                    let updated;
+                    const idx = prev.findIndex(d => d.dateKey === todayKey);
+                    if (idx !== -1) {
+                        const day = prev[idx];
+                        const newEntries = [...day.entries, newEntry];
+                        const newTotal = newEntries.reduce((s,e)=>s+e.amount,0);
+                        updated = prev.map((d,i)=>i===idx?{...d,entries:newEntries,total:newTotal}:d);
+                    } else {
+                        const newDay = { dateKey: todayKey, entries: [newEntry], closed: false, total: newEntry.amount };
+                        updated = [newDay, ...prev];
+                    }
+                    persistAbuadiDays(updated);
+                    return updated;
+                });
+                setAbuadiActiveDay(todayKey);
+            }
+
+            function abuadiDeleteEntry(dateKey, entryId) {
+                setAbuadiDays(prev => {
+                    const updated = prev.map(d => {
+                        if (d.dateKey !== dateKey) return d;
+                        const newEntries = d.entries.filter(e=>e.id!==entryId);
+                        return {...d, entries:newEntries, total:newEntries.reduce((s,e)=>s+e.amount,0)};
+                    });
+                    persistAbuadiDays(updated);
+                    return updated;
+                });
+            }
+
+            function abuadiCloseDay(dateKey) {
+                setAbuadiDays(prev => {
+                    const updated = prev.map(d=>d.dateKey===dateKey?{...d,closed:true}:d);
+                    persistAbuadiDays(updated);
+                    return updated;
+                });
+            }
+
+            async function abuadiStartRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+                    const mr = new MediaRecorder(stream);
+                    abuadiAudioChunks.current = [];
+                    mr.ondataavailable = e => abuadiAudioChunks.current.push(e.data);
+                    mr.start();
+                    setAbuadiMediaRecorder(mr);
+                    setAbuadiRecording(true);
+                } catch(e) { showToast("مش قادر يوصل للمايك","error"); }
+            }
+
+            function abuadiStopRecording() {
+                return new Promise(resolve => {
+                    if (!abuadiMediaRecorder) { resolve(null); return; }
+                    abuadiMediaRecorder.onstop = () => {
+                        const blob = new Blob(abuadiAudioChunks.current, {type:"audio/webm"});
+                        const url = URL.createObjectURL(blob);
+                        resolve(url);
+                    };
+                    abuadiMediaRecorder.stop();
+                    abuadiMediaRecorder.stream.getTracks().forEach(t=>t.stop());
+                    setAbuadiRecording(false);
+                    setAbuadiMediaRecorder(null);
+                });
+            }
 
             // ⭐ Auto daily reset (must be before early returns)
             useEffect(() => {
                 const lastResetDay = loadFromLocalStorage('lastResetDay', null);
                 const todayStr = today();
                 if (lastResetDay && lastResetDay !== todayStr) {
-                    setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
-                    setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                    // ✅ إصلاح: بنحفظ في Firebase كمان مش بس localStorage
+                    setLines(prev => {
+                        const updated = prev.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0}));
+                        persistSources(updated, visas);
+                        return updated;
+                    });
+                    setVisas(prev => {
+                        const updated = prev.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0}));
+                        persistSources(lines, updated);
+                        return updated;
+                    });
                 }
                 saveToLocalStorage('lastResetDay', todayStr);
             }, []);
 
             // ⭐ Alert when line hits 80%
             useEffect(() => {
-                const warned = loadFromLocalStorage('warnedSources', []);
+                // ✅ إصلاح: بنفرق التحذيرات حسب الشهر عشان ترجع تظهر الشهر الجاي
+                const warnKey = `warnedSources_${currentMonthStr()}`;
+                const warned = loadFromLocalStorage(warnKey, []);
                 const newWarned = [...warned];
                 let changed = false;
                 [...lines, ...visas].forEach(s => {
-                    const monthlyLimit = s.id.startsWith('visa') ? VISA_LIMIT_MONTHLY : LINES_LIMIT_MONTHLY;
+                    const isInsta = s.visaType === "insta";
+                    const monthlyLimit = s.id.startsWith('visa') ? (isInsta ? VISA_INSTA_LIMIT_MONTHLY : VISA_FAWRY_LIMIT_MONTHLY) : LINES_LIMIT_MONTHLY;
                     const usedMonth = (s.usedMonthTransfer||0) + (s.usedMonthReceive||0);
                     const pct = (usedMonth / monthlyLimit) * 100;
                     if (pct >= 80 && !newWarned.includes(s.id)) {
@@ -512,7 +848,7 @@
                         changed = true;
                     }
                 });
-                if (changed) saveToLocalStorage('warnedSources', newWarned);
+                if (changed) saveToLocalStorage(warnKey, newWarned);
             }, [lines, visas]);
 
             if (authLoading) {
@@ -544,26 +880,31 @@
 
             function showToast(msg, type="success") { setToast({msg,type}); setTimeout(()=>setToast(null),3000); }
 
+            const getVisaLimits = (v) => {
+                if (v.visaType === "insta") return { dailyLimit: VISA_INSTA_LIMIT_DAILY, monthlyLimit: VISA_INSTA_LIMIT_MONTHLY };
+                return { dailyLimit: VISA_FAWRY_LIMIT_DAILY, monthlyLimit: VISA_FAWRY_LIMIT_MONTHLY };
+            };
             const sources = [
                 ...lines.map(l => ({...l, type:"line", dailyLimit:LINES_LIMIT_DAILY, monthlyLimit:LINES_LIMIT_MONTHLY,
                     usedToday: (l.usedTodayTransfer||0)+(l.usedTodayReceive||0),
                     usedMonth: (l.usedMonthTransfer||0)+(l.usedMonthReceive||0),
                 })),
-                ...visas.map(v => ({...v, type:"visa", dailyLimit:VISA_LIMIT_DAILY, monthlyLimit:VISA_LIMIT_MONTHLY,
-                    usedToday: (v.usedTodayTransfer||0)+(v.usedTodayReceive||0),
-                    usedMonth: (v.usedMonthTransfer||0)+(v.usedMonthReceive||0),
-                })),
+                ...visas.map(v => {
+                    const lims = getVisaLimits(v);
+                    return {...v, type:"visa", ...lims,
+                        usedToday: (v.usedTodayTransfer||0)+(v.usedTodayReceive||0),
+                        usedMonth: (v.usedMonthTransfer||0)+(v.usedMonthReceive||0),
+                    };
+                }),
             ];
 
-            function handleImagePick(e) {
+            async function handleImagePick(e) {
                 const file = e.target.files[0]; if (!file) return;
-                const imageKey = `img_${Date.now()}`;
                 const reader = new FileReader();
-                reader.onload = ev => {
+                reader.onload = async ev => {
                     try {
-                        try { localStorage.setItem(imageKey, ev.target.result); } catch(err) {}
-                        _memStore[imageKey] = ev.target.result;
-                        setForm(f => ({...f, image: imageKey}));
+                        const compressed = await compressImage(ev.target.result);
+                        setForm(f => ({...f, image: compressed}));
                         showToast("✓ تم حفظ الصورة");
                     } catch (err) {
                         showToast("فشل حفظ الصورة - جرب صورة أصغر", "error");
@@ -572,23 +913,29 @@
                 reader.readAsDataURL(file);
             }
 
-            // ⭐ جلب الصورة الحقيقية من localStorage أو memory باستخدام المفتاح
+            // ✅ الصورة دلوقتي base64 مباشرة بعد الضغط
             function getImageSrc(imageRef) {
                 if (!imageRef) return null;
-                if (imageRef.startsWith("http") || imageRef.startsWith("data:")) return imageRef;
+                if (imageRef.startsWith("data:") || imageRef.startsWith("http")) return imageRef;
+                // fallback للصور القديمة المحفوظة بـ key في localStorage
                 try { const v = localStorage.getItem(imageRef); if (v) return v; } catch(e) {}
                 return _memStore[imageRef] || null;
             }
 
             // ⭐ دالة معالجة الـ Smart Paste
             function handleSmartPaste() {
+                if (!smartPaste.trim()) { showToast("الحقل فاضي", "error"); return; }
                 const parsed = parseSmartMessage(smartPaste, lines, visas);
                 
                 setForm(f => ({
                     ...f,
                     amount: parsed.amount || f.amount,
-                    toNumber: parsed.personNumber || f.toNumber,
+                    // ✅ يستخدم أرقام "من" و"إلى" لو اتعرفوا، وإلا يحط رقم العميل في toNumber
+                    fromNumber: parsed.fromNumber || f.fromNumber,
+                    toNumber: parsed.toNumber || parsed.personNumber || f.toNumber,
                     type: parsed.type || f.type,
+                    notes: parsed.notes || f.notes,
+                    time: getCurrentTime(),
                     sourceId: parsed.lineId ? parsed.lineId : f.sourceId,
                     sourceType: parsed.lineId ? (sources.find(s => s.id === parsed.lineId)?.type || "line") : f.sourceType,
                 }));
@@ -596,36 +943,50 @@
                 if (parsed.lineId) {
                     const source = sources.find(s => s.id === parsed.lineId);
                     showToast(`✅ تم تحديد ${source?.name} تلقائياً`);
+                } else {
+                    showToast("✓ تم استخراج البيانات");
                 }
-                
+
                 setSmartPaste("");
-                showToast("✓ تم استخراج البيانات");
             }
 
             function addTransaction() {
-                const amount = parseFloat(form.amount);
+                const amount = evaluateExpression(form.amount);
                 if (!form.date || !form.time || !form.personName || !amount || !form.sourceId) { 
                     showToast("أكمل كل البيانات","error"); 
                     return; 
                 }
-
-                if (form.type === "transfer" && (!form.fromNumber || !form.toNumber)) {
+                if ((form.txnType === "person" || !form.txnType) && form.txnType !== "receive" && (!form.fromNumber || !form.toNumber)) {
                     showToast("أكمل أرقام التحويل","error"); 
                     return;
                 }
+
+                // حساب الخصم التلقائي حسب نوع العملية (مفيش خصم على الاستلام)
+                let feeAmount = 0;
+                let feeDesc = "";
+                if (form.txnType === "bank") {
+                    feeAmount = calcBankFee(amount);
+                    feeDesc = `خصم بنك تلقائي على ${formatNum(amount)} ج`;
+                } else if (form.txnType === "fawry") {
+                    feeAmount = calcFawryFee(amount);
+                    feeDesc = `خصم فوري تلقائي على ${formatNum(amount)} ج`;
+                }
+                // استلام: مفيش خصم ومفيش أرقام مطلوبة
 
                 const personName = form.personName.trim();
                 const fullDateTime = `${form.date} ${form.time}`;
                 
                 const newTxn = {
                     id: Date.now(),
-                    type: form.type,
+                    type: form.txnType === "receive" ? "receive" : "transfer",
+                    txnType: form.txnType || "person",
                     date: form.date,
                     dateTime: fullDateTime,
                     fromNumber: form.fromNumber,
                     toNumber: form.toNumber,
                     personName: personName,
                     amount: amount,
+                    feeAmount: feeAmount,
                     sourceId: form.sourceId,
                     sourceType: form.sourceType,
                     createdAt: nowStr(),
@@ -633,95 +994,134 @@
                     image: null
                 };
 
-                setTransactions(prev => [newTxn, ...prev]);
-                updateSource(form.sourceId, form.sourceType, amount, form.type);
+                setTransactions(prev => {
+                    const updated = [newTxn, ...prev];
+                    persistTransaction(newTxn, prev);
+                    return updated;
+                });
+                updateSource(form.sourceId, form.sourceType, amount, form.txnType === "receive" ? "receive" : "transfer");
+
+                // خصم الرسوم تلقائياً من رأس المال
+                if (feeAmount > 0) {
+                    const feeLog = {
+                        id: Date.now() + 1,
+                        type: "expense",
+                        amount: feeAmount,
+                        desc: feeDesc,
+                        date: nowStr(),
+                        monthDate: currentMonthStr(),
+                        logType: "daily",
+                    };
+                    setFinanceLogs(prev => [feeLog, ...prev]);
+                    persistFinanceLog(feeLog);
+                    setCapital(prev => {
+                        const newCap = prev - feeAmount;
+                        persistCapital(newCap);
+                        return newCap;
+                    });
+                }
 
                 const existingPerson = people.find(p => p.personName.toLowerCase() === personName.toLowerCase());
                 if (existingPerson) {
                     setPeople(prev => prev.map(p => {
                         if (p.id !== existingPerson.id) return p;
-                        
                         const newRecord = {
                             id: Date.now(),
-                            type: form.type,
+                            type: "transfer",
+                            txnType: form.txnType || "person",
                             amount: amount,
                             date: fullDateTime,
-                            description: form.type === "transfer" ? `تحويل: ${form.fromNumber} → ${form.toNumber}` : "استلام"
+                            description: form.txnType === "bank" ? `سحب بنك: ${formatNum(amount)} ج (خصم ${formatNum(feeAmount)} ج)` 
+                                       : form.txnType === "fawry" ? `سحب فوري: ${formatNum(amount)} ج (خصم ${formatNum(feeAmount)} ج)`
+                                       : `تحويل: ${form.fromNumber} → ${form.toNumber}`
                         };
-
-                        return {
-                            ...p,
-                            records: [...(p.records || []), newRecord],
-                            lastUpdated: nowStr()
-                        };
+                        return { ...p, records: [...(p.records || []), newRecord], lastUpdated: nowStr() };
                     }));
-                    const action = form.type === "transfer" ? "تحويل لـ" : "استلام من";
-                    showToast(`${action} ${personName} تم التسجيل ✓`);
+                    const actionLabel = form.txnType === "bank" ? "سحب بنك لـ" : form.txnType === "fawry" ? "سحب فوري لـ" : "تحويل لـ";
+                    const feeMsg = feeAmount > 0 ? ` — خصم ${formatNum(feeAmount)} ج` : "";
+                    showToast(`${actionLabel} ${personName} ✓${feeMsg}`);
                 } else {
-                    const txnType = form.type === "transfer" ? "تحويل" : "استلام";
-                    showToast(`تم ${txnType} بنجاح ✓`);
+                    const feeMsg = feeAmount > 0 ? ` — خصم ${formatNum(feeAmount)} ج` : "";
+                    showToast(`تم التسجيل ✓${feeMsg}`);
                 }
 
-                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
+                setForm({ txnType: "person", type: "transfer", date: today(), time: getCurrentTime(), fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
                 setModal(null);
             }
 
             function updateSource(sourceId, sourceType, amount, txnType) {
+                // txnType هنا "transfer" أو "receive" — الـ txnType (person/bank/fawry) بيتحسب برا
                 const delta = txnType === "transfer" ? -amount : amount;
                 if (sourceType === "line") {
-                    setLines(prev => prev.map(l => {
-                        if (l.id !== sourceId) return l;
-                        return {
-                            ...l,
-                            usedTodayTransfer: (l.usedTodayTransfer||0) + (txnType==="transfer" ? amount : 0),
-                            usedMonthTransfer: (l.usedMonthTransfer||0) + (txnType==="transfer" ? amount : 0),
-                            usedTodayReceive:  (l.usedTodayReceive||0)  + (txnType==="receive"  ? amount : 0),
-                            usedMonthReceive:  (l.usedMonthReceive||0)  + (txnType==="receive"  ? amount : 0),
-                            balance: (l.balance||0) + delta
-                        };
-                    }));
+                    setLines(prev => {
+                        const updated = prev.map(l => {
+                            if (l.id !== sourceId) return l;
+                            return {
+                                ...l,
+                                usedTodayTransfer: (l.usedTodayTransfer||0) + (txnType==="transfer" ? amount : 0),
+                                usedMonthTransfer: (l.usedMonthTransfer||0) + (txnType==="transfer" ? amount : 0),
+                                usedTodayReceive:  (l.usedTodayReceive||0)  + (txnType==="receive"  ? amount : 0),
+                                usedMonthReceive:  (l.usedMonthReceive||0)  + (txnType==="receive"  ? amount : 0),
+                                balance: (l.balance||0) + delta
+                            };
+                        });
+                        persistSources(updated, visas);
+                        return updated;
+                    });
                 } else {
-                    setVisas(prev => prev.map(v => {
-                        if (v.id !== sourceId) return v;
-                        return {
-                            ...v,
-                            usedTodayTransfer: (v.usedTodayTransfer||0) + (txnType==="transfer" ? amount : 0),
-                            usedMonthTransfer: (v.usedMonthTransfer||0) + (txnType==="transfer" ? amount : 0),
-                            usedTodayReceive:  (v.usedTodayReceive||0)  + (txnType==="receive"  ? amount : 0),
-                            usedMonthReceive:  (v.usedMonthReceive||0)  + (txnType==="receive"  ? amount : 0),
-                            balance: (v.balance||0) + delta
-                        };
-                    }));
+                    setVisas(prev => {
+                        const updated = prev.map(v => {
+                            if (v.id !== sourceId) return v;
+                            return {
+                                ...v,
+                                usedTodayTransfer: (v.usedTodayTransfer||0) + (txnType==="transfer" ? amount : 0),
+                                usedMonthTransfer: (v.usedMonthTransfer||0) + (txnType==="transfer" ? amount : 0),
+                                usedTodayReceive:  (v.usedTodayReceive||0)  + (txnType==="receive"  ? amount : 0),
+                                usedMonthReceive:  (v.usedMonthReceive||0)  + (txnType==="receive"  ? amount : 0),
+                                balance: (v.balance||0) + delta
+                            };
+                        });
+                        persistSources(lines, updated);
+                        return updated;
+                    });
                 }
             }
 
             function deleteTransaction(txn) {
-                setTransactions(prev => prev.filter(t => t.id !== txn.id));
+                setTransactions(prev => { const updated = prev.filter(t => t.id !== txn.id); persistTransactionDelete(txn.id, prev); return updated; });
                 const delta = txn.type === "transfer" ? txn.amount : -txn.amount;
                 if (txn.sourceType === "line") {
-                    setLines(prev => prev.map(l => {
-                        if (l.id !== txn.sourceId) return l;
-                        return {
-                            ...l,
-                            usedTodayTransfer: Math.max(0, (l.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedMonthTransfer: Math.max(0, (l.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedTodayReceive:  Math.max(0, (l.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            usedMonthReceive:  Math.max(0, (l.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            balance: (l.balance||0) + delta
-                        };
-                    }));
+                    setLines(prev => {
+                        const updated = prev.map(l => {
+                            if (l.id !== txn.sourceId) return l;
+                            return {
+                                ...l,
+                                usedTodayTransfer: Math.max(0, (l.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedMonthTransfer: Math.max(0, (l.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedTodayReceive:  Math.max(0, (l.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                usedMonthReceive:  Math.max(0, (l.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                balance: (l.balance||0) + delta
+                            };
+                        });
+                        persistSources(updated, visas);
+                        return updated;
+                    });
                 } else {
-                    setVisas(prev => prev.map(v => {
-                        if (v.id !== txn.sourceId) return v;
-                        return {
-                            ...v,
-                            usedTodayTransfer: Math.max(0, (v.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedMonthTransfer: Math.max(0, (v.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedTodayReceive:  Math.max(0, (v.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            usedMonthReceive:  Math.max(0, (v.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            balance: (v.balance||0) + delta
-                        };
-                    }));
+                    setVisas(prev => {
+                        const updated = prev.map(v => {
+                            if (v.id !== txn.sourceId) return v;
+                            return {
+                                ...v,
+                                usedTodayTransfer: Math.max(0, (v.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedMonthTransfer: Math.max(0, (v.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedTodayReceive:  Math.max(0, (v.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                usedMonthReceive:  Math.max(0, (v.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                balance: (v.balance||0) + delta
+                            };
+                        });
+                        persistSources(lines, updated);
+                        return updated;
+                    });
                 }
                 setConfirmDelete(null);
                 showToast("تم حذف التحويل ✓");
@@ -729,52 +1129,66 @@
 
             // ⭐ عكس العملية - بيرجع الأرقام كأن شيئاً لم يكن
             function reverseTransaction(txn) {
-                // نوع معكوس: لو كان transfer يبقى receive والعكس
-                const reversedType = txn.type === "transfer" ? "receive" : "transfer";
-                const delta = txn.type === "transfer" ? txn.amount : -txn.amount;
+                // ✅ إصلاح: حذف التحويل من القائمة
+                setTransactions(prev => { const updated = prev.filter(t => t.id !== txn.id); persistTransactionDelete(txn.id, prev); return updated; });
 
-                // نحذف العملية من القائمة
-                setTransactions(prev => prev.filter(t => t.id !== txn.id));
+                // ✅ إصلاح: عكس تأثير العملية على الرصيد والحدود
+                const reverseDelta = txn.type === "transfer" ? txn.amount : -txn.amount; // عكس الـ delta الأصلي
 
-                // نعكس أرقام الخط/الفيزا
                 if (txn.sourceType === "line") {
-                    setLines(prev => prev.map(l => {
-                        if (l.id !== txn.sourceId) return l;
-                        return {
-                            ...l,
-                            usedTodayTransfer: Math.max(0, (l.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedMonthTransfer: Math.max(0, (l.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedTodayReceive:  Math.max(0, (l.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            usedMonthReceive:  Math.max(0, (l.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            balance: (l.balance||0) + delta
-                        };
-                    }));
+                    setLines(prev => {
+                        const updated = prev.map(l => {
+                            if (l.id !== txn.sourceId) return l;
+                            return {
+                                ...l,
+                                usedTodayTransfer: Math.max(0, (l.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedMonthTransfer: Math.max(0, (l.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedTodayReceive:  Math.max(0, (l.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                usedMonthReceive:  Math.max(0, (l.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                balance: (l.balance||0) + reverseDelta
+                            };
+                        });
+                        persistSources(updated, visas);
+                        return updated;
+                    });
                 } else {
-                    setVisas(prev => prev.map(v => {
-                        if (v.id !== txn.sourceId) return v;
-                        return {
-                            ...v,
-                            usedTodayTransfer: Math.max(0, (v.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedMonthTransfer: Math.max(0, (v.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
-                            usedTodayReceive:  Math.max(0, (v.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            usedMonthReceive:  Math.max(0, (v.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
-                            balance: (v.balance||0) + delta
-                        };
-                    }));
+                    setVisas(prev => {
+                        const updated = prev.map(v => {
+                            if (v.id !== txn.sourceId) return v;
+                            return {
+                                ...v,
+                                usedTodayTransfer: Math.max(0, (v.usedTodayTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedMonthTransfer: Math.max(0, (v.usedMonthTransfer||0) - (txn.type==="transfer" ? txn.amount : 0)),
+                                usedTodayReceive:  Math.max(0, (v.usedTodayReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                usedMonthReceive:  Math.max(0, (v.usedMonthReceive||0)  - (txn.type==="receive"  ? txn.amount : 0)),
+                                balance: (v.balance||0) + reverseDelta
+                            };
+                        });
+                        persistSources(lines, updated);
+                        return updated;
+                    });
                 }
 
-                // نعكس سجل الشخص لو موجود
-                setPeople(prev => prev.map(p => {
-                    if (p.personName.toLowerCase() !== txn.personName?.toLowerCase()) return p;
-                    return {
-                        ...p,
-                        records: (p.records || []).filter(r => !(
-                            Math.abs(r.amount) === txn.amount &&
-                            r.date === (txn.dateTime || txn.date)
-                        )),
-                        lastUpdated: nowStr()
-                    };
-                }));
+                // ✅ إصلاح: البحث عن الشخص بالـ ID مش الاسم (لو موجود)، وإلا بالاسم كـ fallback
+                setPeople(prev => {
+                    const updated = prev.map(p => {
+                        // ✅ مطابقة بالـ personId لو موجود، وإلا بالاسم
+                        const isMatch = txn.personId
+                            ? p.id === txn.personId
+                            : p.personName.toLowerCase() === txn.personName?.toLowerCase();
+                        if (!isMatch) return p;
+                        return {
+                            ...p,
+                            records: (p.records || []).filter(r => !(
+                                Math.abs(r.amount) === txn.amount &&
+                                r.date === (txn.dateTime || txn.date)
+                            )),
+                            lastUpdated: nowStr()
+                        };
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
 
                 setConfirmDelete(null);
                 showToast("↩️ تم عكس العملية وإرجاع الأرقام ✓");
@@ -784,91 +1198,307 @@
             function addDebtToPerson() {
                 const personName = peopleForm.personName.trim();
                 const debtAmount = parseFloat(peopleForm.debtAmount);
-                if (!personName || !debtAmount || debtAmount <= 0 || !peopleForm.desc.trim()) {
-                    showToast("أكمل كل البيانات بشكل صحيح", "error");
-                    return;
+                if (!personName || !debtAmount || debtAmount <= 0) {
+                    showToast("أكمل كل البيانات", "error"); return;
                 }
-
                 const existingPerson = people.find(p => p.personName.toLowerCase() === personName.toLowerCase());
                 if (existingPerson) {
-                    // إضافة دين جديد للشخص الموجود
-                    setPeople(prev => prev.map(p => {
-                        if (p.id !== existingPerson.id) return p;
-                        const newRecord = {
-                            id: Date.now(),
-                            type: "debt",
-                            amount: debtAmount,
-                            date: nowStr(),
-                            description: `دين جديد: ${formatNum(debtAmount)} ج - ${peopleForm.desc}`
+                    const openSess = (existingPerson.sessions||[]).find(s => !s.closed);
+                    if (openSess) {
+                        // ✅ في جلسة مفتوحة — أضف التحويل عليها كـ entry
+                        const transferEntry = {
+                            id: Date.now(), kind: "transfer",
+                            amount: debtAmount, desc: peopleForm.desc || "", date: nowStr()
                         };
-                        return {
-                            ...p,
-                            records: [...(p.records || []), newRecord],
-                            lastUpdated: nowStr()
+                        setPeople(prev => {
+                            const updated = prev.map(p => p.id !== existingPerson.id ? p : {
+                                ...p,
+                                sessions: (p.sessions||[]).map(s => s.id !== openSess.id ? s : {
+                                    ...s,
+                                    debtAmount: (s.debtAmount||0) + debtAmount,
+                                    transfers: [...(s.transfers||[]), transferEntry]
+                                }),
+                                lastUpdated: nowStr()
+                            });
+                            persistPeople(updated);
+                            return updated;
+                        });
+                        showToast("✓ تم إضافة " + formatNum(debtAmount) + " ج لحساب " + personName);
+                    } else {
+                        // مفيش جلسة مفتوحة — افتح واحدة جديدة
+                        const newSession = {
+                            id: Date.now(), debtAmount,
+                            desc: peopleForm.desc || "", date: nowStr(),
+                            payments: [], transfers: [], closed: false, closedAt: null,
                         };
-                    }));
-                    showToast(`تم إضافة دين جديد لـ ${personName} ✓`);
+                        setPeople(prev => {
+                            const updated = prev.map(p => p.id !== existingPerson.id ? p : {
+                                ...p,
+                                sessions: [...(p.sessions||[]), newSession],
+                                lastUpdated: nowStr()
+                            });
+                            persistPeople(updated);
+                            return updated;
+                        });
+                        showToast("تم فتح حساب جديد لـ " + personName + " ✓");
+                    }
                 } else {
-                    // إنشاء شخص جديد بأول دين
-                    const newPerson = {
-                        id: Date.now(),
-                        personName,
-                        desc: peopleForm.desc,
-                        records: [{
-                            id: Date.now(),
-                            type: "debt",
-                            amount: debtAmount,
-                            date: nowStr(),
-                            description: `دين أولي: ${formatNum(debtAmount)} ج`
-                        }],
-                        createdAt: nowStr(),
-                        lastUpdated: nowStr()
+                    const newSession = {
+                        id: Date.now(), debtAmount,
+                        desc: peopleForm.desc || "", date: nowStr(),
+                        payments: [], transfers: [], closed: false, closedAt: null,
                     };
-                    setPeople(prev => [newPerson, ...prev]);
-                    showToast("تم إضافة الشخص بنجاح ✓");
+                    const newPerson = {
+                        id: Date.now(), personName,
+                        commissionPer1000: 10,
+                        sessions: [newSession],
+                        records: [],
+                        createdAt: nowStr(), lastUpdated: nowStr()
+                    };
+                    setPeople(prev => {
+                        const updated = [newPerson, ...prev];
+                        persistPeople(updated);
+                        return updated;
+                    });
+                    showToast("تم إضافة " + personName + " وفتح حسابه ✓");
                 }
-
                 setPeopleForm({ personName: "", debtAmount: "", desc: "" });
                 setModal(null);
             }
 
+            function closeSession(personId, sessionId) {
+                setPeople(prev => {
+                    const updated = prev.map(p => p.id !== personId ? p : {
+                        ...p,
+                        sessions: (p.sessions||[]).map(s => s.id !== sessionId ? s : {
+                            ...s, closed: true, closedAt: nowStr()
+                        }),
+                        lastUpdated: nowStr()
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
+                showToast("✅ تم قفل الحساب — صفحة نظيفة");
+            }
+
+            // FIFO: الدفع بيروح على أقدم جلسة مفتوحة
+            function addSessionPayment(personId, sessionId, amount) {
+                const amt = parseFloat(amount);
+                if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح","error"); return; }
+                const baseId = Date.now();
+                setPeople(prev => {
+                    const updated = prev.map(p => {
+                        if (p.id !== personId) return p;
+                        // رتّب من الأقدم للأحدث وخد أول مفتوحة
+                        const sorted = [...(p.sessions||[])].sort((a,b) => a.id - b.id);
+                        const openSess = sorted.find(s => !s.closed);
+                        if (openSess) {
+                            const newPayment = { id: baseId, amount: amt, date: nowStr() };
+                            const newSessions = (p.sessions||[]).map(s => {
+                                if (s.id !== openSess.id) return s;
+                                const newPayments = [...(s.payments||[]), newPayment];
+                                const totalPaid = newPayments.reduce((sum,pay) => sum+pay.amount, 0);
+                                // الدين الكلي للجلسة = transfers لو موجودين، وإلا debtAmount
+                                const sessDebt = s.transfers?.length > 0
+                                    ? s.transfers.reduce((sum,t) => sum+t.amount, 0)
+                                    : (s.debtAmount||0);
+                                const isDone = totalPaid >= sessDebt;
+                                return { ...s, payments: newPayments, closed: isDone, closedAt: isDone ? nowStr() : s.closedAt };
+                            });
+                            return { ...p, sessions: newSessions, lastUpdated: nowStr() };
+                        } else {
+                            // ❌ مفيش جلسة مفتوحة — احسب الدين المتراكم وافتح جلسة تلقائية
+                            let currentDebt = 0, currentPaid = 0;
+                            (p.sessions||[]).forEach(s => {
+                                currentDebt += s.transfers?.length > 0
+                                    ? s.transfers.reduce((sum,t) => sum+t.amount, 0)
+                                    : (s.debtAmount||0);
+                                (s.payments||[]).forEach(pay => currentPaid += pay.amount);
+                            });
+                            (p.records||[]).forEach(r => {
+                                if (r.amount > 0) currentDebt += r.amount;
+                                else currentPaid += Math.abs(r.amount);
+                            });
+                            const currentBalance = Math.max(0, currentDebt - currentPaid);
+                            if (currentBalance === 0) {
+                                showToast("ما في دين متبقي لهذا العميل", "info");
+                                return p;
+                            }
+                            const autoSess = {
+                                id: baseId, debtAmount: currentBalance,
+                                desc: "حساب مستمر", date: nowStr(),
+                                payments: [{ id: baseId + 1, amount: amt, date: nowStr() }],
+                                transfers: [], closed: false, closedAt: null
+                            };
+                            return { ...p, sessions: [...(p.sessions||[]), autoSess], lastUpdated: nowStr() };
+                        }
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
+                showToast("✓ تم تسجيل الدفعة");
+            }
+
+            function updatePersonCommission(personId, rate) {
+                const r = parseFloat(rate);
+                if (isNaN(r) || r < 0) { showToast("أدخل نسبة صحيحة","error"); return; }
+                setPeople(prev => {
+                    const updated = prev.map(p => p.id !== personId ? p : {...p, commissionPer1000: r, lastUpdated: nowStr()});
+                    persistPeople(updated);
+                    return updated;
+                });
+                showToast("تم تحديث العمولة ✓");
+                setCommissionModal(null);
+            }
+
+            function addFeeLog() {
+                const amt = parseFloat(feeForm.amount);
+                const fee = parseFloat(feeForm.fee);
+                if (!amt || !fee) { showToast("أكمل البيانات","error"); return; }
+                const feeType = feeModal?.type;
+                const desc = feeType === "bank"
+                    ? `خصم بنك: ${formatNum(amt)} ج (خصم ${formatNum(fee)} ج)`
+                    : `خصم فوري: ${formatNum(amt)} ج (خصم ${formatNum(fee)} ج)`;
+                const newLog = {
+                    id: Date.now(), type: "expense", amount: fee,
+                    desc, date: nowStr(), monthDate: currentMonthStr(), logType: "daily"
+                };
+                setFinanceLogs(prev => [newLog, ...prev]);
+                persistFinanceLog(newLog);
+                const newCap = capital - fee;
+                setCapital(newCap); persistCapital(newCap);
+                setFeeModal(null);
+                setFeeForm({amount:"", fee:"", desc:""});
+                showToast("تم تسجيل الخصم ✓");
+            }
+
             function addPayment(personId, paymentAmount) {
                 const amt = parseFloat(paymentAmount);
-                if (!amt || amt <= 0) {
-                    showToast("أدخل مبلغ صحيح", "error");
-                    return;
-                }
-
-                setPeople(prev => prev.map(p => {
-                    if (p.id === personId) {
-                        const newRecord = {
-                            id: Date.now(),
-                            type: "payment",
-                            amount: -amt,
-                            date: nowStr(),
-                            description: `دفع: ${formatNum(amt)} ج`
-                        };
-                        return {...p, records: [...(p.records || []), newRecord], lastUpdated: nowStr()};
-                    }
-                    return p;
-                }));
+                if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
+                setPeople(prev => {
+                    const updated = prev.map(p => {
+                        if (p.id === personId) {
+                            const newRecord = {
+                                id: Date.now(), type: "payment", amount: -amt,
+                                date: nowStr(), description: `دفع: ${formatNum(amt)} ج`
+                            };
+                            return {...p, records: [...(p.records || []), newRecord], lastUpdated: nowStr()};
+                        }
+                        return p;
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
                 showToast("تم تسجيل الدفعة ✓");
             }
 
             function deletePerson(person) {
-                setPeople(prev => prev.filter(p => p.id !== person.id));
+                isDeletingPerson.current = true; // ✅ امنع الـ listener من إرجاعه
+                setPeople(prev => {
+                    const updated = prev.filter(p => String(p.id) !== String(person.id));
+                    saveToLocalStorage('people', updated);
+                    return updated;
+                });
+                persistPersonDelete(person.id);
+                setTimeout(() => { isDeletingPerson.current = false; }, 2000); // ✅ بعد 2 ثانية السماح للـ listener
                 setConfirmDelete(null);
                 showToast("تم حذف الشخص ✓");
             }
 
             function deletePersonRecord(personId, recordId) {
-                setPeople(prev => prev.map(p => {
-                    if (p.id === personId) {
-                        return {...p, records: p.records.filter(r => r.id !== recordId), lastUpdated: nowStr()};
-                    }
-                    return p;
-                }));
+                setPeople(prev => {
+                    const updated = prev.map(p => {
+                        if (p.id === personId) {
+                            return {...p, records: p.records.filter(r => r.id !== recordId), lastUpdated: nowStr()};
+                        }
+                        return p;
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
                 showToast("تم حذف السجل ✓");
+            }
+
+            // ✅ حذف دين (session كاملة أو transfer منها)
+            function deleteDebtEntry(personId, sessionId, transferId) {
+                setPeople(prev => {
+                    const updated = prev.map(p => {
+                        if (String(p.id) !== String(personId)) return p;
+                        let newSessions;
+                        if (transferId) {
+                            // حذف transfer محدد من الجلسة
+                            newSessions = (p.sessions||[]).map(s => {
+                                if (String(s.id) !== String(sessionId)) return s;
+                                const newTransfers = (s.transfers||[]).filter(t => String(t.id) !== String(transferId));
+                                const newDebt = newTransfers.reduce((sum,t)=>sum+t.amount,0);
+                                return {...s, transfers: newTransfers, debtAmount: newDebt || s.debtAmount};
+                            });
+                        } else {
+                            // حذف الجلسة كلها
+                            newSessions = (p.sessions||[]).filter(s => String(s.id) !== String(sessionId));
+                        }
+                        return {...p, sessions: newSessions, lastUpdated: nowStr()};
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
+                showToast("تم الحذف ✓");
+            }
+
+            // ✅ حذف دفعة
+            function deletePaymentEntry(personId, sessionId, paymentId) {
+                setPeople(prev => {
+                    const updated = prev.map(p => {
+                        if (String(p.id) !== String(personId)) return p;
+                        const newSessions = (p.sessions||[]).map(s => {
+                            if (String(s.id) !== String(sessionId)) return s;
+                            const newPayments = (s.payments||[]).filter(pay => String(pay.id) !== String(paymentId));
+                            const totalPaid = newPayments.reduce((sum,pay)=>sum+pay.amount,0);
+                            const sessDebt = s.transfers?.length>0 ? s.transfers.reduce((sum,t)=>sum+t.amount,0) : (s.debtAmount||0);
+                            return {...s, payments: newPayments, closed: totalPaid>=sessDebt&&sessDebt>0, closedAt: totalPaid>=sessDebt&&sessDebt>0 ? s.closedAt||nowStr() : null};
+                        });
+                        return {...p, sessions: newSessions, lastUpdated: nowStr()};
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
+                showToast("تم حذف الدفعة ✓");
+            }
+
+            // ✅ تعديل مبلغ + تاريخ الدين أو الدفعة
+            function saveEditEntry(data) {
+                const {type, personId, sessionId, entryId, newAmount, newDate} = data;
+                setPeople(prev => {
+                    const updated = prev.map(p => {
+                        if (String(p.id) !== String(personId)) return p;
+                        const newSessions = (p.sessions||[]).map(s => {
+                            if (String(s.id) !== String(sessionId)) return s;
+                            if (type === "debt") {
+                                if (entryId) {
+                                    // تعديل transfer محدد
+                                    const newTransfers = (s.transfers||[]).map(t =>
+                                        String(t.id)===String(entryId) ? {...t, amount: newAmount, date: newDate} : t
+                                    );
+                                    return {...s, transfers: newTransfers, debtAmount: newTransfers.reduce((sum,t)=>sum+t.amount,0)};
+                                } else {
+                                    // تعديل debtAmount مباشرة
+                                    return {...s, debtAmount: newAmount, date: newDate};
+                                }
+                            } else {
+                                // تعديل دفعة
+                                const newPayments = (s.payments||[]).map(pay =>
+                                    String(pay.id)===String(entryId) ? {...pay, amount: newAmount, date: newDate} : pay
+                                );
+                                return {...s, payments: newPayments};
+                            }
+                        });
+                        return {...p, sessions: newSessions, lastUpdated: nowStr()};
+                    });
+                    persistPeople(updated);
+                    return updated;
+                });
+                setEditEntryModal(null);
+                showToast("تم التعديل ✓");
             }
 
             function addFinanceLog() {
@@ -889,11 +1519,11 @@
                 };
 
                 setFinanceLogs(prev => [newLog, ...prev]);
-                if (financeForm.type === "income") {
-                    setCapital(c => c + amt);
-                } else {
-                    setCapital(c => c - amt);
-                }
+                persistFinanceLog(newLog);
+
+                const newCapital = financeForm.type === "income" ? capital + amt : capital - amt;
+                setCapital(newCapital);
+                persistCapital(newCapital);
 
                 setFinanceForm({ type: "income", amount: "", desc: "" });
                 setModal(null);
@@ -904,6 +1534,7 @@
                 const amt = parseFloat(capitalInput);
                 if (isNaN(amt) || amt < 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
                 setCapital(amt);
+                persistCapital(amt);
                 setCapitalInput("");
                 setModal(null);
                 showToast("تم تحديث رأس المال ✓");
@@ -959,25 +1590,39 @@
 
             function resetDaily() {
                 saveDailySummary(false);
-                setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0}))); 
-                setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0}))); 
+                setLines(prev => {
+                    const updated = prev.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0}));
+                    persistSources(updated, visas);
+                    return updated;
+                });
+                setVisas(prev => {
+                    const updated = prev.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0}));
+                    persistSources(lines, updated);
+                    return updated;
+                });
                 showToast("تم الأرشفة والتصفير اليومي ✓"); 
             }
+
             function resetMonthly() { 
-                setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}))); 
-                setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}))); 
+                setLines(prev => {
+                    const updated = prev.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}));
+                    persistSources(updated, visas);
+                    return updated;
+                });
+                setVisas(prev => {
+                    const updated = prev.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}));
+                    persistSources(lines, updated);
+                    return updated;
+                });
                 showToast("تم تصفير الشهري ✓"); 
             }
 
-
-
             function deleteFinanceLog(log) {
                 setFinanceLogs(prev => prev.filter(item => item.id !== log.id));
-                if (log.type === "income") {
-                    setCapital(c => c - log.amount);
-                } else {
-                    setCapital(c => c + log.amount);
-                }
+                persistFinanceLogDelete(log.id);
+                const newCapital = log.type === "income" ? capital - log.amount : capital + log.amount;
+                setCapital(newCapital);
+                persistCapital(newCapital);
                 showToast("تم حذف السجل ✓");
             }
 
@@ -1005,13 +1650,40 @@
             const alertSources = sources.filter(s=>(s.usedMonth/s.monthlyLimit)>=0.8);
             const todayTxns = transactions.filter(t => t.date === today());
             
-            const getPersonBalance = (person) => {
-                let balance = 0;
-                if (person.records && person.records.length > 0) {
-                    balance = person.records.reduce((sum, r) => sum + (r.amount || 0), 0);
+            // ✅ الجلسة المفتوحة — الأقدم (الأصغر id) من الجلسات غير المقفولة
+            const getOpenSession = (person) => {
+                if (!person.sessions || person.sessions.length === 0) {
+                    if (person.records && person.records.length > 0) {
+                        const bal = person.records.reduce((s,r) => s+(r.amount||0), 0);
+                        return { balance: Math.max(0, bal), isLegacy: true };
+                    }
+                    return null;
                 }
-                return Math.max(0, balance);
+                const openSessions = person.sessions.filter(s => !s.closed);
+                if (openSessions.length === 0) return null;
+                return openSessions.sort((a,b) => a.id - b.id)[0];
             };
+
+            const getPersonBalance = (person) => {
+                // legacy فقط بدون sessions
+                if ((!person.sessions || person.sessions.length === 0) && person.records?.length > 0) {
+                    const bal = person.records.reduce((s,r) => s+(r.amount||0), 0);
+                    return Math.max(0, bal);
+                }
+                let totalDebt = 0, totalPaid = 0;
+                (person.sessions||[]).forEach(s => {
+                    totalDebt += s.debtAmount || 0;
+                    (s.payments||[]).forEach(p => totalPaid += p.amount);
+                });
+                (person.records||[]).forEach(r => {
+                    if (r.amount > 0) totalDebt += r.amount;
+                    else totalPaid += Math.abs(r.amount);
+                });
+                return Math.max(0, totalDebt - totalPaid);
+            };
+
+            const getPersonCommission = (person) => person.commissionPer1000 || 10;
+            const calcCommission = (amount, person) => Math.round((amount / 1000) * getPersonCommission(person));
             
             const totalDebt = people.reduce((s, p) => s + getPersonBalance(p), 0);
 
@@ -1022,11 +1694,16 @@
             const dailyLogs = monthlyLogs.filter(l => l.logType === "daily");
             const monthlyFinanceLogs = monthlyLogs.filter(l => l.logType === "monthly");
             
-            const currentLogs = financeTab === "daily" ? dailyLogs : monthlyFinanceLogs;
+            // الشهري = الشهري المخصص + كل اليومي متراكم في الشهر ده
+            const currentLogs = financeTab === "daily" ? dailyLogs : monthlyLogs;
             
             const monthIncome = currentLogs.filter(l => l.type === "income").reduce((s, l) => s + l.amount, 0);
             const monthExpense = currentLogs.filter(l => l.type === "expense").reduce((s, l) => s + l.amount, 0);
             const netMonthProfit = monthIncome - monthExpense;
+            // ملخص اليومي للـ dashboard
+            const todayStr2 = today();
+            const todayLogsIncome = financeLogs.filter(l=>l.date&&l.date.startsWith(todayStr2)&&l.type==="income").reduce((s,l)=>s+l.amount,0);
+            const todayLogsExpense = financeLogs.filter(l=>l.date&&l.date.startsWith(todayStr2)&&l.type==="expense").reduce((s,l)=>s+l.amount,0);
 
             const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
             const isAdmin = userRole === "admin";
@@ -1034,14 +1711,15 @@
             const isUser = userRole === "user";
             const isGuest = userRole === "guest";
 
-            const tabs = ["dashboard", "transactions", "people", "lines", "finance"];
+            const tabs = ["dashboard", "transactions", "people", "lines", "finance", "abuadi"];
 
             const displayTabs = [
                 {id:"dashboard",icon:"🏠",label:"الرئيسية"},
                 {id:"transactions",icon:"💸",label:"العمليات"},
                 {id:"people",icon:"👥",label:"الأشخاص"},
                 {id:"lines",icon:"📱",label:"الخطوط"},
-                {id:"finance",icon:"💰",label:"المالية"}
+{id:"finance",icon:"💰",label:"المالية"},
+                {id:"abuadi",icon:"🎙️",label:"أبو عدي"},
             ].filter(t => tabs.includes(t.id));
 
             const getRoleName = () => {
@@ -1163,7 +1841,7 @@
                                     <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                             <div>
-                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{t.type === "transfer" ? "💸" : "📥"} {t.personName}</div>
+                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{t.txnType === "bank" ? "🏦" : t.txnType === "fawry" ? "⚡" : t.type === "transfer" ? "💸" : "📥"} {t.personName}{t.feeAmount > 0 ? ` (خصم ${formatNum(t.feeAmount)} ج)` : ""}</div>
                                                 <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateArabic(t.date)} - {t.time}</div>
                                             </div>
                                             <div style={{display:"flex",gap:8}}>
@@ -1212,7 +1890,7 @@
                                     <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                             <div>
-                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{t.type === "transfer" ? "💸" : "📥"} {t.personName}</div>
+                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{t.txnType === "bank" ? "🏦" : t.txnType === "fawry" ? "⚡" : t.type === "transfer" ? "💸" : "📥"} {t.personName}{t.feeAmount > 0 ? ` (خصم ${formatNum(t.feeAmount)} ج)` : ""}</div>
                                                 <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateArabic(t.date)} - {t.time}</div>
                                             </div>
                                             {isAdmin && (
@@ -1246,89 +1924,309 @@
                         {/* PEOPLE */}
                         {tab==="people" && !selectedPersonId && (
                             <div>
+                                {/* إجمالي الديون المفتوحة */}
                                 <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #a78bfa40",borderRadius:16,padding:16,marginBottom:16,textAlign:"center"}}>
-                                    <div style={{fontSize:13,color:"#94a3b8"}}>💳 إجمالي الديون</div>
+                                    <div style={{fontSize:13,color:"#94a3b8"}}>💳 إجمالي الحسابات المفتوحة</div>
                                     <div style={{fontSize:28,fontWeight:900,color:"#a78bfa",margin:"8px 0"}}>{formatNum(totalDebt)} ج</div>
+                                    <div style={{fontSize:11,color:"#475569"}}>{people.filter(p=>{const s=getOpenSession(p);return s&&!s.isLegacy&&getPersonBalance(p)>0;}).length} عميل عنده رصيد</div>
                                 </div>
 
+                                {/* أزرار */}
                                 {isAdmin && (
-                                    <button onClick={()=>{setPeopleForm({personName:"",debtAmount:"",desc:""});setEditPersonId(null);setModal("addDebt");}} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ دين جديد</button>
+                                    <div style={{display:"flex",gap:10,marginBottom:16}}>
+                                        <button onClick={()=>{setPeopleForm({personName:"",debtAmount:"",desc:""});setModal("addDebt");}} style={{flex:1,background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>➕ حساب جديد</button>
+                                    </div>
                                 )}
 
                                 {people.map(person => {
                                     const balance = getPersonBalance(person);
+                                    const openSession = getOpenSession(person);
+                                    const commission = balance > 0 ? calcCommission(balance, person) : 0;
+                                    const hasOpen = openSession && !openSession.closed;
+                                    const closedSessions = (person.sessions||[]).filter(s=>s.closed).length;
                                     return (
-                                        <div key={person.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:14,marginBottom:12,cursor:"pointer"}} onClick={()=>setSelectedPersonId(person.id)}>
-                                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div key={person.id} onClick={()=>setSelectedPersonId(person.id)}
+                                            style={{background:"#0f1e3d",border:`1px solid ${hasOpen&&balance>0?"#a78bfa40":"#1e3a5f"}`,borderRadius:14,padding:14,marginBottom:12,cursor:"pointer",position:"relative"}}>
+                                            {/* badge جلسات مقفولة */}
+                                            {closedSessions > 0 && <div style={{position:"absolute",top:10,left:10,background:"#10b98120",border:"1px solid #10b98140",borderRadius:20,padding:"2px 8px",fontSize:10,color:"#10b981"}}>{closedSessions} حساب مكتمل</div>}
+                                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                                 <div>
                                                     <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>{person.personName}</div>
-                                                    <div style={{fontSize:11,color:"#475569",marginTop:4}}>{person.desc}</div>
+                                                    <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>
+                                                        <span style={{fontSize:10,background:"#1e293b",borderRadius:10,padding:"2px 8px",color:"#94a3b8"}}>عمولة: {getPersonCommission(person)} ج/الف</span>
+                                                        {openSession && !openSession.isLegacy && <span style={{fontSize:10,background:"#a78bfa20",borderRadius:10,padding:"2px 8px",color:"#a78bfa"}}>📂 {openSession.desc || "حساب مفتوح"}</span>}
+                                                    </div>
                                                 </div>
-                                                <div style={{textAlign:"center"}}>
-                                                    <div style={{fontSize:18,fontWeight:900,color:balance>0?"#ef4444":"#10b981"}}>{formatNum(balance)} ج</div>
-                                                    <div style={{fontSize:10,color:"#475569"}}>الباقي</div>
+                                                <div style={{textAlign:"left"}}>
+                                                    <div style={{fontSize:20,fontWeight:900,color:balance>0?"#ef4444":"#10b981"}}>{formatNum(balance)} ج</div>
+                                                    {commission > 0 && <div style={{fontSize:10,color:"#22d3ee",textAlign:"left"}}>+ {formatNum(commission)} ج عمولة</div>}
                                                 </div>
                                             </div>
-                                            <ProgressBar used={getPersonBalance(person)} limit={person.records?.reduce((s, r) => s + (r.type === "debt" ? r.amount : 0), 0) || 1} color="#a78bfa"/>
+                                            {openSession && !openSession.isLegacy && (
+                                                <ProgressBar used={openSession.debtAmount - balance} limit={openSession.debtAmount||1} color="#a78bfa"/>
+                                            )}
+                                            {isAdmin && balance > 0 && (
+                                                <div onClick={e=>e.stopPropagation()} style={{marginTop:10}}>
+                                                    <QuickPayRow onPay={(amt)=>addSessionPayment(person.id, openSession?.id, amt)} />
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
-                                {people.length === 0 && <div style={{textAlign:"center",color:"#475569",padding:30}}>لا توجد أشخاص</div>}
+                                {people.length === 0 && <div style={{textAlign:"center",color:"#475569",padding:30}}>لا توجد عملاء</div>}
                             </div>
                         )}
 
                         {/* PERSON DETAILS */}
-                        {tab==="people" && selectedPersonId && selectedPerson && (
-                            <div>
-                                <button onClick={()=>setSelectedPersonId(null)} style={{width:"100%",background:"#1e293b",border:"none",borderRadius:12,padding:12,color:"#94a3b8",marginBottom:16,cursor:"pointer"}}>← العودة</button>
+                        {tab==="people" && selectedPersonId && selectedPerson && (() => {
+                            const openSession = getOpenSession(selectedPerson);
+                            const balance = getPersonBalance(selectedPerson);
+                            const commission = balance > 0 ? calcCommission(balance, selectedPerson) : 0;
+                            const totalPaid = (selectedPerson.sessions||[]).reduce((s,sess)=>(sess.payments||[]).reduce((a,p)=>a+p.amount,s),0);
+                            const closedSessions = (selectedPerson.sessions||[]).filter(s=>s.closed);
 
-                                <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #a78bfa40",borderRadius:16,padding:16,marginBottom:16}}>
-                                    <div style={{fontSize:18,fontWeight:900,color:"#e2e8f0",marginBottom:8}}>{selectedPerson.personName}</div>
-                                    <div style={{fontSize:12,color:"#475569",marginBottom:12}}>{selectedPerson.desc}</div>
-                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                                        <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
-                                            <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{formatNum(selectedPerson.records?.filter(r => r.type === "debt").reduce((s, r) => s + r.amount, 0) || 0)} ج</div>
-                                            <div style={{fontSize:10,color:"#475569"}}>إجمالي الديون</div>
+                            // ⭐ بناء السجل اليومي — كل يوم بلوكة فيها التحويلات والدفعات
+                            const buildDailyLedger = (person) => {
+                                // اجمع كل العمليات: sessions (كـ debt) + payments
+                                const entries = [];
+                                (person.sessions||[]).forEach(sess => {
+                                    const sessDate = (sess.date||"").split(" ")[0];
+                                    if (sess.transfers && sess.transfers.length > 0) {
+                                        // لو في transfers — اعرض كل واحدة لوحدها
+                                        sess.transfers.forEach(t => {
+                                            const tDate = (t.date||sess.date||"").split(" ")[0];
+                                            entries.push({ id: t.id, sessionId: sess.id, dateKey: tDate, kind:"debt", amount: t.amount, label: t.desc||sess.desc||"تحويل", date: t.date||sess.date });
+                                        });
+                                    } else {
+                                        // session بـ debtAmount مباشرة
+                                        entries.push({ id: null, sessionId: sess.id, dateKey: sessDate, kind:"debt", amount: sess.debtAmount, label: sess.desc||"تحويل", date: sess.date });
+                                    }
+                                    // الدفعات
+                                    (sess.payments||[]).forEach(pay => {
+                                        const payDate = (pay.date||"").split(" ")[0];
+                                        entries.push({ id: pay.id, sessionId: sess.id, dateKey: payDate, kind:"payment", amount: pay.amount, date: pay.date });
+                                    });
+                                });
+                                // اجمع كمان records القديمة (للتوافق)
+                                (person.records||[]).forEach(r => {
+                                    const rDate = (r.date||"").split(" ")[0];
+                                    if (r.type === "payment" || r.amount < 0) {
+                                        entries.push({ dateKey: rDate, kind:"payment", amount: Math.abs(r.amount), date: r.date });
+                                    } else {
+                                        entries.push({ dateKey: rDate, kind:"debt", amount: r.amount, label: r.description||"تحويل", date: r.date });
+                                    }
+                                });
+
+                                // رتّب من الأقدم للأحدث عشان نحسب التراكم
+                                entries.sort((a,b) => (a.date||"") > (b.date||"") ? 1 : -1);
+
+                                // اجمع حسب اليوم
+                                const dayMap = {};
+                                entries.forEach(e => {
+                                    if (!e.dateKey) return;
+                                    if (!dayMap[e.dateKey]) dayMap[e.dateKey] = { debt:0, paid:0, entries:[] };
+                                    if (e.kind === "debt") dayMap[e.dateKey].debt += e.amount;
+                                    else dayMap[e.dateKey].paid += e.amount;
+                                    dayMap[e.dateKey].entries.push(e);
+                                });
+
+                                // رتّب الأيام من الأقدم وأحسب المتراكم
+                                const days = Object.keys(dayMap).sort();
+                                let running = 0;
+                                return days.map(dateKey => {
+                                    const d = dayMap[dateKey];
+                                    const carryIn = running;
+                                    running = running + d.debt - d.paid;
+                                    return { dateKey, debt: d.debt, paid: d.paid, carryIn, runningAfter: running, entries: d.entries };
+                                }).reverse(); // اعرض من الأحدث للأقدم
+                            };
+
+                            const dailyLedger = buildDailyLedger(selectedPerson);
+
+                            return (
+                            <div>
+                                <button onClick={()=>setSelectedPersonId(null)} style={{width:"100%",background:"#1e293b",border:"none",borderRadius:12,padding:12,color:"#94a3b8",marginBottom:16,cursor:"pointer",fontWeight:600}}>← رجوع</button>
+
+                                {/* هيدر العميل */}
+                                <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #a78bfa40",borderRadius:16,padding:16,marginBottom:12}}>
+                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                                        <div>
+                                            <div style={{fontSize:20,fontWeight:900,color:"#e2e8f0"}}>{selectedPerson.personName}</div>
+                                            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>عمولة: {getPersonCommission(selectedPerson)} ج / الألف</div>
                                         </div>
-                                        <div style={{background:"#0a0f1e",borderRadius:8,padding:12,textAlign:"center"}}>
-                                            <div style={{fontSize:14,fontWeight:700,color:getPersonBalance(selectedPerson)>0?"#ef4444":"#10b981"}}>{formatNum(getPersonBalance(selectedPerson))} ج</div>
-                                            <div style={{fontSize:10,color:"#475569"}}>الباقي</div>
+                                        {isAdmin && <button onClick={()=>setCommissionModal({personId:selectedPerson.id, current:getPersonCommission(selectedPerson)})} style={{background:"#22d3ee20",border:"1px solid #22d3ee40",borderRadius:10,padding:"6px 12px",color:"#22d3ee",fontSize:12,cursor:"pointer",fontWeight:600}}>✏️ عمولة</button>}
+                                    </div>
+                                    {/* ملخص إجمالي */}
+                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+                                        <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center"}}>
+                                            <div style={{fontSize:15,fontWeight:800,color:"#f59e0b"}}>{formatNum(dailyLedger.reduce((s,d)=>s+d.debt,0))} ج</div>
+                                            <div style={{fontSize:10,color:"#475569"}}>إجمالي الحوالات</div>
+                                        </div>
+                                        <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center"}}>
+                                            <div style={{fontSize:15,fontWeight:800,color:"#10b981"}}>{formatNum(dailyLedger.reduce((s,d)=>s+d.paid,0))} ج</div>
+                                            <div style={{fontSize:10,color:"#475569"}}>إجمالي المدفوع</div>
+                                        </div>
+                                        <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center"}}>
+                                            <div style={{fontSize:15,fontWeight:800,color:balance>0?"#ef4444":"#10b981"}}>{formatNum(balance)} ج</div>
+                                            <div style={{fontSize:10,color:"#475569"}}>المتبقي الآن</div>
                                         </div>
                                     </div>
+                                    {commission > 0 && (
+                                        <div style={{background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:8,padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                            <span style={{fontSize:12,color:"#22d3ee"}}>💰 العمولة الكلية</span>
+                                            <span style={{fontSize:14,fontWeight:800,color:"#22d3ee"}}>{formatNum(commission)} ج</span>
+                                        </div>
+                                    )}
+                                    {balance > 0 && (
+                                        <div>
+                                            <ProgressBar used={dailyLedger.reduce((s,d)=>s+d.paid,0)} limit={Math.max(dailyLedger.reduce((s,d)=>s+d.debt,0),1)} color="#a78bfa"/>
+                                            <div style={{fontSize:10,color:"#475569",textAlign:"center",marginTop:4}}>
+                                                {Math.round((dailyLedger.reduce((s,d)=>s+d.paid,0)/Math.max(dailyLedger.reduce((s,d)=>s+d.debt,0),1))*100)}% تم السداد
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {isAdmin && (
-                                    <div style={{display:"flex",gap:10,marginBottom:16}}>
-                                        <button onClick={()=>setConfirmDelete({type:"person",data:selectedPerson})} style={{flex:1,background:"#ef444420",border:"1px solid #ef444440",borderRadius:12,padding:12,color:"#ef4444",cursor:"pointer",fontWeight:600}}>🗑️ حذف</button>
+                                {/* إضافة دفعة */}
+                                {isAdmin && balance > 0 && (
+                                    <div style={{background:"linear-gradient(135deg,#0f2820,#0a1628)",border:"2px solid #10b98150",borderRadius:14,padding:14,marginBottom:12}}>
+                                        <div style={{fontSize:13,color:"#10b981",marginBottom:8,fontWeight:700}}>💰 تسجيل دفعة — المتبقي: {formatNum(balance)} ج</div>
+                                        <PaymentInput onPay={(amt)=>addSessionPayment(selectedPerson.id, openSession?.id, amt)} />
+                                        {openSession && !openSession.isLegacy && !openSession.closed && balance === 0 && (
+                                            <button onClick={()=>closeSession(selectedPerson.id, openSession.id)}
+                                                style={{width:"100%",marginTop:8,background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:12,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                                                ✅ قفل الحساب — الرصيد اتسدد
+                                            </button>
+                                        )}
+                                        {openSession && !openSession.isLegacy && !openSession.closed && balance > 0 && (
+                                            <button onClick={()=>{if(window.confirm("هتقفل الحساب وفيه رصيد متأخر. متأكد؟"))closeSession(selectedPerson.id, openSession.id);}}
+                                                style={{width:"100%",marginTop:8,background:"#f59e0b20",border:"1px solid #f59e0b40",borderRadius:12,padding:10,color:"#f59e0b",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                                                🔒 قفل الحساب يدوياً (فيه {formatNum(balance)} ج متبقية)
+                                            </button>
+                                        )}
                                     </div>
                                 )}
 
-                                <div style={{display:"flex",gap:8,marginBottom:16}}>
-                                    <input type="number" placeholder="مبلغ الدفعة" style={{flex:1,background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,outline:"none",textAlign:"right"}} id={`payment-input`}/>
-                                    <button onClick={()=>{const val=document.getElementById(`payment-input`).value;addPayment(selectedPerson.id,val);document.getElementById(`payment-input`).value="";}} style={{background:"#10b98120",border:"1px solid #10b98140",borderRadius:8,padding:"8px 12px",color:"#10b981",cursor:"pointer",fontSize:12,fontWeight:600}}>✓ دفع</button>
-                                </div>
+                                {isAdmin && (
+                                    <button onClick={()=>setConfirmDelete({type:"person",data:selectedPerson})} style={{width:"100%",background:"#ef444415",border:"1px solid #ef444430",borderRadius:12,padding:10,color:"#ef4444",cursor:"pointer",fontWeight:600,fontSize:13,marginBottom:12}}>🗑️ حذف العميل</button>
+                                )}
 
-                                <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>📜 السجل المفصل</div>
-                                {selectedPerson.records && [...selectedPerson.records].reverse().map((record, idx) => (
-                                    <div key={record.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:12,marginBottom:8}}>
-                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
-                                            <div>
-                                                <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{record.description}</div>
-                                                <div style={{fontSize:10,color:"#475569",marginTop:4}}>{formatDateOnly(record.date)}</div>
-                                            </div>
-                                            <div style={{display:"flex",alignItems:"center",gap:8}}>
-                                                <span style={{fontSize:14,fontWeight:700,color: record.amount >= 0 ? "#ef4444" : "#10b981"}}>
-                                                    {record.amount >= 0 ? "+ " : ""}{formatNum(Math.abs(record.amount))} ج
+                                {/* ⭐ السجل اليومي المفصّل */}
+                                <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:10}}>📋 السجل اليومي</div>
+                                {dailyLedger.length === 0 && (
+                                    <div style={{textAlign:"center",color:"#475569",padding:20}}>لا توجد سجلات بعد</div>
+                                )}
+                                {dailyLedger.map((day, idx) => {
+                                    const isToday = day.dateKey === today();
+                                    const dayNet = day.debt - day.paid;
+                                    return (
+                                        <div key={day.dateKey} style={{
+                                            background: isToday ? "linear-gradient(135deg,#0f1e3d,#0a1628)" : "#0a1628",
+                                            border: `1px solid ${isToday ? "#a78bfa50" : "#1e3a5f"}`,
+                                            borderRadius:14, padding:14, marginBottom:10
+                                        }}>
+                                            {/* هيدر اليوم */}
+                                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                                                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                    <span style={{fontSize:13,fontWeight:700,color: isToday?"#a78bfa":"#94a3b8"}}>
+                                                        📅 {formatDateArabic(day.dateKey)}
+                                                    </span>
+                                                    {isToday && <span style={{fontSize:10,background:"#a78bfa20",color:"#a78bfa",borderRadius:20,padding:"2px 8px",fontWeight:700}}>اليوم</span>}
+                                                </div>
+                                                <span style={{fontSize:14,fontWeight:800,color: day.runningAfter>0?"#ef4444":"#10b981"}}>
+                                                    {formatNum(day.runningAfter)} ج
                                                 </span>
-                                                {isAdmin && (
-                                                    <button onClick={()=>deletePersonRecord(selectedPerson.id, record.id)} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:12}}>🗑️</button>
-                                                )}
                                             </div>
+
+                                            {/* المتراكم من قبل */}
+                                            {day.carryIn > 0 && (
+                                                <div style={{background:"#1e293b",borderRadius:8,padding:"6px 10px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                                    <span style={{fontSize:11,color:"#64748b"}}>🔄 متراكم من قبل</span>
+                                                    <span style={{fontSize:12,fontWeight:700,color:"#f59e0b"}}>{formatNum(day.carryIn)} ج</span>
+                                                </div>
+                                            )}
+
+                                            {/* التفاصيل — كل entry لوحدها مع أزرار تعديل وحذف */}
+                                            {day.entries.map(entry => {
+                                                const isDebt = entry.kind === "debt";
+                                                return (
+                                                    <div key={entry.id||entry.date} style={{
+                                                        display:"flex", justifyContent:"space-between", alignItems:"center",
+                                                        background: isDebt?"#ef444412":"#10b98112",
+                                                        border: `1px solid ${isDebt?"#ef444430":"#10b98130"}`,
+                                                        borderRadius:10, padding:"8px 10px", marginBottom:6
+                                                    }}>
+                                                        <div>
+                                                            <div style={{fontSize:14,fontWeight:800,color:isDebt?"#ef4444":"#10b981"}}>
+                                                                {isDebt?"+ ":"- "}{formatNum(entry.amount)} ج
+                                                            </div>
+                                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>
+                                                                {isDebt?"💸 حوّل":"💰 دفع"} · {entry.date?.split(" ")[1]||""}
+                                                                {entry.label && entry.label !== "تحويل" && <span> · {entry.label}</span>}
+                                                            </div>
+                                                        </div>
+                                                        {isAdmin && (
+                                                            <div style={{display:"flex",gap:6}}>
+                                                                <button onClick={()=>setEditEntryModal({
+                                                                    type: isDebt?"debt":"payment",
+                                                                    personId: selectedPerson.id,
+                                                                    sessionId: entry.sessionId,
+                                                                    entryId: entry.id,
+                                                                    amount: entry.amount,
+                                                                    date: entry.date
+                                                                })} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"4px 8px",color:"#94a3b8",cursor:"pointer",fontSize:12}}>✏️</button>
+                                                                <button onClick={()=>{
+                                                                    if(window.confirm("تمسح الـ entry ده؟")) {
+                                                                        if(isDebt) deleteDebtEntry(selectedPerson.id, entry.sessionId, entry.id);
+                                                                        else deletePaymentEntry(selectedPerson.id, entry.sessionId, entry.id);
+                                                                    }
+                                                                }} style={{background:"#ef444415",border:"none",borderRadius:8,padding:"4px 8px",color:"#ef4444",cursor:"pointer",fontSize:12}}>🗑️</button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* صافي اليوم */}
+                                            {(day.debt > 0 || day.paid > 0) && (
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8,borderTop:"1px solid #1e3a5f",marginTop:4}}>
+                                                    <span style={{fontSize:11,color:"#64748b"}}>صافي اليوم</span>
+                                                    <span style={{fontSize:12,fontWeight:700,color: dayNet>0?"#ef4444":dayNet<0?"#10b981":"#94a3b8"}}>
+                                                        {dayNet>0?"+":""}{formatNum(dayNet)} ج
+                                                        {dayNet===0 && " ✅"}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
+                                    );
+                                })}
+
+                                {/* الحسابات المقفولة */}
+                                {closedSessions.length > 0 && (
+                                    <div style={{marginTop:8}}>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>✅ الحسابات المكتملة ({closedSessions.length})</div>
+                                        {closedSessions.map(session => {
+                                            const paid = (session.payments||[]).reduce((s,p)=>s+p.amount,0);
+                                            return (
+                                                <div key={session.id} style={{background:"#0f1e3d",border:"1px solid #10b98120",borderRadius:12,padding:12,marginBottom:8,opacity:0.7}}>
+                                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                                        <div>
+                                                            <div style={{fontSize:13,fontWeight:700,color:"#94a3b8"}}>{session.desc || "حساب مكتمل"}</div>
+                                                            <div style={{fontSize:10,color:"#475569"}}>{formatDateOnly(session.date)} ← {formatDateOnly(session.closedAt)}</div>
+                                                        </div>
+                                                        <div style={{textAlign:"left"}}>
+                                                            <div style={{fontSize:13,fontWeight:700,color:"#10b981"}}>{formatNum(session.debtAmount)} ج ✓</div>
+                                                            <div style={{fontSize:10,color:"#475569"}}>مدفوع: {formatNum(paid)} ج</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                ))}
+                                )}
                             </div>
-                        )}
+                            );
+                        })()}
 
                         {/* LINES */}
                         {tab==="lines" && (
@@ -1354,6 +2252,7 @@
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                         {isAdmin && <button onClick={()=>setLines(p=>p.map(x=>x.id===l.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
                                                         {isAdmin && <button onClick={()=>{setEditLineId(l.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                        {isAdmin && lines.length > 1 && <button onClick={()=>{if(window.confirm(`حذف ${l.name}؟`)){setLines(p=>{const nl=p.filter(x=>x.id!==l.id);persistSources(nl,visas);return nl;});}}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>🗑️</button>}
                                                     </div>
                                                 </div>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -1382,8 +2281,11 @@
                                 </div>
 
                                 <div style={{marginBottom:20}}>
-                                    <div style={{fontSize:14,fontWeight:700,color:"#a78bfa",marginBottom:10}}>💳 الفيزا</div>
-                                    {visas.map(v=>{
+                                    <div style={{fontSize:14,fontWeight:700,color:"#f59e0b",marginBottom:10}}>⚡ فيزا فوري</div>
+                                    {visas.filter(v=>v.visaType!=="insta").map(v=>{
+                                        const lims = getVisaLimits(v);
+                                        const VISA_LIMIT_MONTHLY = lims.monthlyLimit;
+                                        const VISA_LIMIT_DAILY = lims.dailyLimit;
                                         const mtPct = ((v.usedMonthTransfer||0)/VISA_LIMIT_MONTHLY)*100;
                                         const mrPct = ((v.usedMonthReceive||0)/VISA_LIMIT_MONTHLY)*100;
                                         const isDanger = mtPct >= 80 || mrPct >= 80;
@@ -1402,6 +2304,7 @@
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                         {isAdmin && <button onClick={()=>setVisas(p=>p.map(x=>x.id===v.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
                                                         {isAdmin && <button onClick={()=>{setEditLineId(v.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                        {isAdmin && <button onClick={()=>{if(window.confirm(`حذف ${v.name}؟`)){setVisas(p=>{const nv=p.filter(x=>x.id!==v.id);persistSources(lines,nv);return nv;});}}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>🗑️</button>}
                                                     </div>
                                                 </div>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -1429,6 +2332,64 @@
                                     })}
                                 </div>
 
+                                <div style={{marginBottom:20}}>
+                                    <div style={{fontSize:14,fontWeight:700,color:"#a78bfa",marginBottom:10}}>🏧 فيزا إنستا باي</div>
+                                    {visas.filter(v=>v.visaType==="insta").map(v=>{
+                                        const lims = getVisaLimits(v);
+                                        const VISA_LIMIT_MONTHLY = lims.monthlyLimit;
+                                        const VISA_LIMIT_DAILY = lims.dailyLimit;
+                                        const mtPct = ((v.usedMonthTransfer||0)/VISA_LIMIT_MONTHLY)*100;
+                                        const mrPct = ((v.usedMonthReceive||0)/VISA_LIMIT_MONTHLY)*100;
+                                        const isDanger = mtPct >= 80 || mrPct >= 80;
+                                        const isAvail = v.available !== false;
+                                        const borderColor = isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
+                                        const availColor = isAvail ? "#22c55e" : "#ef4444";
+                                        const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const balance = v.balance || 0;
+                                        return (
+                                            <div key={v.id} style={{background:"#0f1e3d",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                                                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#a78bfa" : "#94a3b8"}}>{v.name}</span>
+                                                        <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
+                                                    </div>
+                                                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                                                        {isAdmin && <button onClick={()=>setVisas(p=>p.map(x=>x.id===v.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
+                                                        {isAdmin && <button onClick={()=>{setEditLineId(v.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                        {isAdmin && <button onClick={()=>{if(window.confirm(`حذف ${v.name}؟`)){setVisas(p=>{const nv=p.filter(x=>x.id!==v.id);persistSources(lines,nv);return nv;});}}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>🗑️</button>}
+                                                    </div>
+                                                </div>
+                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                                    <span style={{fontSize:11,color:v.number?"#64748b":"#334155",cursor:v.number?"copy":"auto"}} onClick={()=>{if(v.number){navigator.clipboard.writeText(v.number);showToast("تم النسخ ✓");}}}>{v.number ? `${v.number} 📋` : "بلا رقم"}</span>
+                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
+                                                </div>
+                                                <div style={{marginBottom:6}}>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
+                                                        <span>💸 تحويل اليوم: <b style={{color:"#f59e0b"}}>{formatNum(v.usedTodayTransfer||0)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
+                                                        <span>الشهر: <b style={{color: mtPct>=80?"#ef4444":"#f59e0b"}}>{formatNum(v.usedMonthTransfer||0)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                    </div>
+                                                    <ProgressBar used={v.usedMonthTransfer||0} limit={VISA_LIMIT_MONTHLY} color="#f59e0b"/>
+                                                </div>
+                                                <div>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
+                                                        <span>📥 استلام اليوم: <b style={{color:"#a78bfa"}}>{formatNum(v.usedTodayReceive||0)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
+                                                        <span>الشهر: <b style={{color: mrPct>=80?"#ef4444":"#a78bfa"}}>{formatNum(v.usedMonthReceive||0)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                    </div>
+                                                    <ProgressBar used={v.usedMonthReceive||0} limit={VISA_LIMIT_MONTHLY} color="#a78bfa"/>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {visas.filter(v=>v.visaType==="insta").length === 0 && <div style={{textAlign:"center",color:"#475569",padding:16,fontSize:12}}>لا توجد فيزات إنستا باي — اضغط "+ إنستا باي" لإضافة واحدة</div>}
+                                </div>
+
+                                {isAdmin && (
+                                    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+                                        <button onClick={()=>{ const n=lines.length; setLines(prev=>{const nl=[...prev,{id:`line-${Date.now()}`,name:`خط ${n+1}`,number:"",usedTodayTransfer:0,usedMonthTransfer:0,usedTodayReceive:0,usedMonthReceive:0,balance:0,available:true,visaType:"line"}]; persistSources(nl,visas); return nl; }); }} style={{flex:1,background:"#22c55e20",border:"1px solid #22c55e40",borderRadius:10,padding:"8px 10px",color:"#22c55e",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ خط</button>
+                                        <button onClick={()=>{ const n=visas.filter(v=>v.visaType!=="insta").length; setVisas(prev=>{const nv=[...prev,{id:`visa-fawry-${Date.now()}`,name:`فيزا فوري ${n+1}`,number:"",usedTodayTransfer:0,usedMonthTransfer:0,usedTodayReceive:0,usedMonthReceive:0,balance:0,available:true,visaType:"fawry"}]; persistSources(lines,nv); return nv; }); }} style={{flex:1,background:"#f59e0b20",border:"1px solid #f59e0b40",borderRadius:10,padding:"8px 10px",color:"#f59e0b",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ فيزا فوري</button>
+                                        <button onClick={()=>{ const n=visas.filter(v=>v.visaType==="insta").length; setVisas(prev=>{const nv=[...prev,{id:`visa-insta-${Date.now()}`,name:`فيزا إنستا ${n+1}`,number:"",usedTodayTransfer:0,usedMonthTransfer:0,usedTodayReceive:0,usedMonthReceive:0,balance:0,available:true,visaType:"insta"}]; persistSources(lines,nv); return nv; }); }} style={{flex:1,background:"#a78bfa20",border:"1px solid #a78bfa40",borderRadius:10,padding:"8px 10px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ إنستا باي</button>
+                                    </div>
+                                )}
                                 {isAdmin && (
                                     <div style={{display:"flex",gap:10}}>
                                         <button onClick={resetDaily} style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:12,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer"}}>تصفير يومي</button>
@@ -1448,10 +2409,13 @@
                                 </div>
 
                                 {/* ⭐ Tabs للمالية اليومية والشهرية */}
-                                <div style={{display:"flex",gap:10,marginBottom:16}}>
+                                <div style={{display:"flex",gap:10,marginBottom:8}}>
                                     <button onClick={()=>setFinanceTab("daily")} style={{flex:1,background:financeTab==="daily"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:12,padding:12,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>📅 يومي</button>
-                                    <button onClick={()=>setFinanceTab("monthly")} style={{flex:1,background:financeTab==="monthly"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:12,padding:12,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>📆 شهري</button>
+                                    <button onClick={()=>setFinanceTab("monthly")} style={{flex:1,background:financeTab==="monthly"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:12,padding:12,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>📆 شهري (متراكم)</button>
                                 </div>
+                                {financeTab === "monthly" && (
+                                    <div style={{fontSize:11,color:"#475569",textAlign:"center",marginBottom:12}}>📊 الشهري بيشمل اليومي + الشهري المخصص متراكمين تلقائياً</div>
+                                )}
 
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
                                     <div style={{background:"#10b9810a",border:"1px solid #10b98120",borderRadius:12,padding:12,textAlign:"center"}}>
@@ -1488,6 +2452,159 @@
                                     <div style={{textAlign:"center",color:"#475569",padding:20}}>لا توجد عمليات</div>
                                 )}
                             </div>
+                        )}
+
+                        {/* ABU ADI */}
+                        {tab==="abuadi" && (
+                            <div>
+                                {/* هيدر */}
+                                <div style={{background:"linear-gradient(135deg,#1e1b4b,#0a0f1e)",border:"1px solid #4f46e540",borderRadius:16,padding:16,marginBottom:16,textAlign:"center"}}>
+                                    <div style={{fontSize:22,marginBottom:4}}>🎙️</div>
+                                    <div style={{fontSize:18,fontWeight:900,color:"#818cf8"}}>أبو عدي</div>
+                                    <div style={{fontSize:11,color:"#475569",marginTop:4}}>سجّل كل دفعة بالوقت والتاريخ — كل يوم بلوكة منفصلة</div>
+                                </div>
+
+                                {/* إجمالي يوم النهارده */}
+                                {(() => {
+                                    const todayKey = today();
+                                    const todayDay = abuadiDays.find(d=>d.dateKey===todayKey);
+                                    const todayTotal = todayDay ? todayDay.entries.reduce((s,e)=>s+e.amount,0) : 0;
+                                    return (
+                                        <div style={{background:"#0f1e3d",border:"1px solid #4f46e530",borderRadius:12,padding:12,marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                            <span style={{fontSize:12,color:"#94a3b8"}}>📅 إجمالي النهارده</span>
+                                            <span style={{fontSize:20,fontWeight:900,color:"#818cf8"}}>{formatNum(todayTotal)} ج</span>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* منطقة الإضافة */}
+                                {isAdmin && (
+                                    <div style={{background:"#0a1628",border:"1px solid #4f46e530",borderRadius:14,padding:14,marginBottom:16}}>
+                                        <div style={{fontSize:12,color:"#94a3b8",marginBottom:10,fontWeight:600}}>➕ تسجيل دفعة جديدة</div>
+                                        <div style={{display:"flex",gap:8,marginBottom:10}}>
+                                            <input type="number" value={abuadiQuickAmt} onChange={e=>setAbuadiQuickAmt(e.target.value)}
+                                                placeholder="المبلغ (ج)"
+                                                style={{flex:1,background:"#0f1e3d",border:"1px solid #4f46e540",borderRadius:10,padding:"10px 12px",color:"#e2e8f0",fontSize:14,outline:"none",textAlign:"right"}}/>
+                                            <button
+                                                onClick={async()=>{
+                                                    if(!abuadiQuickAmt) return;
+                                                    let audioUrl = null;
+                                                    if(abuadiRecording) {
+                                                        audioUrl = await abuadiStopRecording();
+                                                    }
+                                                    abuadiAddEntry(abuadiQuickAmt, audioUrl);
+                                                    setAbuadiQuickAmt("");
+                                                    showToast("تم التسجيل ✓");
+                                                }}
+                                                style={{background:"linear-gradient(135deg,#4f46e5,#7c3aed)",border:"none",borderRadius:10,padding:"10px 16px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                                                ✓ حفظ
+                                            </button>
+                                        </div>
+
+                                        {/* زرار التسجيل الصوتي */}
+                                        <button
+                                            onClick={async()=>{
+                                                if(abuadiRecording) {
+                                                    const url = await abuadiStopRecording();
+                                                    if(abuadiQuickAmt) {
+                                                        abuadiAddEntry(abuadiQuickAmt, url);
+                                                        setAbuadiQuickAmt("");
+                                                        showToast("تم حفظ الدفعة مع التسجيل ✓");
+                                                    } else {
+                                                        showToast("وقف التسجيل — أدخل المبلغ واحفظ","error");
+                                                    }
+                                                } else {
+                                                    abuadiStartRecording();
+                                                    showToast("🔴 بدأ التسجيل...");
+                                                }
+                                            }}
+                                            style={{
+                                                width:"100%",
+                                                background: abuadiRecording ? "linear-gradient(135deg,#ef4444,#dc2626)" : "#1e293b",
+                                                border: abuadiRecording ? "none" : "1px solid #4f46e540",
+                                                borderRadius:10,padding:12,
+                                                color: abuadiRecording ? "#fff" : "#818cf8",
+                                                fontSize:13,fontWeight:700,cursor:"pointer",
+                                                animation: abuadiRecording ? "blink 1s infinite" : "none"
+                                            }}>
+                                            {abuadiRecording ? "🔴 جاري التسجيل... اضغط للوقف والحفظ" : "🎙️ ابدأ تسجيل صوتي (اختياري)"}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* السجل اليومي */}
+                                {abuadiDays.length === 0 && (
+                                    <div style={{textAlign:"center",color:"#475569",padding:30}}>لا يوجد سجلات بعد</div>
+                                )}
+                                {abuadiDays.map(day => {
+                                    const isToday = day.dateKey === today();
+                                    const isOpen = abuadiActiveDay === day.dateKey;
+                                    const dayTotal = day.entries.reduce((s,e)=>s+e.amount,0);
+                                    return (
+                                        <div key={day.dateKey} style={{
+                                            background: isToday ? "linear-gradient(135deg,#0f1e3d,#0a1628)" : "#0a1628",
+                                            border:`1px solid ${day.closed?"#10b98130":isToday?"#4f46e550":"#1e3a5f"}`,
+                                            borderRadius:14,padding:14,marginBottom:10
+                                        }}>
+                                            {/* هيدر اليوم */}
+                                            <div
+                                                onClick={()=>setAbuadiActiveDay(isOpen?null:day.dateKey)}
+                                                style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom: isOpen?10:0}}>
+                                                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                    <span style={{fontSize:13,fontWeight:700,color:isToday?"#818cf8":"#94a3b8"}}>
+                                                        📅 {formatDateArabic(day.dateKey)}
+                                                    </span>
+                                                    {isToday && <span style={{fontSize:10,background:"#4f46e520",color:"#818cf8",borderRadius:20,padding:"2px 8px",fontWeight:700}}>اليوم</span>}
+                                                    {day.closed && <span style={{fontSize:10,background:"#10b98120",color:"#10b981",borderRadius:20,padding:"2px 8px",fontWeight:700}}>✅ مقفول</span>}
+                                                </div>
+                                                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                                    <span style={{fontSize:16,fontWeight:900,color:"#818cf8"}}>{formatNum(dayTotal)} ج</span>
+                                                    <span style={{color:"#475569",fontSize:14}}>{isOpen?"▲":"▼"}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* التفاصيل */}
+                                            {isOpen && (
+                                                <div>
+                                                    {/* التسجيلات */}
+                                                    {day.entries.map((entry,idx) => (
+                                                        <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0f1e3d",borderRadius:10,padding:"8px 12px",marginBottom:6}}>
+                                                            <div>
+                                                                <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{formatNum(entry.amount)} ج</div>
+                                                                <div style={{fontSize:10,color:"#475569"}}>{entry.dayName} — {entry.time}</div>
+                                                                {entry.audioUrl && (
+                                                                    <audio controls src={entry.audioUrl} style={{marginTop:6,width:"100%",height:28}}/>
+                                                                )}
+                                                            </div>
+                                                            {isAdmin && !day.closed && (
+                                                                <button onClick={()=>abuadiDeleteEntry(day.dateKey,entry.id)}
+                                                                    style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>🗑️</button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    {day.entries.length === 0 && <div style={{color:"#475569",fontSize:12,textAlign:"center",padding:10}}>لا يوجد تسجيلات</div>}
+
+                                                    {/* إجمالي اليوم */}
+                                                    <div style={{background:"#4f46e510",border:"1px solid #4f46e530",borderRadius:10,padding:"10px 12px",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                                        <span style={{fontSize:12,color:"#94a3b8"}}>إجمالي اليوم</span>
+                                                        <span style={{fontSize:16,fontWeight:900,color:"#818cf8"}}>{formatNum(dayTotal)} ج</span>
+                                                    </div>
+
+                                                    {/* قفل اليوم */}
+                                                    {isAdmin && !day.closed && (
+                                                        <button onClick={()=>abuadiCloseDay(day.dateKey)}
+                                                            style={{width:"100%",marginTop:10,background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:10,padding:12,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                                                            🔒 قفل يوم {formatDateArabic(day.dateKey)}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         )}
                     </div>
 
@@ -1550,14 +2667,27 @@
                             {/* 2. باقي حقول الفورم */}
                             <Field label="نوع العملية">
                                 <select
-                                    value={form.type}
-                                    onChange={e => setForm({...form, type: e.target.value})}
+                                    value={form.txnType || "person"}
+                                    onChange={e => setForm({...form, txnType: e.target.value})}
                                     style={{ width: "100%", background: "#0f1e3d", border: "1px solid #1e3a5f", borderRadius: 10, padding: 11, color: "#e2e8f0" }}
                                 >
-                                    <option value="transfer">تحويل (سحب من المحفظة) ↙</option>
-                                    <option value="receive">استلام (إيداع في المحفظة) ↗</option>
+                                    <option value="person">💸 تحويل لشخص</option>
+                                    <option value="bank">🏦 سحب لبنك (خصم 1%)</option>
+                                    <option value="fawry">⚡ سحب فوري (0.57% + 15 ج)</option>
+                                    <option value="receive">📥 استلام (إيداع في المحفظة)</option>
                                 </select>
                             </Field>
+                            {/* معاينة الخصم */}
+                            {form.amount && (form.txnType === "bank" || form.txnType === "fawry") && (() => {
+                                const amt = evaluateExpression(form.amount);
+                                const fee = form.txnType === "bank" ? calcBankFee(amt) : calcFawryFee(amt);
+                                return amt > 0 ? (
+                                    <div style={{background: form.txnType==="bank" ? "#3b82f610" : "#f59e0b10", border:`1px solid ${form.txnType==="bank"?"#3b82f630":"#f59e0b30"}`, borderRadius:10, padding:10, marginBottom:14, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                                        <span style={{fontSize:12, color:"#94a3b8"}}>الخصم التلقائي</span>
+                                        <span style={{fontSize:15, fontWeight:800, color: form.txnType==="bank"?"#3b82f6":"#f59e0b"}}>- {formatNum(fee)} ج</span>
+                                    </div>
+                                ) : null;
+                            })()}
 
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                                 <Field label="التاريخ"><Input type="date" value={form.date} onChange={v => setForm({...form, date: v})}/></Field>
@@ -1598,11 +2728,14 @@
                                 <Input value={form.personName} onChange={v => setForm({...form, personName: v})} placeholder="اسم الشخص أو العميل"/>
                             </Field>
 
-                            {form.type === "transfer" && (
+                            {(form.txnType === "person" || !form.txnType) && (
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                                     <Field label="من رقم المحفظة"><Input value={form.fromNumber} onChange={v => setForm({...form, fromNumber: v})} placeholder="01xxxxxxxxx"/></Field>
                                     <Field label="إلى رقم المحفظة"><Input value={form.toNumber} onChange={v => setForm({...form, toNumber: v})} placeholder="01xxxxxxxxx"/></Field>
                                 </div>
+                            )}
+                            {form.txnType === "bank" && (
+                                <Field label="رقم الحساب البنكي (اختياري)"><Input value={form.toNumber} onChange={v => setForm({...form, toNumber: v})} placeholder="رقم الحساب أو IBAN"/></Field>
                             )}
 
                             <Field label="اختر الخط أو الفيزا">
@@ -1615,9 +2748,10 @@
                                     style={{ width: "100%", background: "#0f1e3d", border: "1px solid #1e3a5f", borderRadius: 10, padding: 11, color: "#e2e8f0" }}
                                 >
                                     <option value="">-- اختر خط العملية --</option>
-                                    {sources.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name} (رصيده: {formatNum(s.balance || 0)} ج)</option>
-                                    ))}
+                                    {sources.map(s => {
+                                        const typeLabel = s.visaType==="insta" ? " 🏧إنستا" : s.visaType==="fawry" ? " ⚡فوري" : "";
+                                        return <option key={s.id} value={s.id}>{s.name}{typeLabel} (رصيده: {formatNum(s.balance || 0)} ج)</option>;
+                                    })}
                                 </select>
                             </Field>
 
@@ -1654,22 +2788,32 @@
                                 />
                             </Field>
                             <button onClick={()=>{
-                                const updatedTxns = transactions.map(t=>t.id===viewerNote.txnId?{...t,notes:viewerNote.text}:t);
-                                setTransactions(updatedTxns);
-                                try { db.ref('transactions').set(updatedTxns); } catch(e){}
+                                setTransactions(prev=>prev.map(t=>t.id===viewerNote.txnId?{...t,notes:viewerNote.text}:t));
                                 setViewerNote(null);
                                 showToast("تم حفظ الملاحظة ✓");
                             }} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
                         </Modal>
                     )}
 
-                    {/* MODAL: Add Debt */}
+                    {/* MODAL: Add Debt / Open Session */}
                     {modal==="addDebt" && (
-                        <Modal title="دين جديد" onClose={()=>setModal(null)}>
-                            <Field label="اسم الشخص"><Input value={peopleForm.personName} onChange={v=>setPeopleForm(f=>({...f,personName:v}))} placeholder="محمود..."/></Field>
-                            <Field label="مبلغ الدين"><Input value={peopleForm.debtAmount} onChange={v=>setPeopleForm(f=>({...f,debtAmount:v}))} placeholder="0" type="number"/></Field>
-                            <Field label="الوصف/الملاحظة"><Input value={peopleForm.desc} onChange={v=>setPeopleForm(f=>({...f,desc:v}))} placeholder="ملاحظة..."/></Field>
-                            <button onClick={addDebtToPerson} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                        <Modal title="➕ فتح حساب جديد" onClose={()=>setModal(null)}>
+                            <Field label="اسم العميل"><Input value={peopleForm.personName} onChange={v=>setPeopleForm(f=>({...f,personName:v}))} placeholder="اسم العميل..."/></Field>
+                            <Field label="المبلغ (ج)"><Input value={peopleForm.debtAmount} onChange={v=>setPeopleForm(f=>({...f,debtAmount:v}))} placeholder="0" type="number"/></Field>
+                            <Field label="وصف الحساب (اختياري)"><Input value={peopleForm.desc} onChange={v=>setPeopleForm(f=>({...f,desc:v}))} placeholder="مثال: تحويل يوم الخميس..."/></Field>
+                            {peopleForm.personName && peopleForm.debtAmount && (() => {
+                                const person = people.find(p=>p.personName.toLowerCase()===peopleForm.personName.toLowerCase().trim());
+                                const rate = person ? getPersonCommission(person) : 10;
+                                const amt = parseFloat(peopleForm.debtAmount)||0;
+                                const comm = Math.round((amt/1000)*rate);
+                                return amt > 0 ? (
+                                    <div style={{background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:8,padding:10,marginBottom:10,display:"flex",justifyContent:"space-between",fontSize:12}}>
+                                        <span style={{color:"#64748b"}}>العمولة المتوقعة ({rate} ج/الف)</span>
+                                        <span style={{color:"#22d3ee",fontWeight:700}}>{formatNum(comm)} ج</span>
+                                    </div>
+                                ) : null;
+                            })()}
+                            <button onClick={addDebtToPerson} style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ فتح الحساب</button>
                         </Modal>
                     )}
 
@@ -1697,19 +2841,155 @@
                         </Modal>
                     )}
 
+                    {/* MODAL: Commission */}
+                    {commissionModal && (
+                        <Modal title="تعديل عمولة العميل" onClose={()=>setCommissionModal(null)}>
+                            <CommissionModalBody
+                                commissionModal={commissionModal}
+                                people={people}
+                                updatePersonCommission={updatePersonCommission}
+                                formatNum={formatNum}
+                            />
+                        </Modal>
+                    )}
+
+                    {/* MODAL: Fee (Bank/Fawry) */}
+                    {feeModal && (
+                        <Modal title={feeModal.type==="bank" ? "🏦 خصم البنك" : "⚡ خصم فوري"} onClose={()=>setFeeModal(null)}>
+                            <Field label="المبلغ الأصلي (ج)">
+                                <Input value={feeForm.amount} onChange={v=>setFeeForm(f=>({...f,amount:v}))} placeholder="مثال: 15000" type="number"/>
+                            </Field>
+                            {feeModal.type==="bank" && feeForm.amount && (
+                                <div style={{background:"#3b82f610",border:"1px solid #3b82f620",borderRadius:8,padding:10,marginBottom:10,fontSize:12,color:"#3b82f6"}}>
+                                    1% تقريباً = {formatNum(Math.round(parseFloat(feeForm.amount||0)*0.01))} ج
+                                </div>
+                            )}
+                            <Field label="المبلغ المخصوم فعلاً (ج)">
+                                <Input value={feeForm.fee} onChange={v=>setFeeForm(f=>({...f,fee:v}))} placeholder={feeModal.type==="bank"?"مثال: 150":"مثال: 85"} type="number"/>
+                            </Field>
+                            <button onClick={addFeeLog}
+                                style={{width:"100%",background:feeModal.type==="bank"?"linear-gradient(135deg,#3b82f6,#2563eb)":"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                                ✓ تسجيل الخصم من المالية
+                            </button>
+                        </Modal>
+                    )}
+
+                    {/* MODAL: Edit Entry (debt or payment) */}
+                    {editEntryModal && (
+                        <EditEntryModal
+                            entry={editEntryModal}
+                            onSave={saveEditEntry}
+                            onClose={()=>setEditEntryModal(null)}
+                            formatNum={formatNum}
+                        />
+                    )}
+
                     {/* MODAL: Edit Line */}
                     {modal==="editLine" && editLineId && (
                         <EditSourceModal
                             source={[...lines,...visas].find(s=>s.id===editLineId)}
                             isVisa={editLineId.startsWith("visa")}
                             onSave={updated=>{
-                                if (editLineId.startsWith("visa")) setVisas(p=>p.map(v=>v.id===editLineId?{...v,...updated}:v));
-                                else setLines(p=>p.map(l=>l.id===editLineId?{...l,...updated}:l));
+                                if (editLineId.startsWith("visa")) {
+                                    setVisas(prev => {
+                                        const newVisas = prev.map(v=>v.id===editLineId?{...v,...updated}:v);
+                                        persistSources(lines, newVisas);
+                                        return newVisas;
+                                    });
+                                } else {
+                                    setLines(prev => {
+                                        const newLines = prev.map(l=>l.id===editLineId?{...l,...updated}:l);
+                                        persistSources(newLines, visas);
+                                        return newLines;
+                                    });
+                                }
                                 setModal(null); showToast("تم التحديث ✓");
                             }}
                             onClose={()=>setModal(null)}
                         />
                     )}
+                </div>
+            );
+        }
+
+        // ✅ Modal تعديل دين أو دفعة
+        function EditEntryModal({ entry, onSave, onClose, formatNum }) {
+            const [amount, setAmount] = React.useState(String(entry.amount));
+            const [date, setDate] = React.useState(entry.date ? entry.date.split(" ")[0] : "");
+            const [time, setTime] = React.useState(entry.date ? (entry.date.split(" ")[1]||"") : "");
+            const isDebt = entry.type === "debt";
+            return (
+                <Modal title={isDebt ? "✏️ تعديل الدين" : "✏️ تعديل الدفعة"} onClose={onClose}>
+                    <Field label="المبلغ (ج)">
+                        <Input value={amount} onChange={setAmount} placeholder="0" type="number"/>
+                    </Field>
+                    <Field label="التاريخ">
+                        <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+                            style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+                    </Field>
+                    <Field label="الوقت">
+                        <input type="time" value={time} onChange={e=>setTime(e.target.value)}
+                            style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+                    </Field>
+                    <div style={{background:"#0f1e3d",borderRadius:10,padding:10,marginBottom:14,display:"flex",justifyContent:"space-between",fontSize:12}}>
+                        <span style={{color:"#64748b"}}>كان</span>
+                        <span style={{color: isDebt?"#ef4444":"#10b981",fontWeight:700}}>{formatNum(entry.amount)} ج</span>
+                    </div>
+                    <button onClick={()=>onSave({
+                        ...entry,
+                        newAmount: parseFloat(amount)||0,
+                        newDate: date && time ? `${date} ${time}` : date ? `${date} 00:00` : entry.date
+                    })} style={{width:"100%",background: isDebt?"linear-gradient(135deg,#ef4444,#dc2626)":"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                        ✓ حفظ التعديل
+                    </button>
+                </Modal>
+            );
+        }
+
+        // ✅ إصلاح: CommissionModalBody كـ component منفصل عشان useState يشتغل صح
+        function CommissionModalBody({ commissionModal, people, updatePersonCommission, formatNum }) {
+            const [rate, setRate] = React.useState(String(commissionModal.current || 10));
+            return (
+                <>
+                    <Field label="العمولة لكل ألف جنيه (ج)">
+                        <Input value={rate} onChange={setRate} placeholder="10" type="number"/>
+                    </Field>
+                    <div style={{background:"#0f1e3d",borderRadius:10,padding:12,marginBottom:14,textAlign:"center"}}>
+                        <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>مثال: على 10,000 ج</div>
+                        <div style={{fontSize:18,fontWeight:800,color:"#22d3ee"}}>{formatNum(Math.round((10000/1000)*(parseFloat(rate)||0)))} ج عمولة</div>
+                    </div>
+                    <button onClick={()=>updatePersonCommission(commissionModal.personId, rate)}
+                        style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                </>
+            );
+        }
+
+        function PaymentInput({onPay}) {
+            const [val, setVal] = React.useState("");
+            return (
+                <div style={{display:"flex",gap:8}}>
+                    <input type="number" value={val} onChange={e=>setVal(e.target.value)}
+                        placeholder="مبلغ الدفعة"
+                        style={{flex:1,background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"10px 12px",color:"#e2e8f0",fontSize:13,outline:"none",textAlign:"right"}}/>
+                    <button onClick={()=>{if(val){onPay(val);setVal("");}}}
+                        style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:10,padding:"10px 16px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                        ✓ دفع
+                    </button>
+                </div>
+            );
+        }
+
+        function QuickPayRow({onPay}) {
+            const [val, setVal] = React.useState("");
+            return (
+                <div style={{display:"flex",gap:6}}>
+                    <input type="number" value={val} onChange={e=>setVal(e.target.value)}
+                        placeholder="دفع سريع..."
+                        style={{flex:1,background:"#0a0f1e",border:"1px solid #a78bfa40",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,outline:"none",textAlign:"right"}}/>
+                    <button onClick={()=>{if(val){onPay(val);setVal("");}}}
+                        style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:8,padding:"7px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                        💰 دفع
+                    </button>
                 </div>
             );
         }
