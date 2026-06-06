@@ -225,8 +225,8 @@
             const [showPassword, setShowPassword] = useState(false);
 
             const ADMIN_EMAIL     = "ziad@gmail.com";
-            const ASSISTANT_EMAIL = "assistant@gmail.com"; // ⭐ غيّر للإيميل الفعلي للمساعد
-            const VIEWER_EMAIL    = "omar@gmail.com";
+            const ASSISTANT_EMAIL = "omar@gmail.com";
+            const VIEWER_EMAIL    = "";
 
             const handleLogin = async () => {
                 if (!email.trim() || !password.trim()) {
@@ -399,8 +399,8 @@
                 const unsubscribe = auth.onAuthStateChanged((user) => {
                     if (user) {
                         const ADMIN_EMAIL     = "ziad@gmail.com";
-                        const ASSISTANT_EMAIL = "assistant@gmail.com";
-                        const VIEWER_EMAIL    = "omar@gmail.com";
+                        const ASSISTANT_EMAIL = "omar@gmail.com";
+                        const VIEWER_EMAIL    = "";
                         const e = user.email;
                         const role = e === ADMIN_EMAIL ? "admin" : e === ASSISTANT_EMAIL ? "assistant" : e === VIEWER_EMAIL ? "viewer" : "viewer";
                         setFirebaseUser(user);
