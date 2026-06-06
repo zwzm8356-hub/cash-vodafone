@@ -332,6 +332,7 @@
             
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
             const firebaseLoaded = React.useRef(false);
+            const [firebaseReady, setFirebaseReady] = useState(false);
 
 
             const [modal, setModal] = useState(null);
@@ -391,6 +392,7 @@
 
             const touchStartX = useRef(0);
             const touchEndX = useRef(0);
+            const capitalWriting = useRef(false); // ⭐ منع الـ listener من يـoverwrite التعديل المحلي
 
             // ⭐ Firebase Auth Listener
             useEffect(() => {
@@ -419,17 +421,17 @@
                 try {
                     db.ref('lines').on('value', (snapshot) => {
                         const data = snapshot.val();
+                        firebaseLoaded.current = true;
+                        setFirebaseReady(true);
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
                             setLines(arr);
-                            firebaseLoaded.current = true;
-                        } else {
-                            firebaseLoaded.current = true;
                         }
                     });
 
                     db.ref('visas').on('value', (snapshot) => {
                         const data = snapshot.val();
+                        firebaseLoaded.current = true;
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
                             setVisas(arr);
@@ -438,11 +440,13 @@
 
                     db.ref('transactions').on('value', (snapshot) => {
                         const data = snapshot.val();
+                        firebaseLoaded.current = true;
                         if (data) setTimeout(() => setTransactions(Array.isArray(data) ? data : Object.values(data)), 0);
                     });
 
                     db.ref('instaPays').on('value', (snapshot) => {
                         const data = snapshot.val();
+                        firebaseLoaded.current = true;
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
                             setInstaPays(arr);
@@ -453,6 +457,7 @@
 
                     db.ref('customers').on('value', (snapshot) => {
                         const data = snapshot.val();
+                        firebaseLoaded.current = true;
                         if (data) {
                             const arr = Array.isArray(data) ? data : Object.values(data);
                             setTimeout(() => setPeople(arr), 0);
@@ -461,11 +466,13 @@
 
                     db.ref('capital').on('value', (snapshot) => {
                         const data = snapshot.val();
-                        if (data !== null) setTimeout(() => setCapital(data), 0);
+                        firebaseLoaded.current = true;
+                        if (data !== null && !capitalWriting.current) setTimeout(() => setCapital(data), 0);
                     });
 
                     db.ref('financeLogs').on('value', (snapshot) => {
                         const data = snapshot.val();
+                        firebaseLoaded.current = true;
                         if (data) setTimeout(() => setFinanceLogs(Array.isArray(data) ? data : Object.values(data)), 0);
                     });
 
@@ -499,59 +506,59 @@
                 };
             }, [userRole]);
 
-            // ⭐ Auto-save to localStorage AND Firebase — مع مراعاة صلاحيات كل دور
+            // ⭐ Auto-save to localStorage AND Firebase — محمي من الكتابة قبل اكتمال تحميل Firebase
             useEffect(() => { 
                 saveToLocalStorage('lines', lines);
-                if (isAdmin && auth.currentUser && firebaseLoaded.current) { try { db.ref('lines').set(lines); } catch(e){} }
-            }, [lines, userRole]);
-            
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('lines').set(lines); } catch(e){} }
+            }, [lines]);
+
             useEffect(() => { 
                 saveToLocalStorage('visas', visas);
-                if (isAdmin && auth.currentUser && firebaseLoaded.current) { try { db.ref('visas').set(visas); } catch(e){} }
-            }, [visas, userRole]);
-            
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('visas').set(visas); } catch(e){} }
+            }, [visas]);
+
             useEffect(() => { 
                 saveToLocalStorage('instaPays', instaPays);
-                if (isAdmin && auth.currentUser && firebaseLoaded.current) { try { db.ref('instaPays').set(instaPays); } catch(e){} }
-            }, [instaPays, userRole]);
-            
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('instaPays').set(instaPays); } catch(e){} }
+            }, [instaPays]);
+
             useEffect(() => { 
                 saveToLocalStorage('transactions', transactions);
-                if (isAdmin && auth.currentUser) { try { db.ref('transactions').set(transactions); } catch(e){} }
-            }, [transactions, userRole]);
-            
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('transactions').set(transactions); } catch(e){} }
+            }, [transactions]);
+
             useEffect(() => { 
                 saveToLocalStorage('people', people);
                 // الأدمن والمساعد يقدرون يحدثون العملاء في Firebase
-                if ((isAdmin || isAssistant) && auth.currentUser) {
+                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
                     try {
                         people.forEach(p => {
                             db.ref('customers').child(String(p.id)).set(p);
                         });
                     } catch(e){}
                 }
-            }, [people, userRole]);
-            
+            }, [people]);
+
             useEffect(() => { 
                 saveToLocalStorage('capital', capital);
-                if (isAdmin && auth.currentUser) { try { db.ref('capital').set(capital); } catch(e){} }
-            }, [capital, userRole]);
-            
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('capital').set(capital); } catch(e){} }
+            }, [capital]);
+
             useEffect(() => { 
                 saveToLocalStorage('financeLogs', financeLogs);
-                if (isAdmin && auth.currentUser) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
-            }, [financeLogs, userRole]);
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
+            }, [financeLogs]);
 
             // ⭐ Real-time sync لأبو عدي — الأدمن والمساعد يكتبون، الكل يقرأ
             useEffect(() => {
                 saveToLocalStorage('abuadiTarget', abuadiTarget);
                 saveToLocalStorage('abuadiPayments', abuadiPayments);
-                if ((isAdmin || isAssistant) && auth.currentUser) {
+                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
                     try {
                         db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments });
                     } catch(e){}
                 }
-            }, [abuadiTarget, abuadiPayments, userRole]);
+            }, [abuadiTarget, abuadiPayments]);
 
             // ⭐ Auto daily reset (must be before early returns)
             useEffect(() => {
@@ -1003,12 +1010,38 @@
             }
 
             function updateCapitalDirectly() {
-                const amt = parseFloat(capitalInput);
+                // ⭐ دعم العمليات الحسابية (مثلاً: capital + 500 أو 12000)
+                let amt;
+                const rawInput = capitalInput.trim();
+                // لو بدأ بعملية حسابية زي +500 أو -200، طبّقها على رأس المال الحالي
+                if (/^[+\-*/]/.test(rawInput)) {
+                    try {
+                        const sanitized = rawInput.replace(/[^0-9+\-*/.]/g, '');
+                        amt = Function(`"use strict"; return (${capital}${sanitized})`)();
+                    } catch(e) { amt = NaN; }
+                } else {
+                    const sanitized = rawInput.replace(/[^0-9+\-*/.]/g, '');
+                    try { amt = sanitized ? Function(`"use strict"; return (${sanitized})`)() : NaN; } catch(e) { amt = NaN; }
+                }
                 if (isNaN(amt) || amt < 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
+                amt = Math.round(amt * 100) / 100;
+                // ⭐ منع الـ listener من يـoverwrite
+                capitalWriting.current = true;
                 setCapital(amt);
+                // ⭐ حفظ مباشر في Firebase بدون انتظار useEffect
+                if (auth.currentUser) {
+                    try { 
+                        db.ref('capital').set(amt).then(() => {
+                            setTimeout(() => { capitalWriting.current = false; }, 2000);
+                        }).catch(() => { capitalWriting.current = false; });
+                    } catch(e){ capitalWriting.current = false; }
+                } else {
+                    setTimeout(() => { capitalWriting.current = false; }, 2000);
+                }
+                saveToLocalStorage('capital', amt);
                 setCapitalInput("");
                 setModal(null);
-                showToast("تم تحديث رأس المال ✓");
+                showToast(`✓ رأس المال أصبح ${formatNum(amt)} ج`);
             }
 
             function saveDailySummary(isAutomatic = false) {
@@ -2265,9 +2298,57 @@
 
                     {/* MODAL: Edit Capital */}
                     {modal==="editCapital" && (
-                        <Modal title="تعديل رأس المال" onClose={()=>setModal(null)}>
-                            <Field label="المبلغ"><Input value={capitalInput} onChange={setCapitalInput} placeholder="0" type="number"/></Field>
-                            <button onClick={updateCapitalDirectly} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
+                        <Modal title="✏️ تعديل رأس المال" onClose={()=>{setModal(null);setCapitalInput("");}}>
+                            {/* القيمة الحالية */}
+                            <div style={{background:"#0f1e3d",border:"1px solid #3b82f640",borderRadius:12,padding:14,marginBottom:16,textAlign:"center"}}>
+                                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>رأس المال الحالي</div>
+                                <div style={{fontSize:26,fontWeight:900,color:"#3b82f6"}}>{formatNum(capital)} ج</div>
+                            </div>
+                            {/* أزرار سريعة */}
+                            <div style={{fontSize:11,color:"#64748b",marginBottom:6,fontWeight:600}}>تعديل سريع</div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:14}}>
+                                {[+500,+1000,+5000,-500,-1000,-5000].map(v=>(
+                                    <button key={v} onClick={()=>setCapitalInput(String(v>=0?"+"+v:v))}
+                                        style={{background:v>0?"#10b98120":"#ef444420",border:`1px solid ${v>0?"#10b98140":"#ef444440"}`,borderRadius:8,padding:"6px 0",color:v>0?"#10b981":"#ef4444",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                                        {v>0?"+":""}{v.toLocaleString("ar-EG")}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* حقل الإدخال */}
+                            <Field label="المبلغ الجديد أو عملية حسابية (مثلاً: 15000 أو +500 أو -200)">
+                                <input
+                                    value={capitalInput}
+                                    onChange={e=>setCapitalInput(e.target.value)}
+                                    placeholder={`الحالي: ${capital} — أو اكتب +500 للزيادة`}
+                                    autoFocus
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #3b82f6",borderRadius:10,padding:"13px 14px",color:"#e2e8f0",fontSize:16,outline:"none",boxSizing:"border-box",textAlign:"right",fontFamily:"'Tajawal',sans-serif",fontWeight:700}}
+                                />
+                            </Field>
+                            {/* معاينة النتيجة */}
+                            {capitalInput.trim() && (()=>{
+                                let preview = null;
+                                try {
+                                    const raw = capitalInput.trim();
+                                    const sanitized = raw.replace(/[^0-9+\-*/.]/g,'');
+                                    if (/^[+\-*/]/.test(raw)) {
+                                        preview = Function(`"use strict"; return (${capital}${sanitized})`)();
+                                    } else {
+                                        preview = sanitized ? Function(`"use strict"; return (${sanitized})`)() : null;
+                                    }
+                                } catch(e){}
+                                if (preview === null || isNaN(preview) || preview < 0) return null;
+                                const diff = Math.round((preview - capital)*100)/100;
+                                return (
+                                    <div style={{background:"#0a1628",border:"1px solid #3b82f640",borderRadius:10,padding:12,marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div style={{fontSize:12,color:"#64748b"}}>النتيجة</div>
+                                        <div>
+                                            <span style={{fontSize:18,fontWeight:900,color:"#3b82f6"}}>{formatNum(Math.round(preview*100)/100)} ج</span>
+                                            {diff !== 0 && <span style={{fontSize:12,marginRight:8,color:diff>0?"#10b981":"#ef4444",fontWeight:700}}>{diff>0?"+":""}{formatNum(diff)} ج</span>}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            <button onClick={updateCapitalDirectly} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 15px #3b82f640"}}>✓ حفظ رأس المال</button>
                         </Modal>
                     )}
 
