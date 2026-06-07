@@ -319,7 +319,7 @@
 
         const initialInstaPays = [];
 
-        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai"];
+        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "settings"];
 
         // ⭐ Safe Storage (localStorage مع fallback لـ in-memory لو مش متاح)
         const _memStore = {};
@@ -600,6 +600,8 @@
             const [abuadiRecordingId, setAbuadiRecordingId] = useState(null); // id of payment being recorded
             const [abuadiRecordingState, setAbuadiRecordingState] = useState("idle"); // idle | recording | done
             const [abuadiPendingAudio, setAbuadiPendingAudio] = useState(null); // base64 audio for next payment
+            // ⭐ السجل التاريخي التراكمي لأبو عدي
+            const [abuadiHistory, setAbuadiHistory] = useState(() => loadFromLocalStorage('abuadiHistory', [])); // [{dateStr, target, totalPaid, payments, archivedAt}]
 
             // ⭐ Accordion state — أقسام قابلة للطي في تاب الخطوط
             const [accordionOpen, setAccordionOpen] = useState({ lines: true, visas: true, instapays: true });
@@ -607,11 +609,13 @@
             useEffect(() => { saveToLocalStorage('abuadiTarget', abuadiTarget); }, [abuadiTarget]);
             useEffect(() => { saveToLocalStorage('abuadiPayments', abuadiPayments); }, [abuadiPayments]);
             useEffect(() => { saveToLocalStorage('abuadiDate', abuadiDate); }, [abuadiDate]);
+            useEffect(() => { saveToLocalStorage('abuadiHistory', abuadiHistory); }, [abuadiHistory]);
             // ⭐ ملاحظة: الـ Firebase sync لأبو عدي موجود في الـ useEffect المجمع أسفل
 
             const touchStartX = useRef(0);
             const touchEndX = useRef(0);
             const capitalWriting = useRef(false); // ⭐ منع الـ listener من يـoverwrite التعديل المحلي
+            const abuAdiWriting  = useRef(false); // ⭐ إصلاح 1 — منع الـ loop اللانهائي في أبو عدي
 
             // ⭐ Firebase Auth Listener
             useEffect(() => {
@@ -697,6 +701,7 @@
 
                     // ⭐ Real-time listener لأبو عدي — يزامن بين الأدمن والمساعد والمشاهد فورياً
                     db.ref('abuAdi').on('value', (snapshot) => {
+                        if (abuAdiWriting.current) return; // ⭐ إصلاح 1 — تجاهل التحديث أثناء الكتابة المحلية
                         const data = snapshot.val();
                         if (data) {
                             if (data.target !== undefined) setAbuadiTarget(data.target);
@@ -707,6 +712,19 @@
                                     : Object.values(data.payments).filter(Boolean);
                                 setAbuadiPayments(arr);
                             }
+                        }
+                    });
+
+                    // ⭐ Real-time listener للسجل التاريخي لأبو عدي
+                    db.ref('abuAdi_history').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) {
+                            const arr = Array.isArray(data)
+                                ? data.filter(Boolean)
+                                : Object.values(data).filter(Boolean);
+                            arr.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+                            setAbuadiHistory(arr);
+                            saveToLocalStorage('abuadiHistory', arr);
                         }
                     });
 
@@ -723,6 +741,7 @@
                     db.ref('capital').off();
                     db.ref('financeLogs').off();
                     db.ref('abuAdi').off();
+                    db.ref('abuAdi_history').off();
                 };
             }, [userRole]);
 
@@ -776,8 +795,10 @@
                 saveToLocalStorage('abuadiDate', abuadiDate);
                 if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
                     try {
-                        db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate });
-                    } catch(e){}
+                        abuAdiWriting.current = true; // ⭐ إصلاح 1 — رفع الراية قبل الكتابة
+                        db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate })
+                            .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1000); });
+                    } catch(e){ abuAdiWriting.current = false; }
                 }
             }, [abuadiTarget, abuadiPayments, abuadiDate]);
 
@@ -1015,7 +1036,7 @@
                     }
 
                     // دمج نتيجة AI مع Regex كـ fallback لكل حقل
-                    const finalAmount = (aiData.amount || parsed.amount || "").replace(/,/g, "");
+                    const finalAmount = String(aiData.amount || parsed.amount || "").replace(/[^0-9.]/g, "");
                     const finalPhone  = aiData.personNumber || parsed.personNumber || "";
                     const finalType   = aiData.type || parsed.type || "transfer";
                     const matchedSrc  = parsed.lineId ? sourcesSnapshot.find(s => s.id === parsed.lineId) : null;
@@ -1403,8 +1424,9 @@
                     })),
                 };
 
-                // حفظ في Firebase تحت daily_summaries/YYYY-MM-DD
-                if (auth.currentUser) {
+                // ⭐ إصلاح 5 — نُرجع الـ summary فقط؛ الكتابة الفعلية تتم في resetDaily داخل .then()
+                // عند الاستدعاء المستقل (isAutomatic) نكتب مباشرة هنا
+                if (isAutomatic && auth.currentUser) {
                     db.ref(`daily_summaries/${todayStr}`).set(summary)
                         .then(() => showToast(`✓ تم أرشفة يوم ${todayStr}`))
                         .catch(() => showToast("فشل الأرشفة", "error"));
@@ -1414,17 +1436,48 @@
             }
 
             function resetDaily() {
-                saveDailySummary(false);
-                setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0}))); 
-                setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0}))); 
-                setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0}))); 
-                showToast("تم الأرشفة والتصفير اليومي ✓"); 
+                const todayStr = today();
+                const summary = saveDailySummary(false); // يبني الـ summary ويحاول الرفع
+                if (auth.currentUser) {
+                    // ⭐ إصلاح 5 — التصفير يتم فقط بعد نجاح الكتابة في Firebase
+                    db.ref(`daily_summaries/${todayStr}`).set(summary)
+                        .then(() => {
+                            setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
+                            setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                            setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                            showToast("تم الأرشفة والتصفير اليومي ✓");
+                        })
+                        .catch(() => {
+                            showToast("⚠️ فشل رفع الأرشيف — لم يتم التصفير حمايةً للبيانات", "error");
+                        });
+                } else {
+                    // بدون Firebase — تصفير محلي مباشر
+                    setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
+                    setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                    setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                    showToast("تم التصفير اليومي محلياً ✓");
+                }
             }
-            function resetMonthly() { 
-                setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}))); 
-                setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}))); 
-                setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0}))); 
-                showToast("تم تصفير الشهري ✓"); 
+            function resetMonthly() {
+                if (auth.currentUser) {
+                    // ⭐ إصلاح 5 — كتابة إشارة في Firebase أولاً ثم التصفير
+                    const stamp = { resetAt: nowStr(), type: "monthly" };
+                    db.ref(`monthly_resets/${currentMonthStr()}`).set(stamp)
+                        .then(() => {
+                            setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0})));
+                            setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0})));
+                            setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0})));
+                            showToast("تم تصفير الشهري ✓");
+                        })
+                        .catch(() => {
+                            showToast("⚠️ فشل التسجيل في السيرفر — لم يتم التصفير حمايةً للبيانات", "error");
+                        });
+                } else {
+                    setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0})));
+                    setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0})));
+                    setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0,usedMonthTransfer:0,usedMonthReceive:0})));
+                    showToast("تم تصفير الشهري محلياً ✓");
+                }
             }
 
 
@@ -1498,17 +1551,18 @@
             const canEditLines   = isAdmin;
             const canEditFinance = isAdmin;
 
-            const tabs = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai"];
+            const tabs = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "settings"];
 
             const displayTabs = [
                 {id:"dashboard",icon:"🏠",label:"الرئيسية"},
                 {id:"transactions",icon:"💸",label:"العمليات"},
                 {id:"people",icon:"👥",label:"الأشخاص"},
                 {id:"lines",icon:"📱",label:"الخطوط"},
-                {id:"finance",icon: isAdmin ? "💰" : "🔒",label:"المالية"},
+                {id:"finance",icon:"💰",label:"المالية", adminOnly: true},
                 {id:"abuadi",icon:"🤝",label:"أبو عدي"},
-                {id:"ai",icon:"✨",label:"AI"}
-            ].filter(t => tabs.includes(t.id));
+                {id:"ai",icon:"✨",label:"AI"},
+                {id:"settings",icon:"⚙️",label:"إعدادات"}
+            ].filter(t => tabs.includes(t.id) && (!t.adminOnly || isAdmin));
 
             const getRoleName = () => {
                 if (isAdmin)     return "👑 مدير رئيسي";
@@ -2256,8 +2310,15 @@
                                 showToast={showToast}
                                 formatNum={formatNum}
                                 canEdit={canEditAbuAdi}
+                                isAdmin={isAdmin}
                                 abuadiDate={abuadiDate}
                                 setAbuadiDate={setAbuadiDate}
+                                history={abuadiHistory}
+                                setHistory={setAbuadiHistory}
+                                db={db}
+                                auth={auth}
+                                firebaseReady={firebaseReady}
+                                saveToLocalStorage={saveToLocalStorage}
                             />
                         )}
 
@@ -2289,6 +2350,27 @@
                         )}
 
                     </div>
+
+                    {/* ════════════════════════════════════════════════════════
+                        ⚙️  SETTINGS TAB — نظام النسخ الاحتياطي والاستعادة
+                        ════════════════════════════════════════════════════════ */}
+                    {tab==="settings" && (
+                        <BackupRestoreScreen
+                            lines={lines} visas={visas} instaPays={instaPays}
+                            transactions={transactions} people={people}
+                            capital={capital} financeLogs={financeLogs}
+                            abuadiTarget={abuadiTarget} abuadiPayments={abuadiPayments}
+                            abuadiDate={abuadiDate} abuadiHistory={abuadiHistory}
+                            setLines={setLines} setVisas={setVisas} setInstaPays={setInstaPays}
+                            setTransactions={setTransactions} setPeople={setPeople}
+                            setCapital={setCapital} setFinanceLogs={setFinanceLogs}
+                            setAbuadiTarget={setAbuadiTarget} setAbuadiPayments={setAbuadiPayments}
+                            setAbuadiDate={setAbuadiDate} setAbuadiHistory={setAbuadiHistory}
+                            db={db} auth={auth} firebaseReady={firebaseReady}
+                            isAdmin={isAdmin} showToast={showToast}
+                            saveToLocalStorage={saveToLocalStorage}
+                        />
+                    )}
 
                     {/* Bottom Nav */}
                     <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(5,7,15,0.92)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderTop:"1px solid var(--border-dim)",display:"flex",padding:"8px 0 12px",zIndex:100}}>
@@ -2752,19 +2834,25 @@
             pendingAudio, setPendingAudio,
             showToast, formatNum,
             abuadiDate, setAbuadiDate,
-            canEdit = false
+            history, setHistory,
+            db, auth, firebaseReady,
+            saveToLocalStorage,
+            canEdit = false,
+            isAdmin = false
         }) {
-            const totalPaid = payments.filter(p => {
-                const d = new Date(p.ts);
-                const todayStr = new Date().toDateString();
-                return d.toDateString() === todayStr;
-            }).reduce((s,p) => s + p.amount, 0);
-
+            // ── حسابات اليوم الحالي ──────────────────────────────────
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayPayments = [...payments]
+                .filter(p => new Date(p.ts).toISOString().slice(0, 10) === todayStr)
+                .sort((a, b) => b.ts - a.ts);
+            const totalPaid = todayPayments.reduce((s, p) => s + p.amount, 0);
             const remaining = Math.max(0, target - totalPaid);
             const pct = target > 0 ? Math.min(100, (totalPaid / target) * 100) : 0;
-            const todayPayments = [...payments]
-                .filter(p => new Date(p.ts).toDateString() === new Date().toDateString())
-                .sort((a,b) => b.ts - a.ts);
+            const settled = target > 0 && totalPaid >= target;
+
+            // ── عرض السجل التاريخي ───────────────────────────────────
+            const [showHistory, setShowHistory] = useState(false);
+            const [historyDetailDate, setHistoryDetailDate] = useState(null); // dateStr لعرض التفاصيل
 
             function nowMsStr() {
                 const d = new Date();
@@ -2775,8 +2863,86 @@
                 const hh = String(d.getHours()).padStart(2,"0");
                 const min = String(d.getMinutes()).padStart(2,"0");
                 const ss = String(d.getSeconds()).padStart(2,"0");
-                const ms = String(d.getMilliseconds()).padStart(3,"0");
-                return `${days[d.getDay()]} ${dd}/${mm}/${yy} — ${hh}:${min}:${ss}.${ms}`;
+                return `${days[d.getDay()]} ${dd}/${mm}/${yy} — ${hh}:${min}:${ss}`;
+            }
+
+            // ── دالة الأرشفة اليومية (تحفظ اليوم في السجل التاريخي) ──
+            function archiveToday(onDone) {
+                if (totalPaid === 0 && target === 0) {
+                    showToast("لا توجد بيانات لأرشفتها اليوم", "error");
+                    return;
+                }
+                // لا نؤرشف اليوم لو موجود بالفعل في السجل بنفس التاريخ
+                const alreadyExists = (history || []).find(h => h.dateStr === todayStr);
+                const record = {
+                    dateStr: todayStr,
+                    target,
+                    totalPaid,
+                    remaining: Math.max(0, target - totalPaid),
+                    settled: target > 0 && totalPaid >= target,
+                    paymentsCount: todayPayments.length,
+                    // نحفظ الدفعات بدون الـ audio لتوفير المساحة
+                    payments: todayPayments.map(p => ({ id: p.id, amount: p.amount, label: p.label, ts: p.ts })),
+                    archivedAt: new Date().toISOString(),
+                };
+
+                let newHistory;
+                if (alreadyExists) {
+                    // تحديث السجل الموجود
+                    newHistory = (history || []).map(h => h.dateStr === todayStr ? record : h);
+                } else {
+                    newHistory = [record, ...(history || [])];
+                }
+                newHistory.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+
+                setHistory(newHistory);
+                saveToLocalStorage('abuadiHistory', newHistory);
+
+                // حفظ في Firebase تحت abuAdi_history/{dateStr}
+                if (auth && auth.currentUser && db && firebaseReady) {
+                    try {
+                        db.ref(`abuAdi_history/${todayStr}`).set(record)
+                            .then(() => { if (onDone) onDone(record); })
+                            .catch(() => { if (onDone) onDone(record); });
+                    } catch(e) { if (onDone) onDone(record); }
+                } else {
+                    if (onDone) onDone(record);
+                }
+            }
+
+            // ── إنهاء اليوم: أرشفة ثم تصفير ─────────────────────────
+            function closeDay() {
+                if (!window.confirm(`هيتم أرشفة يوم ${todayStr} (هدف: ${formatNum(target)} ج | تم: ${formatNum(totalPaid)} ج) ثم تصفير اليوم. متأكد؟`)) return;
+                archiveToday(() => {
+                    // تصفير دفعات اليوم فقط — الدفعات السابقة (لو موجودة) تفضل
+                    setPayments(prev => prev.filter(p => new Date(p.ts).toISOString().slice(0, 10) !== todayStr));
+                    setTarget(0);
+                    setTargetInput("");
+                    if (setAbuadiDate) setAbuadiDate(todayStr);
+                    showToast(`✅ تم أرشفة يوم ${todayStr} وتصفير الحساب`);
+                });
+            }
+
+            // ── تصفير اليوم بدون أرشفة (طلب صريح من الأدمن) ─────────
+            function clearTodayNoArchive() {
+                if (!window.confirm("هيتم مسح دفعات اليوم والمستهدف بدون أرشفة. متأكد؟")) return;
+                setPayments(prev => prev.filter(p => new Date(p.ts).toISOString().slice(0, 10) !== todayStr));
+                setTarget(0);
+                setTargetInput("");
+                showToast("تم التصفير بدون أرشفة");
+            }
+
+            // ── حذف يوم من السجل التاريخي (أدمن فقط) ───────────────
+            function deleteHistoryDay(dateStrToDelete) {
+                if (!window.confirm(`هيتم حذف سجل يوم ${dateStrToDelete} نهائياً من الأرشيف. متأكد؟`)) return;
+                const newHistory = (history || []).filter(h => h.dateStr !== dateStrToDelete);
+                setHistory(newHistory);
+                saveToLocalStorage('abuadiHistory', newHistory);
+                if (auth && auth.currentUser && db && firebaseReady) {
+                    try { db.ref(`abuAdi_history/${dateStrToDelete}`).remove(); } catch(e){}
+                }
+                if (historyDetailDate === dateStrToDelete) setHistoryDetailDate(null);
+                showToast(`تم حذف سجل يوم ${dateStrToDelete} ✓`);
             }
 
             function startRecording() {
@@ -2850,199 +3016,375 @@
                 showToast("تم التعديل ✓");
             }
 
-            function clearToday() {
-                const todayStr = new Date().toDateString();
-                setPayments(prev => prev.filter(p => new Date(p.ts).toDateString() !== todayStr));
-                setTarget(0);
-                setTargetInput("");
-                showToast("تم تصفية حساب اليوم ✓");
-            }
+            // ── مجاميع الأرشيف ───────────────────────────────────────
+            const historyList = (history || []).slice().sort((a,b) => b.dateStr.localeCompare(a.dateStr));
+            const totalHistoryTarget = historyList.reduce((s,h) => s + (h.target||0), 0);
+            const totalHistoryPaid   = historyList.reduce((s,h) => s + (h.totalPaid||0), 0);
 
-            const settled = target > 0 && totalPaid >= target;
+            // ── يوم التفاصيل ─────────────────────────────────────────
+            const detailDay = historyDetailDate ? historyList.find(h => h.dateStr === historyDetailDate) : null;
+
+            // ── دالة تنسيق التاريخ ───────────────────────────────────
+            function fmtDate(ds) {
+                if (!ds) return "";
+                const [y,m,d] = ds.split("-");
+                const days = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+                const dayName = days[new Date(`${ds}T12:00:00`).getDay()];
+                return `${dayName} ${d}/${m}/${y}`;
+            }
 
             return (
                 <div style={{paddingBottom:20}}>
-                    {/* Header */}
+
+                    {/* ══ Header ══ */}
                     <div style={{background:"linear-gradient(135deg,#0f1e3d,#162545)",border:"1px solid #22d3ee30",borderRadius:16,padding:18,marginBottom:16,textAlign:"center",position:"relative",overflow:"hidden"}}>
                         <div style={{position:"absolute",top:0,right:0,width:4,height:"100%",background:"linear-gradient(to bottom,#22d3ee,#0891b2)",borderRadius:"0 16px 16px 0"}}/>
                         <div style={{fontSize:28,marginBottom:4}}>🤝</div>
                         <div style={{fontSize:20,fontWeight:900,color:"#22d3ee"}}>حسابات أبو عدي</div>
-                        <div style={{fontSize:12,color:"#475569",marginTop:4}}>تصفية يومية للدفعات الكاش</div>
-                    </div>
-
-                    {/* TARGET SETTER */}
-                    <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #f59e0b40",borderRadius:14,padding:16,marginBottom:14}}>
-                        <div style={{fontSize:12,color:"#f59e0b",fontWeight:700,marginBottom:10}}>💰 إجمالي المبلغ المطلوب تصفيته اليوم</div>
-                        {canEdit && (
-                            <div style={{display:"flex",gap:8}}>
-                                <input
-                                    type="number"
-                                    value={targetInput}
-                                    onChange={e=>setTargetInput(e.target.value)}
-                                    placeholder="مثلاً: 120000"
-                                    style={{flex:1,background:"#0a0f1e",border:"1px solid #f59e0b50",borderRadius:10,padding:"10px 14px",color:"#e2e8f0",fontSize:15,outline:"none",textAlign:"right",fontFamily:"'Tajawal',sans-serif"}}
-                                />
-                                <button
-                                    onClick={()=>{
-                                        const v=parseFloat(targetInput);
-                                        if(!v||v<=0){showToast("أدخل مبلغ صحيح","error");return;}
-                                        setTarget(v); if(setAbuadiDate) setAbuadiDate(new Date().toISOString().slice(0,10)); showToast("✓ تم تحديد المبلغ المستهدف");
-                                    }}
-                                    style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"10px 18px",color:"#0a0f1e",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}
-                                >تحديد</button>
+                        <div style={{fontSize:11,color:"#475569",marginTop:4}}>نظام تراكمي تاريخي • {fmtDate(todayStr)}</div>
+                        {/* شارة عدد الأيام المؤرشفة */}
+                        {historyList.length > 0 && (
+                            <div style={{display:"inline-flex",alignItems:"center",gap:5,background:"#10b98115",border:"1px solid #10b98130",borderRadius:20,padding:"3px 12px",fontSize:11,color:"#10b981",marginTop:8}}>
+                                📚 {historyList.length} يوم مؤرشف
                             </div>
                         )}
-                        {!canEdit && target === 0 && (
-                            <div style={{textAlign:"center",color:"#475569",fontSize:12,padding:"6px 0"}}>لم يتم تحديد مبلغ مستهدف بعد</div>
+                    </div>
+
+                    {/* ══ تبويبات اليوم / السجل التاريخي ══ */}
+                    <div style={{display:"flex",gap:0,marginBottom:16,background:"#0a0c16",borderRadius:12,padding:4,border:"1px solid #1a2235"}}>
+                        <button onClick={()=>setShowHistory(false)}
+                            style={{flex:1,background:!showHistory?"linear-gradient(135deg,#22d3ee,#0891b2)":"none",border:"none",borderRadius:9,padding:"10px 0",color:!showHistory?"#0a0c16":"#3d4f65",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",transition:"all 0.2s"}}>
+                            📅 اليوم الحالي
+                        </button>
+                        <button onClick={()=>{setShowHistory(true);setHistoryDetailDate(null);}}
+                            style={{flex:1,background:showHistory?"linear-gradient(135deg,#a78bfa,#7c3aed)":"none",border:"none",borderRadius:9,padding:"10px 0",color:showHistory?"#fff":"#3d4f65",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",transition:"all 0.2s"}}>
+                            📚 السجل التاريخي {historyList.length > 0 && `(${historyList.length})`}
+                        </button>
+                    </div>
+
+                    {/* ══════════════════════════════════════════
+                        قسم اليوم الحالي
+                    ══════════════════════════════════════════ */}
+                    {!showHistory && (
+                    <div>
+                        {/* TARGET SETTER */}
+                        <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #f59e0b40",borderRadius:14,padding:16,marginBottom:14}}>
+                            <div style={{fontSize:12,color:"#f59e0b",fontWeight:700,marginBottom:10}}>💰 إجمالي المبلغ المطلوب تصفيته اليوم</div>
+                            {canEdit && (
+                                <div style={{display:"flex",gap:8}}>
+                                    <input
+                                        type="number"
+                                        value={targetInput}
+                                        onChange={e=>setTargetInput(e.target.value)}
+                                        placeholder="مثلاً: 120000"
+                                        style={{flex:1,background:"#0a0f1e",border:"1px solid #f59e0b50",borderRadius:10,padding:"10px 14px",color:"#e2e8f0",fontSize:15,outline:"none",textAlign:"right",fontFamily:"'Tajawal',sans-serif"}}
+                                    />
+                                    <button
+                                        onClick={()=>{
+                                            const v=parseFloat(targetInput);
+                                            if(!v||v<=0){showToast("أدخل مبلغ صحيح","error");return;}
+                                            setTarget(v); if(setAbuadiDate) setAbuadiDate(new Date().toISOString().slice(0,10)); showToast("✓ تم تحديد المبلغ المستهدف");
+                                        }}
+                                        style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"10px 18px",color:"#0a0f1e",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}
+                                    >تحديد</button>
+                                </div>
+                            )}
+                            {!canEdit && target === 0 && (
+                                <div style={{textAlign:"center",color:"#475569",fontSize:12,padding:"6px 0"}}>لم يتم تحديد مبلغ مستهدف بعد</div>
+                            )}
+                            {target > 0 && (
+                                <div style={{marginTop:12}}>
+                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+                                        <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #f59e0b30"}}>
+                                            <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>المستهدف</div>
+                                            <div style={{fontSize:15,fontWeight:700,color:"#f59e0b"}}>{formatNum(target)}</div>
+                                        </div>
+                                        <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #10b98130"}}>
+                                            <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>تم تسليمه</div>
+                                            <div style={{fontSize:15,fontWeight:700,color:"#10b981"}}>{formatNum(totalPaid)}</div>
+                                        </div>
+                                        <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:`1px solid ${settled?"#10b98130":"#ef444430"}`}}>
+                                            <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>المتبقي</div>
+                                            <div style={{fontSize:15,fontWeight:700,color:settled?"#10b981":"#ef4444"}}>{settled?"✓ صُفِّي":formatNum(remaining)}</div>
+                                        </div>
+                                    </div>
+                                    {/* Progress Bar */}
+                                    <div style={{background:"#1e293b",borderRadius:99,height:12,overflow:"hidden"}}>
+                                        <div style={{width:`${pct}%`,height:"100%",background: settled?"linear-gradient(90deg,#10b981,#059669)":"linear-gradient(90deg,#22d3ee,#0891b2)",borderRadius:99,transition:"width 0.5s ease",boxShadow: settled?"0 0 12px #10b98180":"0 0 12px #22d3ee80"}}/>
+                                    </div>
+                                    <div style={{textAlign:"center",fontSize:11,color:"#64748b",marginTop:5}}>{pct.toFixed(1)}% تم تسليمه</div>
+                                    {settled && (
+                                        <div style={{background:"#10b98115",border:"1px solid #10b98140",borderRadius:10,padding:10,textAlign:"center",marginTop:10}}>
+                                            <div style={{fontSize:16,fontWeight:900,color:"#10b981"}}>✅ تم تصفية الحساب بالكامل!</div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ── أزرار إنهاء اليوم (أدمن فقط) ── */}
+                        {canEdit && (
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                                <button onClick={closeDay}
+                                    style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:"13px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #10b98130"}}>
+                                    📁 إنهاء اليوم وأرشفة
+                                </button>
+                                <button onClick={()=>archiveToday(()=>showToast(`✅ تم أرشفة يوم ${todayStr}`))}
+                                    style={{background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:"13px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #3b82f630"}}>
+                                    💾 أرشفة بدون تصفير
+                                </button>
+                            </div>
                         )}
-                        {target > 0 && (
-                            <div style={{marginTop:12}}>
-                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
-                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #f59e0b30"}}>
-                                        <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>المستهدف</div>
-                                        <div style={{fontSize:15,fontWeight:700,color:"#f59e0b"}}>{formatNum(target)}</div>
+
+                        {/* ADD PAYMENT FORM — للأدمن والمساعد فقط */}
+                        {canEdit && (
+                        <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #a78bfa40",borderRadius:14,padding:16,marginBottom:14}}>
+                            <div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:12}}>➕ إضافة دفعة كاش جديدة</div>
+
+                            <div style={{display:"flex",gap:8,marginBottom:12}}>
+                                <input
+                                    type="number"
+                                    value={amountInput}
+                                    onChange={e=>setAmountInput(e.target.value)}
+                                    onKeyPress={e=>e.key==="Enter"&&addPayment()}
+                                    placeholder="المبلغ (مثلاً: 50000)"
+                                    style={{flex:1,background:"#0a0f1e",border:"1px solid #a78bfa50",borderRadius:10,padding:"12px 14px",color:"#e2e8f0",fontSize:15,outline:"none",textAlign:"right",fontFamily:"'Tajawal',sans-serif"}}
+                                />
+                            </div>
+
+                            {/* Voice Recorder */}
+                            <div style={{background:"#0a0f1e",borderRadius:10,padding:12,marginBottom:12,border:`1px solid ${recordingState==="recording"?"#ef4444":"#1e293b"}`}}>
+                                <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}}>🎙️ تسجيل صوتي (اختياري — إثبات التسليم)</div>
+                                {recordingState === "idle" && (
+                                    <button onClick={startRecording}
+                                        style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:10,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                        🎙️ ابدأ التسجيل
+                                    </button>
+                                )}
+                                {recordingState === "recording" && (
+                                    <div style={{display:"flex",gap:8}}>
+                                        <button onClick={stopRecording}
+                                            style={{flex:1,background:"linear-gradient(135deg,#ef4444,#dc2626)",border:"none",borderRadius:8,padding:10,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",animation:"blink 1s infinite",fontFamily:"'Tajawal',sans-serif"}}>
+                                            ⏹ إيقاف التسجيل
+                                        </button>
+                                        <button onClick={cancelRecording}
+                                            style={{background:"#1e293b",border:"none",borderRadius:8,padding:"10px 14px",color:"#94a3b8",fontSize:13,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                            ✕
+                                        </button>
                                     </div>
-                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #10b98130"}}>
-                                        <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>تم تسليمه</div>
-                                        <div style={{fontSize:15,fontWeight:700,color:"#10b981"}}>{formatNum(totalPaid)}</div>
-                                    </div>
-                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:`1px solid ${settled?"#10b98130":"#ef444430"}`}}>
-                                        <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>المتبقي</div>
-                                        <div style={{fontSize:15,fontWeight:700,color:settled?"#10b981":"#ef4444"}}>{settled?"✓ صُفِّي":formatNum(remaining)}</div>
-                                    </div>
-                                </div>
-                                {/* Progress Bar */}
-                                <div style={{background:"#1e293b",borderRadius:99,height:12,overflow:"hidden",position:"relative"}}>
-                                    <div style={{
-                                        width:`${pct}%`,height:"100%",
-                                        background: settled ? "linear-gradient(90deg,#10b981,#059669)" : "linear-gradient(90deg,#22d3ee,#0891b2)",
-                                        borderRadius:99,transition:"width 0.5s ease",
-                                        boxShadow: settled ? "0 0 12px #10b98180" : "0 0 12px #22d3ee80"
-                                    }}/>
-                                </div>
-                                <div style={{textAlign:"center",fontSize:11,color:"#64748b",marginTop:5}}>{pct.toFixed(1)}% تم تسليمه</div>
-                                {settled && (
-                                    <div style={{background:"#10b98115",border:"1px solid #10b98140",borderRadius:10,padding:10,textAlign:"center",marginTop:10}}>
-                                        <div style={{fontSize:16,fontWeight:900,color:"#10b981"}}>✅ تم تصفية الحساب بالكامل!</div>
+                                )}
+                                {recordingState === "done" && pendingAudio && (
+                                    <div>
+                                        <div style={{fontSize:11,color:"#10b981",marginBottom:8,fontWeight:600}}>✅ تم التسجيل — استمع للمراجعة:</div>
+                                        <audio controls src={pendingAudio} style={{width:"100%",height:36,marginBottom:8}}/>
+                                        <button onClick={()=>{setPendingAudio(null);setRecordingState("idle");}}
+                                            style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:8,color:"#94a3b8",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                            🔄 إعادة التسجيل
+                                        </button>
                                     </div>
                                 )}
                             </div>
+
+                            <button onClick={addPayment}
+                                style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 15px #7c3aed40"}}>
+                                ✓ تسجيل الدفعة
+                            </button>
+                        </div>
                         )}
-                    </div>
 
-                    {/* ADD PAYMENT FORM — للأدمن والمساعد فقط */}
-                    {canEdit && (
-                    <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #a78bfa40",borderRadius:14,padding:16,marginBottom:14}}>
-                        <div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:12}}>➕ إضافة دفعة كاش جديدة</div>
-
-                        {/* Amount */}
-                        <div style={{display:"flex",gap:8,marginBottom:12}}>
-                            <input
-                                type="number"
-                                value={amountInput}
-                                onChange={e=>setAmountInput(e.target.value)}
-                                onKeyPress={e=>e.key==="Enter"&&addPayment()}
-                                placeholder="المبلغ (مثلاً: 50000)"
-                                style={{flex:1,background:"#0a0f1e",border:"1px solid #a78bfa50",borderRadius:10,padding:"12px 14px",color:"#e2e8f0",fontSize:15,outline:"none",textAlign:"right",fontFamily:"'Tajawal',sans-serif"}}
-                            />
-                        </div>
-
-                        {/* Voice Recorder */}
-                        <div style={{background:"#0a0f1e",borderRadius:10,padding:12,marginBottom:12,border:`1px solid ${recordingState==="recording"?"#ef4444":"#1e293b"}`}}>
-                            <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}}>🎙️ تسجيل صوتي (اختياري — إثبات التسليم)</div>
-                            {recordingState === "idle" && (
-                                <button onClick={startRecording}
-                                    style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:10,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
-                                    🎙️ ابدأ التسجيل
-                                </button>
-                            )}
-                            {recordingState === "recording" && (
-                                <div style={{display:"flex",gap:8}}>
-                                    <button onClick={stopRecording}
-                                        style={{flex:1,background:"linear-gradient(135deg,#ef4444,#dc2626)",border:"none",borderRadius:8,padding:10,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",animation:"blink 1s infinite",fontFamily:"'Tajawal',sans-serif"}}>
-                                        ⏹ إيقاف التسجيل
+                        {/* TODAY'S PAYMENTS TABLE */}
+                        <div style={{marginBottom:16}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                                <div style={{fontSize:14,fontWeight:700,color:"#94a3b8"}}>📋 سجل دفعات اليوم ({todayPayments.length})</div>
+                                {canEdit && isAdmin && todayPayments.length > 0 && (
+                                    <button onClick={clearTodayNoArchive}
+                                        style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:8,padding:"4px 12px",color:"#ef4444",fontSize:11,cursor:"pointer",fontWeight:600,fontFamily:"'Tajawal',sans-serif"}}>
+                                        🗑️ مسح بدون أرشفة
                                     </button>
-                                    <button onClick={cancelRecording}
-                                        style={{background:"#1e293b",border:"none",borderRadius:8,padding:"10px 14px",color:"#94a3b8",fontSize:13,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
-                                        ✕
-                                    </button>
+                                )}
+                            </div>
+
+                            {todayPayments.length === 0 ? (
+                                <div style={{textAlign:"center",color:"#334155",padding:"30px 20px",background:"#0f1e3d",borderRadius:14,border:"1px dashed #1e3a5f"}}>
+                                    <div style={{fontSize:32,marginBottom:8}}>💸</div>
+                                    <div style={{fontSize:13}}>لا توجد دفعات مسجلة اليوم</div>
                                 </div>
-                            )}
-                            {recordingState === "done" && pendingAudio && (
-                                <div>
-                                    <div style={{fontSize:11,color:"#10b981",marginBottom:8,fontWeight:600}}>✅ تم التسجيل — استمع للمراجعة:</div>
-                                    <audio controls src={pendingAudio} style={{width:"100%",height:36,marginBottom:8}}/>
-                                    <button onClick={()=>{setPendingAudio(null);setRecordingState("idle");}}
-                                        style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:8,color:"#94a3b8",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
-                                        🔄 إعادة التسجيل
-                                    </button>
-                                </div>
+                            ) : (
+                                todayPayments.map((p, idx) => (
+                                    <div key={p.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:12,padding:14,marginBottom:10,position:"relative"}}>
+                                        <div style={{position:"absolute",top:12,left:12,background:"#1e293b",borderRadius:99,width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#64748b"}}>
+                                            {todayPayments.length - idx}
+                                        </div>
+                                        <div style={{paddingLeft:32}}>
+                                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                                                <div>
+                                                    <div style={{fontSize:20,fontWeight:900,color:"#10b981"}}>{formatNum(p.amount)} ج</div>
+                                                    <div style={{fontSize:10,color:"#475569",marginTop:2}}>{p.label}</div>
+                                                </div>
+                                                <div style={{display:"flex",gap:6}}>
+                                                    {canEdit && (
+                                                        <button onClick={()=>setEditModal({payment:p,newAmount:String(p.amount)})}
+                                                            style={{background:"#22d3ee15",border:"1px solid #22d3ee30",borderRadius:8,padding:"5px 10px",color:"#22d3ee",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                                            ✏️
+                                                        </button>
+                                                    )}
+                                                    {canEdit && (
+                                                        <button onClick={()=>deletePayment(p.id)}
+                                                            style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"5px 10px",color:"#ef4444",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                                            🗑️
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {p.audio && (
+                                                <div style={{background:"#0a0f1e",borderRadius:8,padding:8,marginTop:6,border:"1px solid #10b98130"}}>
+                                                    <div style={{fontSize:10,color:"#10b981",marginBottom:4,fontWeight:600}}>🎙️ تسجيل صوتي مرفق:</div>
+                                                    <audio controls src={p.audio} style={{width:"100%",height:32}}/>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
                             )}
                         </div>
-
-                        <button onClick={addPayment}
-                            style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 15px #7c3aed40"}}>
-                            ✓ تسجيل الدفعة
-                        </button>
                     </div>
                     )}
 
-                    {/* TODAY'S PAYMENTS TABLE */}
-                    <div style={{marginBottom:16}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                            <div style={{fontSize:14,fontWeight:700,color:"#94a3b8"}}>📋 سجل دفعات اليوم ({todayPayments.length})</div>
-                            {canEdit && todayPayments.length > 0 && (
-                                <button onClick={()=>{if(window.confirm("هيتم تصفير كل دفعات اليوم والمبلغ المستهدف. متأكد؟"))clearToday();}}
-                                    style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:8,padding:"4px 12px",color:"#ef4444",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"'Tajawal',sans-serif"}}>
-                                    🔄 تصفية الحساب
-                                </button>
-                            )}
-                        </div>
+                    {/* ══════════════════════════════════════════
+                        قسم السجل التاريخي
+                    ══════════════════════════════════════════ */}
+                    {showHistory && (
+                    <div>
+                        {/* مجاميع الأرشيف الكلية */}
+                        {historyList.length > 0 && (
+                            <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #a78bfa40",borderRadius:14,padding:16,marginBottom:14}}>
+                                <div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:10}}>📊 الإجمالي التراكمي الكلي</div>
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #a78bfa30"}}>
+                                        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>إجمالي الأيام</div>
+                                        <div style={{fontSize:18,fontWeight:900,color:"#a78bfa"}}>{historyList.length}</div>
+                                    </div>
+                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #f59e0b30"}}>
+                                        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>إجمالي المستهدف</div>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#f59e0b"}}>{formatNum(totalHistoryTarget)}</div>
+                                    </div>
+                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #10b98130"}}>
+                                        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>إجمالي التسليم</div>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#10b981"}}>{formatNum(totalHistoryPaid)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-                        {todayPayments.length === 0 ? (
-                            <div style={{textAlign:"center",color:"#334155",padding:"30px 20px",background:"#0f1e3d",borderRadius:14,border:"1px dashed #1e3a5f"}}>
-                                <div style={{fontSize:32,marginBottom:8}}>💸</div>
-                                <div style={{fontSize:13}}>لا توجد دفعات مسجلة اليوم</div>
+                        {/* ── عرض تفاصيل يوم محدد ── */}
+                        {detailDay && (
+                            <div style={{background:"#0d1120",border:"1px solid #22d3ee30",borderRadius:14,padding:16,marginBottom:14,animation:"fadeIn 0.2s ease"}}>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                                    <div style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>📋 تفاصيل يوم {fmtDate(detailDay.dateStr)}</div>
+                                    <button onClick={()=>setHistoryDetailDate(null)}
+                                        style={{background:"#1e293b",border:"none",borderRadius:8,width:28,height:28,color:"#94a3b8",cursor:"pointer",fontSize:14}}>×</button>
+                                </div>
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #f59e0b30"}}>
+                                        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>المستهدف</div>
+                                        <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{formatNum(detailDay.target||0)}</div>
+                                    </div>
+                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #10b98130"}}>
+                                        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>تم التسليم</div>
+                                        <div style={{fontSize:14,fontWeight:700,color:"#10b981"}}>{formatNum(detailDay.totalPaid||0)}</div>
+                                    </div>
+                                    <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:`1px solid ${detailDay.settled?"#10b98130":"#ef444430"}`}}>
+                                        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>المتبقي</div>
+                                        <div style={{fontSize:14,fontWeight:700,color:detailDay.settled?"#10b981":"#ef4444"}}>{detailDay.settled?"✓ صُفِّي":formatNum(detailDay.remaining||0)}</div>
+                                    </div>
+                                </div>
+                                {/* Progress */}
+                                {detailDay.target > 0 && (
+                                    <div>
+                                        <div style={{background:"#1e293b",borderRadius:99,height:8,overflow:"hidden",marginBottom:4}}>
+                                            <div style={{width:`${Math.min(100,(detailDay.totalPaid/detailDay.target)*100)}%`,height:"100%",background:detailDay.settled?"linear-gradient(90deg,#10b981,#059669)":"linear-gradient(90deg,#22d3ee,#0891b2)",borderRadius:99}}/>
+                                        </div>
+                                        <div style={{textAlign:"center",fontSize:10,color:"#475569",marginBottom:10}}>
+                                            {((detailDay.totalPaid/detailDay.target)*100).toFixed(1)}% • {detailDay.paymentsCount} دفعة
+                                        </div>
+                                    </div>
+                                )}
+                                {/* قائمة الدفعات */}
+                                {(detailDay.payments||[]).length > 0 && (
+                                    <div>
+                                        <div style={{fontSize:11,color:"#3d4f65",marginBottom:8,fontWeight:600}}>دفعات هذا اليوم:</div>
+                                        {(detailDay.payments||[]).map((p,i)=>(
+                                            <div key={p.id||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0a0f1e",borderRadius:8,padding:"8px 12px",marginBottom:6,border:"1px solid #1a2235"}}>
+                                                <span style={{fontSize:12,color:"#94a3b8"}}>{p.label}</span>
+                                                <span style={{fontSize:13,fontWeight:700,color:"#10b981"}}>{formatNum(p.amount)} ج</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div style={{fontSize:10,color:"#1e3a5f",marginTop:8,borderTop:"1px solid #1a2235",paddingTop:6}}>
+                                    أُرشف في: {new Date(detailDay.archivedAt).toLocaleString("ar-EG")}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── جدول الأيام السابقة ── */}
+                        {historyList.length === 0 ? (
+                            <div style={{textAlign:"center",color:"#334155",padding:"40px 20px",background:"#0a0c16",borderRadius:14,border:"1px dashed #1a2235"}}>
+                                <div style={{fontSize:36,marginBottom:10}}>📭</div>
+                                <div style={{fontSize:13,color:"#3d4f65"}}>لا يوجد سجل تاريخي بعد</div>
+                                <div style={{fontSize:11,color:"#1e3a5f",marginTop:6}}>اضغط "إنهاء اليوم وأرشفة" بعد الانتهاء من كل يوم</div>
                             </div>
                         ) : (
-                            todayPayments.map((p, idx) => (
-                                <div key={p.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:12,padding:14,marginBottom:10,position:"relative"}}>
-                                    {/* Index badge */}
-                                    <div style={{position:"absolute",top:12,left:12,background:"#1e293b",borderRadius:99,width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#64748b"}}>
-                                        {todayPayments.length - idx}
-                                    </div>
-                                    <div style={{paddingLeft:32}}>
-                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                            historyList.map((day) => {
+                                const dayPct = day.target > 0 ? Math.min(100,(day.totalPaid/day.target)*100) : 0;
+                                const isSelected = historyDetailDate === day.dateStr;
+                                return (
+                                    <div key={day.dateStr}
+                                        onClick={()=>setHistoryDetailDate(isSelected ? null : day.dateStr)}
+                                        style={{
+                                            background: isSelected ? "linear-gradient(135deg,#0d1829,#111d35)" : "linear-gradient(135deg,#0a1020,#0d1520)",
+                                            border:`1px solid ${day.settled?"#10b98140":isSelected?"#22d3ee40":"#1a2235"}`,
+                                            borderRadius:12,padding:14,marginBottom:10,cursor:"pointer",
+                                            transition:"all 0.2s"
+                                        }}>
+                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                                             <div>
-                                                <div style={{fontSize:20,fontWeight:900,color:"#10b981"}}>{formatNum(p.amount)} ج</div>
-                                                <div style={{fontSize:10,color:"#475569",marginTop:2}}>{p.label}</div>
+                                                <div style={{fontSize:13,fontWeight:700,color: day.settled?"#10b981":"#c8d6e8"}}>
+                                                    {day.settled?"✅":"📅"} {fmtDate(day.dateStr)}
+                                                </div>
+                                                <div style={{fontSize:10,color:"#3d4f65",marginTop:2}}>{day.paymentsCount} دفعة</div>
                                             </div>
-                                            <div style={{display:"flex",gap:6}}>
-                                                {canEdit && (
-                                                    <button onClick={()=>setEditModal({payment:p,newAmount:String(p.amount)})}
-                                                        style={{background:"#22d3ee15",border:"1px solid #22d3ee30",borderRadius:8,padding:"5px 10px",color:"#22d3ee",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
-                                                        ✏️
-                                                    </button>
+                                            <div style={{textAlign:"left"}}>
+                                                <div style={{fontSize:15,fontWeight:900,color:"#10b981"}}>{formatNum(day.totalPaid)} ج</div>
+                                                <div style={{fontSize:10,color:"#3d4f65"}}>من {formatNum(day.target)} ج</div>
+                                            </div>
+                                        </div>
+                                        {/* mini progress */}
+                                        <div style={{background:"#0a0c16",borderRadius:99,height:5,overflow:"hidden",marginBottom:4}}>
+                                            <div style={{width:`${dayPct}%`,height:"100%",background:day.settled?"#10b981":"#22d3ee",borderRadius:99,transition:"width 0.4s"}}/>
+                                        </div>
+                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                            <div style={{fontSize:10,color:"#3d4f65"}}>{dayPct.toFixed(0)}%</div>
+                                            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                                                {!day.settled && day.remaining > 0 && (
+                                                    <span style={{fontSize:10,color:"#ef4444"}}>متبقي {formatNum(day.remaining)}</span>
                                                 )}
-                                                {canEdit && (
-                                                    <button onClick={()=>deletePayment(p.id)}
-                                                        style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"5px 10px",color:"#ef4444",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={(e)=>{e.stopPropagation();deleteHistoryDay(day.dateStr);}}
+                                                        style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:6,padding:"2px 8px",color:"#ef4444",fontSize:11,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
                                                         🗑️
                                                     </button>
                                                 )}
+                                                <span style={{fontSize:10,color:"#22d3ee"}}>{isSelected?"▲ إخفاء":"▼ تفاصيل"}</span>
                                             </div>
                                         </div>
-                                        {p.audio && (
-                                            <div style={{background:"#0a0f1e",borderRadius:8,padding:8,marginTop:6,border:"1px solid #10b98130"}}>
-                                                <div style={{fontSize:10,color:"#10b981",marginBottom:4,fontWeight:600}}>🎙️ تسجيل صوتي مرفق:</div>
-                                                <audio controls src={p.audio} style={{width:"100%",height:32}}/>
-                                            </div>
-                                        )}
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
+                    )}
 
                     {/* Edit Modal */}
                     {editModal && (
@@ -3066,6 +3408,561 @@
                                     style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
                                     ✓ حفظ التعديل
                                 </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  🔒  BACKUP & RESTORE SCREEN — نظام النسخ الاحتياطي والاستعادة
+        // ══════════════════════════════════════════════════════════════════
+
+        const BACKUP_VERSION = "hawker_v2";
+
+        // AES-256 encryption using SubtleCrypto (Web Crypto API — يشتغل على المتصفح والموبايل)
+        async function deriveKey(password, salt) {
+            const enc = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+                "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+            );
+            return crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                false, ["encrypt", "decrypt"]
+            );
+        }
+
+        async function aesEncrypt(data, password) {
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv   = crypto.getRandomValues(new Uint8Array(12));
+            const key  = await deriveKey(password, salt);
+            const enc  = new TextEncoder();
+            const ct   = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(data));
+            // دمج salt + iv + ciphertext في base64 واحدة
+            const combined = new Uint8Array(salt.length + iv.length + ct.byteLength);
+            combined.set(salt, 0);
+            combined.set(iv, salt.length);
+            combined.set(new Uint8Array(ct), salt.length + iv.length);
+            return btoa(String.fromCharCode(...combined));
+        }
+
+        async function aesDecrypt(b64, password) {
+            const bytes    = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            const salt     = bytes.slice(0, 16);
+            const iv       = bytes.slice(16, 28);
+            const ct       = bytes.slice(28);
+            const key      = await deriveKey(password, salt);
+            const dec      = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+            return new TextDecoder().decode(dec);
+        }
+
+        function BackupRestoreScreen({
+            lines, visas, instaPays, transactions, people,
+            capital, financeLogs, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
+            setLines, setVisas, setInstaPays, setTransactions, setPeople,
+            setCapital, setFinanceLogs, setAbuadiTarget, setAbuadiPayments, setAbuadiDate, setAbuadiHistory,
+            db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage
+        }) {
+            const [status, setStatus] = useState({ msg: "", type: "" });
+            const [loading, setLoading] = useState(false);
+            const [confirmModal, setConfirmModal] = useState(null); // { type, data, filename }
+            const [encModal, setEncModal] = useState(null); // { mode: "export"|"import", data }
+            const [pwInput, setPwInput] = useState("");
+            const [showPw, setShowPw] = useState(false);
+            const restoreFileRef = React.useRef();
+            const encFileRef = React.useRef();
+
+            const lastBackup = (() => {
+                try { return localStorage.getItem("lastBackupTime") || null; } catch(e) { return null; }
+            })();
+
+            function buildBackupObject() {
+                return {
+                    _meta: {
+                        version: BACKUP_VERSION,
+                        createdAt: new Date().toISOString(),
+                        appName: "Hawker - فودافون كاش",
+                    },
+                    lines,
+                    visas,
+                    instaPays,
+                    transactions,
+                    people,
+                    capital,
+                    financeLogs,
+                    abuAdi: { target: abuadiTarget, payments: abuadiPayments, date: abuadiDate },
+                    abuAdiHistory: abuadiHistory || [],
+                    settings: {
+                        lastResetDay: (() => { try { return localStorage.getItem("lastResetDay"); } catch(e){ return null; } })(),
+                        warnedSources: (() => { try { return JSON.parse(localStorage.getItem("warnedSources") || "[]"); } catch(e){ return []; } })(),
+                    }
+                };
+            }
+
+            function validateBackup(obj) {
+                if (!obj || typeof obj !== "object") return "الملف غير صالح — ليس JSON صحيح";
+                if (!obj._meta || obj._meta.appName !== "Hawker - فودافون كاش") return "هذا الملف ليس نسخة احتياطية لتطبيق الحوكر";
+                if (!Array.isArray(obj.lines)) return "بيانات الخطوط مفقودة أو تالفة";
+                if (!Array.isArray(obj.visas)) return "بيانات الفيزا مفقودة أو تالفة";
+                if (!Array.isArray(obj.transactions)) return "بيانات المعاملات مفقودة أو تالفة";
+                if (!Array.isArray(obj.people)) return "بيانات العملاء مفقودة أو تالفة";
+                if (!Array.isArray(obj.financeLogs)) return "السجلات المالية مفقودة أو تالفة";
+                if (typeof obj.capital !== "number") return "بيانات رأس المال غير صالحة";
+                return null; // كل شيء تمام
+            }
+
+            function downloadFile(content, filename, type) {
+                const blob = new Blob([content], { type });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = filename; a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+
+            function getNowStamp() {
+                const d = new Date();
+                const pad = n => String(n).padStart(2,"0");
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}`;
+            }
+
+            function handleExportPlain() {
+                try {
+                    const obj = buildBackupObject();
+                    const json = JSON.stringify(obj, null, 2);
+                    const fname = `Backup_${getNowStamp()}.json`;
+                    downloadFile(json, fname, "application/json");
+                    try { localStorage.setItem("lastBackupTime", new Date().toLocaleString("ar-EG")); } catch(e){}
+                    showToast(`✅ تم إنشاء النسخة: ${fname}`);
+                    setStatus({ msg: `✅ تم تحميل: ${fname}`, type: "success" });
+                } catch(err) {
+                    setStatus({ msg: `❌ فشل الإنشاء: ${err.message}`, type: "error" });
+                }
+            }
+
+            function handleImportFile(file) {
+                if (!file) return;
+                setLoading(true);
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const obj = JSON.parse(ev.target.result);
+                        const err = validateBackup(obj);
+                        if (err) {
+                            setStatus({ msg: `❌ ${err}`, type: "error" });
+                            setLoading(false);
+                            return;
+                        }
+                        setConfirmModal({ type: "restore", data: obj, filename: file.name });
+                    } catch(e) {
+                        setStatus({ msg: "❌ الملف تالف أو ليس JSON صحيح", type: "error" });
+                    }
+                    setLoading(false);
+                };
+                reader.onerror = () => {
+                    setStatus({ msg: "❌ فشل قراءة الملف", type: "error" });
+                    setLoading(false);
+                };
+                reader.readAsText(file);
+                restoreFileRef.current.value = "";
+            }
+
+            async function handleEncryptedExport() {
+                const pw = pwInput.trim();
+                if (!pw || pw.length < 4) {
+                    setStatus({ msg: "❌ كلمة المرور يجب أن تكون 4 أحرف على الأقل", type: "error" });
+                    return;
+                }
+                setLoading(true);
+                try {
+                    const obj = buildBackupObject();
+                    const json = JSON.stringify(obj);
+                    const encrypted = await aesEncrypt(json, pw);
+                    const fname = `Backup_Encrypted_${getNowStamp()}.hbk`;
+                    downloadFile(encrypted, fname, "application/octet-stream");
+                    try { localStorage.setItem("lastBackupTime", new Date().toLocaleString("ar-EG")); } catch(e){}
+                    showToast(`🔒 تم تصدير نسخة مشفرة: ${fname}`);
+                    setStatus({ msg: `🔒 تم التصدير المشفر: ${fname}`, type: "success" });
+                    setPwInput("");
+                    setEncModal(null);
+                } catch(err) {
+                    setStatus({ msg: `❌ فشل التشفير: ${err.message}`, type: "error" });
+                }
+                setLoading(false);
+            }
+
+            async function handleEncryptedImport(file) {
+                if (!file) return;
+                const pw = pwInput.trim();
+                if (!pw) {
+                    setStatus({ msg: "❌ أدخل كلمة المرور أولاً", type: "error" });
+                    return;
+                }
+                setLoading(true);
+                try {
+                    const b64 = await new Promise((res, rej) => {
+                        const r = new FileReader();
+                        r.onload = (e) => res(e.target.result.trim());
+                        r.onerror = () => rej(new Error("فشل القراءة"));
+                        r.readAsText(file);
+                    });
+                    const json = await aesDecrypt(b64, pw);
+                    const obj = JSON.parse(json);
+                    const err = validateBackup(obj);
+                    if (err) {
+                        setStatus({ msg: `❌ ${err}`, type: "error" });
+                        setLoading(false);
+                        return;
+                    }
+                    setConfirmModal({ type: "restore", data: obj, filename: file.name });
+                    setPwInput("");
+                    setEncModal(null);
+                } catch(err) {
+                    setStatus({ msg: "❌ فشل فك التشفير — كلمة المرور خاطئة أو الملف تالف", type: "error" });
+                }
+                setLoading(false);
+                if (encFileRef.current) encFileRef.current.value = "";
+            }
+
+            async function applyRestore(obj) {
+                setLoading(true);
+                try {
+                    // 1. تحديث React State
+                    setLines(obj.lines || []);
+                    setVisas(obj.visas || []);
+                    setInstaPays(obj.instaPays || []);
+                    setTransactions(obj.transactions || []);
+                    setPeople(obj.people || []);
+                    setCapital(typeof obj.capital === "number" ? obj.capital : 0);
+                    setFinanceLogs(obj.financeLogs || []);
+                    if (obj.abuAdi) {
+                        setAbuadiTarget(obj.abuAdi.target || 0);
+                        setAbuadiPayments(obj.abuAdi.payments || []);
+                        setAbuadiDate(obj.abuAdi.date || "");
+                    }
+                    if (Array.isArray(obj.abuAdiHistory)) {
+                        setAbuadiHistory(obj.abuAdiHistory);
+                    }
+
+                    // 2. تحديث localStorage
+                    const keys = ["lines","visas","instaPays","transactions","people","capital","financeLogs"];
+                    keys.forEach(k => { if (obj[k] !== undefined) saveToLocalStorage(k, obj[k]); });
+                    if (obj.abuAdi) {
+                        saveToLocalStorage("abuadiTarget", obj.abuAdi.target || 0);
+                        saveToLocalStorage("abuadiPayments", obj.abuAdi.payments || []);
+                        saveToLocalStorage("abuadiDate", obj.abuAdi.date || "");
+                    }
+                    if (Array.isArray(obj.abuAdiHistory)) {
+                        saveToLocalStorage("abuadiHistory", obj.abuAdiHistory);
+                    }
+                    if (obj.settings) {
+                        try {
+                            if (obj.settings.lastResetDay) localStorage.setItem("lastResetDay", obj.settings.lastResetDay);
+                            if (obj.settings.warnedSources) localStorage.setItem("warnedSources", JSON.stringify(obj.settings.warnedSources));
+                        } catch(e){}
+                    }
+
+                    // 3. تحديث Firebase
+                    if (auth.currentUser && firebaseReady) {
+                        const historyWrites = (obj.abuAdiHistory || []).map(day =>
+                            db.ref(`abuAdi_history/${day.dateStr}`).set(day)
+                        );
+                        await Promise.allSettled([
+                            db.ref("lines").set(obj.lines || []),
+                            db.ref("visas").set(obj.visas || []),
+                            db.ref("instaPays").set(obj.instaPays || []),
+                            db.ref("transactions").set(obj.transactions || []),
+                            db.ref("financeLogs").set(obj.financeLogs || []),
+                            db.ref("capital").set(typeof obj.capital === "number" ? obj.capital : 0),
+                            db.ref("abuAdi").set(obj.abuAdi || {}),
+                            ...historyWrites,
+                            ...((obj.people || []).map(p => db.ref("customers").child(String(p.id)).set(p)))
+                        ]);
+                    }
+
+                    setStatus({ msg: `✅ تمت الاستعادة بنجاح — ${new Date().toLocaleString("ar-EG")}`, type: "success" });
+                    showToast("✅ تمت استعادة البيانات بالكامل!");
+                } catch(err) {
+                    setStatus({ msg: `❌ فشل الاستعادة: ${err.message}`, type: "error" });
+                    showToast("❌ فشل الاستعادة", "error");
+                }
+                setLoading(false);
+                setConfirmModal(null);
+            }
+
+            const inputStyle = {
+                width: "100%", background: "#0a0e1a", border: "1px solid #1e3a5f",
+                borderRadius: 10, padding: "11px 14px", color: "#c8d6e8",
+                fontSize: 14, outline: "none", boxSizing: "border-box",
+                textAlign: "right", fontFamily: "'Tajawal', sans-serif"
+            };
+
+            return (
+                <div style={{ paddingBottom: 24 }}>
+                    {/* Header */}
+                    <div style={{
+                        background: "linear-gradient(135deg,#05090e,#0d1120)",
+                        border: "1px solid #22d3ee25",
+                        borderRadius: 18, padding: 20, marginBottom: 16,
+                        textAlign: "center", position: "relative", overflow: "hidden"
+                    }}>
+                        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,#22d3ee08,transparent 70%)",pointerEvents:"none"}}/>
+                        <div style={{ fontSize: 36, marginBottom: 6 }}>⚙️</div>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: "#22d3ee" }}>إعدادات النسخ الاحتياطي</div>
+                        <div style={{ fontSize: 12, color: "#3d4f65", marginTop: 4 }}>Backup & Restore System v2</div>
+                        {lastBackup && (
+                            <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6, background: "#10b98115", border: "1px solid #10b98130", borderRadius: 20, padding: "4px 14px", fontSize: 11, color: "#10b981" }}>
+                                <div style={{ width: 6, height: 6, borderRadius: 99, background: "#10b981" }}/>
+                                آخر نسخة: {lastBackup}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Status Message */}
+                    {status.msg && (
+                        <div style={{
+                            background: status.type === "success" ? "#10b98115" : "#ef444415",
+                            border: `1px solid ${status.type === "success" ? "#10b98140" : "#ef444440"}`,
+                            borderRadius: 12, padding: 14, marginBottom: 16,
+                            fontSize: 13, color: status.type === "success" ? "#10b981" : "#ef4444",
+                            fontWeight: 600, lineHeight: 1.6, display: "flex", alignItems: "center", gap: 10
+                        }}>
+                            <span style={{ fontSize: 18 }}>{status.type === "success" ? "✅" : "⚠️"}</span>
+                            {status.msg}
+                        </div>
+                    )}
+
+                    {/* ─── قسم 1: نسخة احتياطية عادية ─── */}
+                    <div style={{ background: "#0d1120", border: "1px solid #22d3ee20", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#22d3ee", marginBottom: 6 }}>📦 نسخة احتياطية عادية (JSON)</div>
+                        <div style={{ fontSize: 11, color: "#3d4f65", marginBottom: 14, lineHeight: 1.7 }}>
+                            تجمع كل بيانات التطبيق في ملف واحد: الخطوط، الفيزا، انستاباي، المعاملات، العملاء، رأس المال، السجلات المالية، وأبو عدي.
+                        </div>
+                        <button
+                            onClick={handleExportPlain}
+                            disabled={loading}
+                            style={{
+                                width: "100%", background: loading ? "#1e293b" : "linear-gradient(135deg,#22d3ee,#0891b2)",
+                                border: "none", borderRadius: 12, padding: 14,
+                                color: loading ? "#475569" : "#0a0c16",
+                                fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+                                fontFamily: "'Tajawal', sans-serif",
+                                boxShadow: loading ? "none" : "0 4px 20px #22d3ee30"
+                            }}
+                        >
+                            {loading ? "⏳ جاري..." : "⬇️ إنشاء وتحميل نسخة احتياطية"}
+                        </button>
+                    </div>
+
+                    {/* ─── قسم 2: استعادة نسخة عادية ─── */}
+                    <div style={{ background: "#0d1120", border: "1px solid #f59e0b20", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b", marginBottom: 6 }}>📂 استعادة نسخة احتياطية (JSON)</div>
+                        <div style={{ fontSize: 11, color: "#3d4f65", marginBottom: 14, lineHeight: 1.7 }}>
+                            اختر ملف <b style={{color:"#f59e0b"}}>Backup_*.json</b> ليتم فحصه والتحقق منه قبل الاستعادة. سيتم استبدال البيانات الحالية بالكامل.
+                        </div>
+                        <input
+                            ref={restoreFileRef}
+                            type="file"
+                            accept=".json"
+                            onChange={(e) => handleImportFile(e.target.files[0])}
+                            style={{ display: "none" }}
+                        />
+                        <button
+                            onClick={() => restoreFileRef.current?.click()}
+                            disabled={loading}
+                            style={{
+                                width: "100%", background: loading ? "#1e293b" : "linear-gradient(135deg,#f59e0b,#d97706)",
+                                border: "none", borderRadius: 12, padding: 14,
+                                color: loading ? "#475569" : "#0a0c16",
+                                fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+                                fontFamily: "'Tajawal', sans-serif",
+                                boxShadow: loading ? "none" : "0 4px 20px #f59e0b30"
+                            }}
+                        >
+                            {loading ? "⏳ جاري..." : "📂 اختر ملف للاستعادة"}
+                        </button>
+                    </div>
+
+                    {/* ─── قسم 3: نسخة مشفرة ─── */}
+                    <div style={{ background: "#0d1120", border: "1px solid #a78bfa20", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#a78bfa", marginBottom: 6 }}>🔒 تصدير نسخة مشفرة (AES-256)</div>
+                        <div style={{ fontSize: 11, color: "#3d4f65", marginBottom: 14, lineHeight: 1.7 }}>
+                            تشفير البيانات بـ AES-256 مع PBKDF2. الملف الناتج بامتداد <b style={{color:"#a78bfa"}}>.hbk</b> لا يمكن فتحه بدون كلمة المرور.
+                        </div>
+                        <button
+                            onClick={() => { setEncModal({ mode: "export" }); setPwInput(""); }}
+                            disabled={loading}
+                            style={{
+                                width: "100%", background: loading ? "#1e293b" : "linear-gradient(135deg,#a78bfa,#7c3aed)",
+                                border: "none", borderRadius: 12, padding: 14,
+                                color: "#fff", fontSize: 15, fontWeight: 700,
+                                cursor: loading ? "not-allowed" : "pointer",
+                                fontFamily: "'Tajawal', sans-serif",
+                                boxShadow: loading ? "none" : "0 4px 20px #a78bfa30"
+                            }}
+                        >
+                            🔒 تصدير مشفر
+                        </button>
+                    </div>
+
+                    {/* ─── قسم 4: استيراد مشفر ─── */}
+                    <div style={{ background: "#0d1120", border: "1px solid #10b98120", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#10b981", marginBottom: 6 }}>🔓 استيراد نسخة مشفرة (.hbk)</div>
+                        <div style={{ fontSize: 11, color: "#3d4f65", marginBottom: 14, lineHeight: 1.7 }}>
+                            اختر ملف <b style={{color:"#10b981"}}>.hbk</b> ثم أدخل كلمة المرور لفك التشفير واستعادة البيانات.
+                        </div>
+                        <button
+                            onClick={() => { setEncModal({ mode: "import" }); setPwInput(""); }}
+                            disabled={loading}
+                            style={{
+                                width: "100%", background: loading ? "#1e293b" : "linear-gradient(135deg,#10b981,#059669)",
+                                border: "none", borderRadius: 12, padding: 14,
+                                color: "#fff", fontSize: 15, fontWeight: 700,
+                                cursor: loading ? "not-allowed" : "pointer",
+                                fontFamily: "'Tajawal', sans-serif",
+                                boxShadow: loading ? "none" : "0 4px 20px #10b98130"
+                            }}
+                        >
+                            🔓 استيراد مشفر
+                        </button>
+                    </div>
+
+                    {/* Info box */}
+                    <div style={{ background: "#0a0c16", border: "1px dashed #1e3a5f", borderRadius: 14, padding: 14 }}>
+                        <div style={{ fontSize: 11, color: "#3d4f65", lineHeight: 1.9 }}>
+                            <div style={{ color: "#22d3ee", fontWeight: 700, marginBottom: 6 }}>ℹ️ معلومات مهمة</div>
+                            <div>• النسخة الاحتياطية تشمل كل البيانات بدون استثناء</div>
+                            <div>• عند الاستعادة تُحذف البيانات الحالية ويتم استبدالها كلياً</div>
+                            <div>• يتم التحديث تلقائياً في localStorage وFirebase والـ State</div>
+                            <div>• التشفير يستخدم AES-256-GCM مع PBKDF2 (100,000 iteration)</div>
+                            <div>• يعمل على المتصفح والموبايل وWebView بدون إنترنت</div>
+                        </div>
+                    </div>
+
+                    {/* ══ Modal: تأكيد الاستعادة ══ */}
+                    {confirmModal && confirmModal.type === "restore" && (
+                        <div className="glass-overlay" style={{ alignItems: "center", justifyContent: "center" }}
+                            onClick={(e) => e.target === e.currentTarget && setConfirmModal(null)}>
+                            <div style={{
+                                background: "#0a0e1a", border: "1px solid #ef444440",
+                                borderRadius: 20, padding: 24, width: "88%", maxWidth: 360,
+                                animation: "slideUp 0.22s cubic-bezier(0.22,0.61,0.36,1)",
+                                boxShadow: "0 8px 40px rgba(0,0,0,0.8)"
+                            }}>
+                                <div style={{ fontSize: 32, textAlign: "center", marginBottom: 10 }}>⚠️</div>
+                                <div style={{ fontSize: 16, fontWeight: 900, color: "#ef4444", textAlign: "center", marginBottom: 12 }}>
+                                    تأكيد الاستعادة
+                                </div>
+
+                                {/* ملخص ما سيتم استعادته */}
+                                <div style={{ background: "#0d1120", border: "1px solid #1e3a5f", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+                                    <div style={{ fontSize: 11, color: "#7a8fa8", marginBottom: 8, fontWeight: 700 }}>📋 ملخص الملف: {confirmModal.filename}</div>
+                                    {[
+                                        { label: "الخطوط", val: (confirmModal.data.lines||[]).length, icon: "📱" },
+                                        { label: "الفيزا", val: (confirmModal.data.visas||[]).length, icon: "💳" },
+                                        { label: "إنستا باي", val: (confirmModal.data.instaPays||[]).length, icon: "⚡" },
+                                        { label: "المعاملات", val: (confirmModal.data.transactions||[]).length, icon: "💸" },
+                                        { label: "العملاء", val: (confirmModal.data.people||[]).length, icon: "👥" },
+                                        { label: "رأس المال", val: `${(confirmModal.data.capital||0).toLocaleString()} ج`, icon: "💰" },
+                                        { label: "السجلات المالية", val: (confirmModal.data.financeLogs||[]).length, icon: "📊" },
+                                    ].map((item, i) => (
+                                        <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#c8d6e8", paddingBottom: 4 }}>
+                                            <span>{item.icon} {item.label}</span>
+                                            <span style={{ color: "#22d3ee", fontWeight: 700 }}>{item.val}</span>
+                                        </div>
+                                    ))}
+                                    {confirmModal.data._meta && (
+                                        <div style={{ fontSize: 10, color: "#3d4f65", marginTop: 8, borderTop: "1px solid #1e3a5f", paddingTop: 6 }}>
+                                            تاريخ الإنشاء: {new Date(confirmModal.data._meta.createdAt).toLocaleString("ar-EG")}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div style={{ fontSize: 13, color: "#ef4444", background: "#ef444410", borderRadius: 10, padding: 10, marginBottom: 16, lineHeight: 1.7, textAlign: "center" }}>
+                                    سيتم استبدال جميع البيانات الحالية بالكامل. هذا الإجراء لا يمكن التراجع عنه.
+                                </div>
+                                <div style={{ display: "flex", gap: 10 }}>
+                                    <button onClick={() => setConfirmModal(null)}
+                                        style={{ flex: 1, background: "#1e293b", border: "1px solid #334155", borderRadius: 10, padding: 12, color: "#94a3b8", cursor: "pointer", fontWeight: 600, fontSize: 14, fontFamily: "'Tajawal', sans-serif" }}>
+                                        إلغاء
+                                    </button>
+                                    <button onClick={() => applyRestore(confirmModal.data)}
+                                        style={{ flex: 1, background: "linear-gradient(135deg,#ef4444,#dc2626)", border: "none", borderRadius: 10, padding: 12, color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 14, fontFamily: "'Tajawal', sans-serif" }}>
+                                        {loading ? "⏳..." : "✓ استعادة الآن"}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ══ Modal: كلمة مرور التشفير ══ */}
+                    {encModal && (
+                        <div className="glass-overlay" style={{ alignItems: "flex-end" }}
+                            onClick={(e) => e.target === e.currentTarget && setEncModal(null)}>
+                            <div className="glass-modal">
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                                    <div style={{ fontSize: 17, fontWeight: 700, color: "#c8d6e8" }}>
+                                        {encModal.mode === "export" ? "🔒 تصدير مشفر" : "🔓 استيراد مشفر"}
+                                    </div>
+                                    <button onClick={() => setEncModal(null)}
+                                        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid #1a2235", borderRadius: 8, width: 32, height: 32, color: "#7a8fa8", cursor: "pointer", fontSize: 16 }}>×</button>
+                                </div>
+
+                                <div style={{ fontSize: 12, color: "#3d4f65", marginBottom: 14, lineHeight: 1.7 }}>
+                                    {encModal.mode === "export"
+                                        ? "أدخل كلمة مرور قوية لتشفير النسخة. احتفظ بها في مكان آمن — لا يمكن استعادة البيانات بدونها."
+                                        : "أدخل كلمة المرور التي استخدمتها عند تصدير الملف المشفر."}
+                                </div>
+
+                                <div style={{ position: "relative", marginBottom: 16 }}>
+                                    <input
+                                        type={showPw ? "text" : "password"}
+                                        value={pwInput}
+                                        onChange={(e) => setPwInput(e.target.value)}
+                                        onKeyPress={(e) => {
+                                            if (e.key === "Enter") {
+                                                if (encModal.mode === "export") handleEncryptedExport();
+                                                else encFileRef.current?.click();
+                                            }
+                                        }}
+                                        placeholder={encModal.mode === "export" ? "كلمة مرور التشفير (4+ أحرف)" : "كلمة مرور فك التشفير"}
+                                        autoFocus
+                                        style={{ ...inputStyle, paddingLeft: 40 }}
+                                    />
+                                    <button onClick={() => setShowPw(v => !v)}
+                                        style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#3d4f65", cursor: "pointer", fontSize: 16 }}>
+                                        {showPw ? "👁️" : "👁️‍🗨️"}
+                                    </button>
+                                </div>
+
+                                {encModal.mode === "import" && (
+                                    <>
+                                        <input
+                                            ref={encFileRef}
+                                            type="file"
+                                            accept=".hbk,.bin"
+                                            onChange={(e) => handleEncryptedImport(e.target.files[0])}
+                                            style={{ display: "none" }}
+                                        />
+                                        <button
+                                            onClick={() => { if (!pwInput.trim()) { setStatus({ msg: "❌ أدخل كلمة المرور أولاً", type: "error" }); return; } encFileRef.current?.click(); }}
+                                            disabled={loading}
+                                            style={{ width: "100%", background: loading ? "#1e293b" : "linear-gradient(135deg,#10b981,#059669)", border: "none", borderRadius: 12, padding: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: "'Tajawal', sans-serif" }}>
+                                            {loading ? "⏳ جاري فك التشفير..." : "📂 اختر الملف المشفر وفك تشفيره"}
+                                        </button>
+                                    </>
+                                )}
+
+                                {encModal.mode === "export" && (
+                                    <button
+                                        onClick={handleEncryptedExport}
+                                        disabled={loading}
+                                        style={{ width: "100%", background: loading ? "#1e293b" : "linear-gradient(135deg,#a78bfa,#7c3aed)", border: "none", borderRadius: 12, padding: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: "'Tajawal', sans-serif" }}>
+                                        {loading ? "⏳ جاري التشفير..." : "🔒 تشفير وتحميل"}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
@@ -3448,3 +4345,4 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
     </script>
 </body>
 </html>
+
