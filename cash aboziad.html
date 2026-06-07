@@ -10,46 +10,198 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
+        /* ══════════════════════════════════════════
+           Ultra-Dark OLED Theme — فودافون كاش
+        ══════════════════════════════════════════ */
+        :root {
+            --bg-void:     #05070f;
+            --bg-deep:     #0a0c16;
+            --bg-card:     #0d1120;
+            --bg-card2:    #111827;
+            --bg-input:    #0a0e1a;
+            --border-dim:  #1a2235;
+            --border-glow: #1e3a5f;
+            --text-bright: #c8d6e8;
+            --text-mid:    #7a8fa8;
+            --text-dim:    #3d4f65;
+            --accent-red:  #e40000;
+            --accent-cyan: #22d3ee;
+            --accent-green:#10b981;
+            --accent-gold: #f59e0b;
+            --accent-violet:#a78bfa;
+            --accent-blue: #3b82f6;
+            --glass-bg:    rgba(10, 14, 26, 0.82);
+            --glass-blur:  blur(18px);
+            --shadow-deep: 0 8px 32px rgba(0,0,0,0.6);
+            --radius-card: 14px;
+            --radius-btn:  10px;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
             margin: 0;
             padding: 0;
-            background-color: #0a0f1e;
+            background-color: var(--bg-void);
             font-family: 'Tajawal', sans-serif;
-            color: #e2e8f0;
+            color: var(--text-bright);
             -webkit-tap-highlight-color: transparent;
             overflow-x: hidden;
         }
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1e3a5f;
-            border-radius: 4px;
-        }
-        .page-container {
-            animation: fadeIn 0.25s ease-in-out;
-        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: var(--bg-void); }
+        ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 4px; }
+
+        /* ── Page fade-in ── */
+        .page-container { animation: fadeIn 0.3s ease; }
         @keyframes fadeIn {
-            from { opacity: 0.7; transform: scale(0.99); }
-            to { opacity: 1; transform: scale(1); }
+            from { opacity: 0; transform: translateY(6px) scale(0.99); }
+            to   { opacity: 1; transform: translateY(0)   scale(1);    }
         }
+
+        /* ── Blink ── */
         @keyframes blink {
-            0%, 50% { opacity: 1; }
-            50.1%, 100% { opacity: 0.5; }
+            0%, 50%     { opacity: 1;   }
+            50.1%, 100% { opacity: 0.45;}
         }
+
+        /* ── Spinner ── */
         .loading-spinner {
             display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(30, 58, 95, 0.5);
-            border-top-color: #e40000;
+            width: 20px; height: 20px;
+            border: 2px solid rgba(30,58,95,0.35);
+            border-top-color: var(--accent-red);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 0.75s linear infinite;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Glassmorphism Modal Overlay ── */
+        .glass-overlay {
+            position: fixed; inset: 0; z-index: 200;
+            display: flex; align-items: flex-end;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            animation: overlayIn 0.2s ease;
         }
+        @keyframes overlayIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        /* ── Glass Modal Panel ── */
+        .glass-modal {
+            width: 100%;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid rgba(34,211,238,0.1);
+            border-bottom: none;
+            border-radius: 22px 22px 0 0;
+            padding: 22px 20px 32px;
+            max-height: 92vh;
+            overflow-y: auto;
+            animation: slideUp 0.25s cubic-bezier(0.22,0.61,0.36,1);
+            box-shadow: 0 -4px 40px rgba(0,0,0,0.7);
+        }
+        @keyframes slideUp {
+            from { transform: translateY(40px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+
+        /* ── Collapsible Accordion ── */
+        .accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0 10px 0;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid var(--border-dim);
+            margin-bottom: 12px;
+        }
+        .accordion-arrow {
+            width: 24px; height: 24px;
+            background: var(--bg-card2);
+            border: 1px solid var(--border-dim);
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; color: var(--text-mid);
+            transition: transform 0.25s ease, background 0.2s ease;
+            flex-shrink: 0;
+        }
+        .accordion-arrow.open {
+            transform: rotate(180deg);
+            background: rgba(34,211,238,0.08);
+            color: var(--accent-cyan);
+            border-color: rgba(34,211,238,0.25);
+        }
+        .accordion-body {
+            overflow: hidden;
+            transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1),
+                        opacity   0.3s ease,
+                        transform 0.3s ease;
+        }
+        .accordion-body.open  { opacity: 1; transform: translateY(0);   }
+        .accordion-body.closed{ opacity: 0; transform: translateY(-6px);}
+
+        /* ── Enhanced Progress Bar ── */
+        .vl-track {
+            width: 100%; height: 7px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 99px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .vl-fill {
+            height: 100%; border-radius: 99px;
+            transition: width 0.5s cubic-bezier(0.4,0,0.2,1),
+                        background 0.4s ease;
+            position: relative;
+        }
+        .vl-fill::after {
+            content: '';
+            position: absolute; right: 0; top: 0; bottom: 0;
+            width: 8px;
+            background: rgba(255,255,255,0.35);
+            border-radius: 99px;
+            filter: blur(2px);
+        }
+
+        /* ── Interactive Buttons ── */
+        button {
+            transition: opacity 0.15s ease, transform 0.15s ease,
+                        box-shadow 0.15s ease, background 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active { opacity: 0.75; transform: scale(0.97); }
+
+        /* ── Input Fields ── */
+        input, select, textarea {
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            font-family: 'Tajawal', sans-serif;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: rgba(34,211,238,0.45) !important;
+            box-shadow: 0 0 0 2px rgba(34,211,238,0.08);
+        }
+
+        /* ── Card hover glow ── */
+        .line-card {
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+        }
+        .line-card:active { transform: scale(0.995); }
+
+        /* ── Toast ── */
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(12px) scale(0.95); }
+            to   { opacity: 1; transform: translateY(0)    scale(1);    }
+        }
+        .toast-animate { animation: toastIn 0.2s ease; }
     </style>
 </head>
 <body>
@@ -62,6 +214,11 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+
+        // ══════════════════════════════════════════════════════════════════
+        //  🤖  Claude AI — يشتغل تلقائي بدون API Key
+        // ══════════════════════════════════════════════════════════════════
+        const GEMINI_API_KEY = "CLAUDE_ACTIVE"; // لا تغير هذا السطر
 
         // Firebase configuration
         const firebaseConfig = {
@@ -85,13 +242,67 @@
         const db = firebase.database();
         const auth = firebase.auth();
 
+        // (تم نقل GEMINI_API_KEY إلى أعلى الـ script مباشرةً)
+
+        // ══════════════════════════════════════════════════════════════════
+        //  🤖  OpenRouter AI API
+        // ══════════════════════════════════════════════════════════════════
+        const OPENROUTER_KEY = "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";
+
+        async function callClaudeChat(systemPrompt, history) {
+            const messages = [
+                { role: "user", content: `[تعليمات النظام]:\n${systemPrompt}\n\nحاضر.` },
+                { role: "assistant", content: "حاضر، هتبعت على حسب التعليمات دي." },
+                ...history.map(m => ({
+                    role: m.role === "user" ? "user" : "assistant",
+                    content: m.text
+                }))
+            ];
+
+            const FREE_MODELS = [
+                "openrouter/free",
+                "mistralai/mistral-small-3.1-24b-instruct:free",
+                "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
+                "meta-llama/llama-3.2-3b-instruct:free",
+            ];
+
+            let lastErr = "";
+            for (const model of FREE_MODELS) {
+                try {
+                    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${OPENROUTER_KEY}`,
+                            "HTTP-Referer": "https://hawker-app.local",
+                            "X-Title": "Hawker AI"
+                        },
+                        body: JSON.stringify({ model, messages, max_tokens: 900, temperature: 0.5 })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+                    const text = data?.choices?.[0]?.message?.content;
+                    if (!text) throw new Error("رد فارغ");
+                    console.log(`✅ OK: ${model}`);
+                    return text;
+                } catch(e) {
+                    console.warn(`⚠️ ${model}: ${e.message}`);
+                    lastErr = e.message;
+                }
+            }
+            throw new Error("كل الموديلات فشلت: " + lastErr);
+        }
+
+        const callGemini = (sys, msg) => callClaudeChat(sys, [{role:"user", text:msg}]);
+        const callGeminiChat = callClaudeChat;
+
         // ⭐ الحدود الصحيحة
-        const LINES_LIMIT_MONTHLY = 200000;
-        const LINES_LIMIT_DAILY = 60000;
-        const VISA_LIMIT_MONTHLY = 200000;
-        const VISA_LIMIT_DAILY = 30000;
+        const LINES_LIMIT_MONTHLY = 200000;  // 200 ألف شهرياً
+        const LINES_LIMIT_DAILY   = 40000;   // 40 ألف يومياً
+        const VISA_LIMIT_MONTHLY  = 200000;
+        const VISA_LIMIT_DAILY    = 30000;
         const INSTAPAY_LIMIT_MONTHLY = 400000;
-        const INSTAPAY_LIMIT_DAILY = 50000;
+        const INSTAPAY_LIMIT_DAILY   = 50000;
 
         const initialLines = Array.from({ length: 16 }, (_, i) => ({
             id: `line-${i + 1}`, name: `خط ${i + 1}`, number: "", 
@@ -108,7 +319,7 @@
 
         const initialInstaPays = [];
 
-        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi"];
+        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai"];
 
         // ⭐ Safe Storage (localStorage مع fallback لـ in-memory لو مش متاح)
         const _memStore = {};
@@ -207,12 +418,15 @@
             result.notes = `[رسالة تلقائية]: ${text.trim()}`;
             return result;
         }
-        function ProgressBar({ used, limit, color }) {
-            const pct = Math.min((used / limit) * 100, 100);
-            const danger = pct >= 85; const warn = pct >= 60;
+        function ProgressBar({ used, limit, color, showPct }) {
+            const pct = Math.min(limit > 0 ? (used / limit) * 100 : 0, 100);
+            const bg = pct >= 85 ? "#ef4444" : pct >= 60 ? "#f59e0b" : color || "#22d3ee";
             return (
-                <div style={{ width:"100%", background:"#1e293b", borderRadius:6, height:8, overflow:"hidden" }}>
-                    <div style={{ width:`${pct}%`, height:"100%", background: danger?"#ef4444":warn?"#f59e0b":color||"#22d3ee", borderRadius:6, transition:"width 0.4s ease" }} />
+                <div style={{width:"100%"}}>
+                    <div className="vl-track">
+                        <div className="vl-fill" style={{ width:`${pct}%`, background: bg }} />
+                    </div>
+                    {showPct && <div style={{fontSize:9,color:"#3d4f65",marginTop:2,textAlign:"left"}}>{Math.round(pct)}%</div>}
                 </div>
             );
         }
@@ -225,8 +439,8 @@
             const [showPassword, setShowPassword] = useState(false);
 
             const ADMIN_EMAIL     = "ziad@gmail.com";
-            const ASSISTANT_EMAIL = "omar@gmail.com";
-            const VIEWER_EMAIL    = "";
+            const ASSISTANT_EMAIL = "assistant@gmail.com"; // ⭐ غيّر للإيميل الفعلي للمساعد
+            const VIEWER_EMAIL    = "omar@gmail.com";
 
             const handleLogin = async () => {
                 if (!email.trim() || !password.trim()) {
@@ -259,14 +473,14 @@
             };
 
             return (
-                <div style={{minHeight:"100vh", background:"linear-gradient(135deg,#0a0f1e,#0f1e3d)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
+                <div style={{minHeight:"100vh", background:"var(--bg-void)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
                     <div style={{width:"100%", maxWidth:380, textAlign:"center"}}>
                         <div style={{width:80, height:80, borderRadius:20, background:"linear-gradient(135deg,#e40000,#cc0000)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, fontWeight:900, color:"#fff", boxShadow:"0 0 30px #e4000055", margin:"0 auto 30px"}}>V</div>
                         
                         <h1 style={{fontSize:28, fontWeight:900, color:"#fff", marginBottom:10}}>فودافون كاش</h1>
-                        <p style={{fontSize:14, color:"#94a3b8", marginBottom:40}}>مدير الخزينة والعمليات المالية</p>
+                        <p style={{fontSize:14, color:"var(--text-mid)", marginBottom:40}}>مدير الخزينة والعمليات المالية</p>
 
-                        <div style={{background:"#0f1e3d", border:"1px solid #1e3a5f", borderRadius:16, padding:30, marginBottom:20}}>
+                        <div style={{background:"var(--bg-card)", border:"1px solid var(--border-glow)", borderRadius:16, padding:30, marginBottom:20}}>
                             
                             <div style={{marginBottom:16}}>
                                 <input
@@ -377,6 +591,7 @@
             // ⭐ حسابات أبو عدي
             const [abuadiTarget, setAbuadiTarget] = useState(() => loadFromLocalStorage('abuadiTarget', 0));
             const [abuadiPayments, setAbuadiPayments] = useState(() => loadFromLocalStorage('abuadiPayments', []));
+            const [abuadiDate, setAbuadiDate] = useState(() => loadFromLocalStorage('abuadiDate', today())); // ⭐ تاريخ آخر حفظ — منع المسح التلقائي
             const [abuadiTargetInput, setAbuadiTargetInput] = useState("");
             const [abuadiAmountInput, setAbuadiAmountInput] = useState("");
             const [abuadiEditModal, setAbuadiEditModal] = useState(null); // {payment, newAmount}
@@ -386,8 +601,12 @@
             const [abuadiRecordingState, setAbuadiRecordingState] = useState("idle"); // idle | recording | done
             const [abuadiPendingAudio, setAbuadiPendingAudio] = useState(null); // base64 audio for next payment
 
+            // ⭐ Accordion state — أقسام قابلة للطي في تاب الخطوط
+            const [accordionOpen, setAccordionOpen] = useState({ lines: true, visas: true, instapays: true });
+
             useEffect(() => { saveToLocalStorage('abuadiTarget', abuadiTarget); }, [abuadiTarget]);
             useEffect(() => { saveToLocalStorage('abuadiPayments', abuadiPayments); }, [abuadiPayments]);
+            useEffect(() => { saveToLocalStorage('abuadiDate', abuadiDate); }, [abuadiDate]);
             // ⭐ ملاحظة: الـ Firebase sync لأبو عدي موجود في الـ useEffect المجمع أسفل
 
             const touchStartX = useRef(0);
@@ -399,8 +618,8 @@
                 const unsubscribe = auth.onAuthStateChanged((user) => {
                     if (user) {
                         const ADMIN_EMAIL     = "ziad@gmail.com";
-                        const ASSISTANT_EMAIL = "omar@gmail.com";
-                        const VIEWER_EMAIL    = "";
+                        const ASSISTANT_EMAIL = "assistant@gmail.com";
+                        const VIEWER_EMAIL    = "omar@gmail.com";
                         const e = user.email;
                         const role = e === ADMIN_EMAIL ? "admin" : e === ASSISTANT_EMAIL ? "assistant" : e === VIEWER_EMAIL ? "viewer" : "viewer";
                         setFirebaseUser(user);
@@ -481,6 +700,7 @@
                         const data = snapshot.val();
                         if (data) {
                             if (data.target !== undefined) setAbuadiTarget(data.target);
+                            if (data.date !== undefined) setAbuadiDate(data.date);
                             if (data.payments !== undefined) {
                                 const arr = Array.isArray(data.payments)
                                     ? data.payments.filter(Boolean)
@@ -553,12 +773,13 @@
             useEffect(() => {
                 saveToLocalStorage('abuadiTarget', abuadiTarget);
                 saveToLocalStorage('abuadiPayments', abuadiPayments);
+                saveToLocalStorage('abuadiDate', abuadiDate);
                 if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
                     try {
-                        db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments });
+                        db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate });
                     } catch(e){}
                 }
-            }, [abuadiTarget, abuadiPayments]);
+            }, [abuadiTarget, abuadiPayments, abuadiDate]);
 
             // ⭐ Auto daily reset (must be before early returns)
             useEffect(() => {
@@ -568,9 +789,23 @@
                     setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
                     setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
                     setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
+                    // ⭐ أبو عدي: مش بيتمسح تلقائياً — البيانات بتفضل موجودة
+                    // المستخدم بيصفر يدوياً بس
                 }
                 saveToLocalStorage('lastResetDay', todayStr);
             }, []);
+
+            // ⭐ حماية أبو عدي من المسح: لو Firebase رجع بيانات فاضية في يوم جديد، احتفظ بالـ target
+            useEffect(() => {
+                if (!firebaseReady) return;
+                const savedDate = loadFromLocalStorage('abuadiDate', null);
+                const todayStr = today();
+                // لو نفس اليوم ومفيش target في Firebase، ارجع للـ localStorage
+                if (savedDate === todayStr && abuadiTarget === 0) {
+                    const savedTarget = loadFromLocalStorage('abuadiTarget', 0);
+                    if (savedTarget > 0) setAbuadiTarget(savedTarget);
+                }
+            }, [firebaseReady]);
 
             // ⭐ Alert when line hits 80%
             useEffect(() => {
@@ -701,26 +936,112 @@
                 return _memStore[imageRef] || null;
             }
 
-            // ⭐ دالة معالجة الـ Smart Paste
-            function handleSmartPaste() {
-                const parsed = parseSmartMessage(smartPaste, lines, visas);
-                
-                setForm(f => ({
-                    ...f,
-                    amount: parsed.amount || f.amount,
-                    toNumber: parsed.personNumber || f.toNumber,
-                    type: parsed.type || f.type,
-                    sourceId: parsed.lineId ? parsed.lineId : f.sourceId,
-                    sourceType: parsed.lineId ? (sources.find(s => s.id === parsed.lineId)?.type || "line") : f.sourceType,
-                }));
+            // ⭐ دالة معالجة الـ Smart Paste مع AI Fallback (مُصلَّحة)
+            async function handleSmartPaste() {
+                const pasteText = smartPaste.trim();
+                if (!pasteText) { showToast("الصندوق فارغ — ضع نص الرسالة أولاً", "error"); return; }
 
-                if (parsed.lineId) {
-                    const source = sources.find(s => s.id === parsed.lineId);
-                    showToast(`✅ تم تحديد ${source?.name} تلقائياً`);
+                // نلتقط snapshot من sources قبل أي async call
+                const sourcesSnapshot = [...sources];
+                const parsed = parseSmartMessage(pasteText, lines, visas);
+
+                // تحقق إذا الـ Regex استخرج البيانات الأساسية
+                const regexOk = !!(parsed.amount && parsed.personNumber);
+
+                if (regexOk) {
+                    // Regex نجح — استخدمه مباشرة
+                    const matchedSource = parsed.lineId ? sourcesSnapshot.find(s => s.id === parsed.lineId) : null;
+                    setForm(f => ({
+                        ...f,
+                        amount:     parsed.amount      || f.amount,
+                        toNumber:   parsed.personNumber || f.toNumber,
+                        type:       parsed.type         || f.type,
+                        sourceId:   matchedSource ? matchedSource.id   : f.sourceId,
+                        sourceType: matchedSource ? matchedSource.type  : f.sourceType,
+                    }));
+                    setSmartPaste("");
+                    if (matchedSource) showToast(`✅ تم تحديد ${matchedSource.name} تلقائياً`);
+                    else showToast("✓ تم استخراج البيانات من الرسالة");
+                    return;
                 }
-                
-                setSmartPaste("");
-                showToast("✓ تم استخراج البيانات");
+
+                // Regex فشل — استخدم Gemini AI
+                const keyMissing = !GEMINI_API_KEY || GEMINI_API_KEY === "ضع_مفتاح_الـ_API_هنا" || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE";
+                if (keyMissing) {
+                    // Fallback بدون AI — استخدم ما أمكن من الـ Regex
+                    setForm(f => ({
+                        ...f,
+                        amount:   parsed.amount      || f.amount,
+                        toNumber: parsed.personNumber || f.toNumber,
+                        type:     parsed.type         || f.type,
+                    }));
+                    setSmartPaste("");
+                    showToast("⚠️ بيانات جزئية (أضف Gemini API للاستخراج الكامل)", "error");
+                    return;
+                }
+
+                showToast("🤖 AI بيحلل الرسالة...");
+                try {
+                    const systemP = `أنت مساعد ذكي لتطبيق فودافون كاش. مهمتك استخراج بيانات العملية من رسالة SMS أو نص.
+أرجع JSON فقط بدون أي نص إضافي أو markdown backticks:
+{"amount": "المبلغ رقماً فقط بدون فراغات أو فواصل", "personNumber": "رقم التليفون 11 رقم يبدأ بـ 01", "type": "transfer أو receive"}
+- type = "receive" إذا كانت الرسالة تدل على استلام أو إيداع أو حوّل لك
+- type = "transfer" إذا كانت تدل على تحويل أو سحب أو خصم
+- اترك الحقل فارغاً "" إذا مش موجود في الرسالة
+- لا تضف أي نص قبل أو بعد الـ JSON`;
+
+                    const aiRaw = await callGemini(systemP, `استخرج البيانات من الرسالة التالية:
+"${pasteText}"`);
+
+                    // تنظيف الرد من أي markdown أو نص زيادة
+                    const cleaned = aiRaw
+                        .replace(/```json\s*/gi, "")
+                        .replace(/```\s*/g, "")
+                        .trim();
+
+                    let aiData = {};
+                    try {
+                        aiData = JSON.parse(cleaned);
+                    } catch(parseErr) {
+                        // لو فشل الـ JSON parse، نحاول نستخرج بـ regex من الرد
+                        const amtM = cleaned.match(/"amount"\s*:\s*"([^"]+)"/);
+                        const numM = cleaned.match(/"personNumber"\s*:\s*"([^"]+)"/);
+                        const typM = cleaned.match(/"type"\s*:\s*"([^"]+)"/);
+                        aiData = {
+                            amount:       amtM ? amtM[1] : "",
+                            personNumber: numM ? numM[1] : "",
+                            type:         typM ? typM[1] : "transfer",
+                        };
+                    }
+
+                    // دمج نتيجة AI مع Regex كـ fallback لكل حقل
+                    const finalAmount = (aiData.amount || parsed.amount || "").replace(/,/g, "");
+                    const finalPhone  = aiData.personNumber || parsed.personNumber || "";
+                    const finalType   = aiData.type || parsed.type || "transfer";
+                    const matchedSrc  = parsed.lineId ? sourcesSnapshot.find(s => s.id === parsed.lineId) : null;
+
+                    setForm(f => ({
+                        ...f,
+                        amount:     finalAmount  || f.amount,
+                        toNumber:   finalPhone   || f.toNumber,
+                        type:       finalType    || f.type,
+                        sourceId:   matchedSrc ? matchedSrc.id   : f.sourceId,
+                        sourceType: matchedSrc ? matchedSrc.type  : f.sourceType,
+                    }));
+                    setSmartPaste("");
+                    showToast("✨ AI استخرج البيانات بنجاح");
+
+                } catch(e) {
+                    // Gemini فشل — استخدم ما استخرجه الـ Regex جزئياً
+                    setForm(f => ({
+                        ...f,
+                        amount:   parsed.amount      || f.amount,
+                        toNumber: parsed.personNumber || f.toNumber,
+                        type:     parsed.type         || f.type,
+                    }));
+                    setSmartPaste("");
+                    showToast(`⚠️ تم استخراج جزئي — ${e.message?.slice(0,40) || "راجع البيانات"}`, "error");
+                }
             }
 
             // ⭐ حساب العمولة بناءً على نوع العملية
@@ -1177,7 +1498,7 @@
             const canEditLines   = isAdmin;
             const canEditFinance = isAdmin;
 
-            const tabs = ["dashboard", "transactions", "people", "lines", "finance", "abuadi"];
+            const tabs = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai"];
 
             const displayTabs = [
                 {id:"dashboard",icon:"🏠",label:"الرئيسية"},
@@ -1185,7 +1506,8 @@
                 {id:"people",icon:"👥",label:"الأشخاص"},
                 {id:"lines",icon:"📱",label:"الخطوط"},
                 {id:"finance",icon: isAdmin ? "💰" : "🔒",label:"المالية"},
-                {id:"abuadi",icon:"🤝",label:"أبو عدي"}
+                {id:"abuadi",icon:"🤝",label:"أبو عدي"},
+                {id:"ai",icon:"✨",label:"AI"}
             ].filter(t => tabs.includes(t.id));
 
             const getRoleName = () => {
@@ -1199,11 +1521,11 @@
                 <div 
                     onTouchStart={handleTouchStart}
                     onTouchEnd={handleTouchEnd}
-                    style={{minHeight:"100vh",background:"#0a0f1e",direction:"rtl",color:"#e2e8f0",paddingBottom:80}}
+                    style={{minHeight:"100vh",background:"var(--bg-void)",direction:"rtl",color:"var(--text-bright)",paddingBottom:80}}
                 >
                     
                     {/* Header */}
-                    <div style={{background:"linear-gradient(135deg,#0a0f1e,#0f1e3d)",borderBottom:"1px solid #1e3a5f",padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+                    <div style={{background:"rgba(5,7,15,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",borderBottom:"1px solid var(--border-dim)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
                             <div style={{width:38,height:38,borderRadius:10,background:"linear-gradient(135deg,#e40000,#cc0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:900,color:"#fff",boxShadow:"0 0 16px #e4000055"}}>V</div>
                             <div>
@@ -1218,18 +1540,18 @@
                         </div>
                     </div>
 
-                    {toast && <div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",background:toast.type==="error"?"#ef4444":"#10b981",color:"#fff",padding:"10px 24px",borderRadius:30,fontSize:14,fontWeight:600,zIndex:999,boxShadow:"0 4px 20px #0008"}}>{toast.msg}</div>}
+                    {toast && <div className="toast-animate" style={{position:"fixed",top:68,left:"50%",transform:"translateX(-50%)",background:toast.type==="error"?"#ef4444":"#10b981",color:"#fff",padding:"10px 24px",borderRadius:30,fontSize:14,fontWeight:600,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.6)",whiteSpace:"nowrap"}}>{toast.msg}</div>}
 
                     {/* Modal تأكيد الحذف */}
                     {confirmDelete && (
-                        <div style={{position:"fixed",inset:0,background:"#000a",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                            <div style={{background:"#0a1628",borderRadius:16,border:"1px solid #1e3a5f",padding:24,width:"90%",maxWidth:320,textAlign:"center"}}>
-                                <div style={{fontSize:16,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>تأكيد الحذف</div>
-                                <div style={{fontSize:14,color:"#94a3b8",marginBottom:20}}>
+                        <div className="glass-overlay" style={{alignItems:"center",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setConfirmDelete(null)}>
+                            <div style={{background:"var(--glass-bg)",backdropFilter:"var(--glass-blur)",WebkitBackdropFilter:"var(--glass-blur)",borderRadius:18,border:"1px solid var(--border-glow)",padding:24,width:"85%",maxWidth:320,textAlign:"center",animation:"slideUp 0.22s cubic-bezier(0.22,0.61,0.36,1)",boxShadow:"var(--shadow-deep)"}}>
+                                <div style={{fontSize:16,fontWeight:700,color:"var(--text-bright)",marginBottom:12}}>تأكيد الحذف</div>
+                                <div style={{fontSize:14,color:"var(--text-mid)",marginBottom:20}}>
                                     {confirmDelete.type==="reverse" ? "هيتم عكس العملية وإرجاع الأرقام كأن شيئاً لم يكن" : "هل متأكد من الحذف؟"}
                                 </div>
                                 <div style={{display:"flex",gap:10}}>
-                                    <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:"#1e293b",border:"none",borderRadius:10,padding:12,color:"#94a3b8",cursor:"pointer",fontWeight:600}}>إلغاء</button>
+                                    <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid var(--border-dim)",borderRadius:10,padding:12,color:"var(--text-mid)",cursor:"pointer",fontWeight:600}}>إلغاء</button>
                                     <button onClick={()=>{
                                         if (confirmDelete.type === "txn") deleteTransaction(confirmDelete.data);
                                         else if (confirmDelete.type === "reverse") reverseTransaction(confirmDelete.data);
@@ -1264,10 +1586,10 @@
                                         {label:"الديون الباقية",value:formatNum(totalDebt)+" ج",icon:"💳",color:"#ef4444"},
                                         {label:"صافي الشهر",value:formatNum(netMonthProfit)+" ج",icon:"📈",color:"#a78bfa"},
                                     ].map((c,i)=>(
-                                        <div key={i} style={{background:"linear-gradient(135deg,#0f1e3d,#0a0f1e)",border:`1px solid ${c.color}30`,borderRadius:14,padding:"14px 16px"}}>
+                                        <div key={i} style={{background:"var(--bg-card)",border:`1px solid ${c.color}25`,borderRadius:14,padding:"14px 16px"}}>
                                             <div style={{fontSize:22}}>{c.icon}</div>
                                             <div style={{fontSize:16,fontWeight:700,color:c.color,marginTop:4}}>{c.value}</div>
-                                            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{c.label}</div>
+                                            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>{c.label}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -1604,19 +1926,26 @@
                             <div>
                                 {/* ===== قسم الخطوط ===== */}
                                 <div style={{marginBottom:20}}>
-                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                                        <div style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>📱 الخطوط ({lines.length})</div>
-                                        {isAdmin && (
-                                            <button onClick={()=>{
-                                                const newId = `line-${Date.now()}`;
-                                                const newLine = {id:newId, name:`خط ${lines.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
-                                                setLines(prev=>[...prev, newLine]);
-                                                showToast("تم إضافة خط جديد ✓");
-                                            }} style={{background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:10,padding:"7px 14px",color:"#0a0f1e",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                                                ➕ خط جديد
-                                            </button>
-                                        )}
+                                    <div className="accordion-header" onClick={()=>setAccordionOpen(s=>({...s,lines:!s.lines}))}>
+                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                            <div style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>📱 الخطوط</div>
+                                            <span style={{fontSize:11,background:"rgba(34,211,238,0.08)",border:"1px solid rgba(34,211,238,0.2)",borderRadius:20,padding:"1px 8px",color:"#22d3ee",fontWeight:700}}>{lines.length}</span>
+                                        </div>
+                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                            {isAdmin && (
+                                                <button onClick={e=>{e.stopPropagation();
+                                                    const newId = `line-${Date.now()}`;
+                                                    const newLine = {id:newId, name:`خط ${lines.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
+                                                    setLines(prev=>[...prev, newLine]);
+                                                    showToast("تم إضافة خط جديد ✓");
+                                                }} style={{background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:8,padding:"5px 12px",color:"#0a0c16",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                                                    ➕
+                                                </button>
+                                            )}
+                                            <div className={`accordion-arrow ${accordionOpen.lines?"open":""}`}>▼</div>
+                                        </div>
                                     </div>
+                                    <div className={`accordion-body ${accordionOpen.lines?"open":"closed"}`} style={{maxHeight: accordionOpen.lines ? `${lines.length * 200 + 100}px` : "0px"}}>
                                     {lines.map(l=>{
                                         const lStats = calcSourceStats(l, transactions);
                                         const mtPct = (lStats.usedMonthTransfer/LINES_LIMIT_MONTHLY)*100;
@@ -1628,10 +1957,10 @@
                                         const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
                                         const balance = l.balance || 0;
                                         return (
-                                            <div key={l.id} style={{background:"#0f1e3d",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                            <div key={l.id} className="line-card" style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                                                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#22d3ee" : "#94a3b8"}}>{l.name}</span>
+                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#22d3ee" : "#7a8fa8"}}>{l.name}</span>
                                                         <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -1652,40 +1981,50 @@
                                                 </div>
                                                 {/* تحويل */}
                                                 <div style={{marginBottom:6}}>
-                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
-                                                        <span>💸 تحويل اليوم: <b style={{color:"#f59e0b"}}>{formatNum(lStats.usedTodayTransfer)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
-                                                        <span>الشهر: <b style={{color: mtPct>=80?"#ef4444":"#f59e0b"}}>{formatNum(lStats.usedMonthTransfer)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
+                                                        <span>💸 اليوم: <b style={{color:"#f59e0b"}}>{formatNum(lStats.usedTodayTransfer)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
+                                                        <span style={{color: mtPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(lStats.usedMonthTransfer)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
                                                     </div>
-                                                    <ProgressBar used={lStats.usedMonthTransfer} limit={LINES_LIMIT_MONTHLY} color="#f59e0b"/>
+                                                    <ProgressBar used={lStats.usedTodayTransfer} limit={LINES_LIMIT_DAILY} color="#f59e0b" showPct={false}/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthTransfer} limit={LINES_LIMIT_MONTHLY} color="#f59e0b" showPct={true}/></div>
                                                 </div>
                                                 {/* استلام */}
                                                 <div>
-                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
-                                                        <span>📥 استلام اليوم: <b style={{color:"#22d3ee"}}>{formatNum(lStats.usedTodayReceive)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
-                                                        <span>الشهر: <b style={{color: mrPct>=80?"#ef4444":"#22d3ee"}}>{formatNum(lStats.usedMonthReceive)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
+                                                        <span>📥 اليوم: <b style={{color:"#22d3ee"}}>{formatNum(lStats.usedTodayReceive)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
+                                                        <span style={{color: mrPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(lStats.usedMonthReceive)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
                                                     </div>
-                                                    <ProgressBar used={lStats.usedMonthReceive} limit={LINES_LIMIT_MONTHLY} color="#22d3ee"/>
+                                                    <ProgressBar used={lStats.usedTodayReceive} limit={LINES_LIMIT_DAILY} color="#22d3ee" showPct={false}/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthReceive} limit={LINES_LIMIT_MONTHLY} color="#22d3ee" showPct={true}/></div>
                                                 </div>
                                             </div>
                                         );
                                     })}
+                                    </div>
                                 </div>
 
                                 {/* ===== قسم فيزا فوري ===== */}
                                 <div style={{marginBottom:20}}>
-                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                                        <div style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>💳 فيزا فوري ({visas.length})</div>
-                                        {isAdmin && (
-                                            <button onClick={()=>{
-                                                const newId = `visa-${Date.now()}`;
-                                                const newVisa = {id:newId, name:`فيزا فوري ${visas.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
-                                                setVisas(prev=>[...prev, newVisa]);
-                                                showToast("تم إضافة فيزا فوري جديدة ✓");
-                                            }} style={{background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:10,padding:"7px 14px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                                                ➕ فيزا جديدة
-                                            </button>
-                                        )}
+                                    <div className="accordion-header" onClick={()=>setAccordionOpen(s=>({...s,visas:!s.visas}))}>
+                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                            <div style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>💳 فيزا فوري</div>
+                                            <span style={{fontSize:11,background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:20,padding:"1px 8px",color:"#a78bfa",fontWeight:700}}>{visas.length}</span>
+                                        </div>
+                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                            {isAdmin && (
+                                                <button onClick={e=>{e.stopPropagation();
+                                                    const newId = `visa-${Date.now()}`;
+                                                    const newVisa = {id:newId, name:`فيزا فوري ${visas.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
+                                                    setVisas(prev=>[...prev, newVisa]);
+                                                    showToast("تم إضافة فيزا فوري جديدة ✓");
+                                                }} style={{background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:8,padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                                                    ➕
+                                                </button>
+                                            )}
+                                            <div className={`accordion-arrow ${accordionOpen.visas?"open":""}`}>▼</div>
+                                        </div>
                                     </div>
+                                    <div className={`accordion-body ${accordionOpen.visas?"open":"closed"}`} style={{maxHeight: accordionOpen.visas ? `${visas.length * 200 + 100}px` : "0px"}}>
                                     {visas.map(v=>{
                                         const vStats = calcSourceStats(v, transactions);
                                         const mtPct = (vStats.usedMonthTransfer/VISA_LIMIT_MONTHLY)*100;
@@ -1697,10 +2036,10 @@
                                         const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
                                         const balance = v.balance || 0;
                                         return (
-                                            <div key={v.id} style={{background:"#0f1e3d",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                            <div key={v.id} className="line-card" style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                                                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#a78bfa" : "#94a3b8"}}>{v.name}</span>
+                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#a78bfa" : "#7a8fa8"}}>{v.name}</span>
                                                         <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -1719,49 +2058,52 @@
                                                     <span style={{fontSize:11,color:v.number?"#64748b":"#334155",cursor:v.number?"copy":"auto"}} onClick={()=>{if(v.number){navigator.clipboard.writeText(v.number);showToast("تم النسخ ✓");}}}>{v.number ? `${v.number} 📋` : "بلا رقم"}</span>
                                                     <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
                                                 </div>
-                                                {/* تحويل */}
                                                 <div style={{marginBottom:6}}>
-                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
-                                                        <span>💸 تحويل اليوم: <b style={{color:"#f59e0b"}}>{formatNum(vStats.usedTodayTransfer)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
-                                                        <span>الشهر: <b style={{color: mtPct>=80?"#ef4444":"#f59e0b"}}>{formatNum(vStats.usedMonthTransfer)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
+                                                        <span>💸 اليوم: <b style={{color:"#f59e0b"}}>{formatNum(vStats.usedTodayTransfer)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
+                                                        <span style={{color: mtPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(vStats.usedMonthTransfer)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
                                                     </div>
-                                                    <ProgressBar used={vStats.usedMonthTransfer} limit={VISA_LIMIT_MONTHLY} color="#f59e0b"/>
+                                                    <ProgressBar used={vStats.usedTodayTransfer} limit={VISA_LIMIT_DAILY} color="#f59e0b"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthTransfer} limit={VISA_LIMIT_MONTHLY} color="#f59e0b" showPct={true}/></div>
                                                 </div>
-                                                {/* استلام */}
                                                 <div>
-                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
-                                                        <span>📥 استلام اليوم: <b style={{color:"#a78bfa"}}>{formatNum(vStats.usedTodayReceive)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
-                                                        <span>الشهر: <b style={{color: mrPct>=80?"#ef4444":"#a78bfa"}}>{formatNum(vStats.usedMonthReceive)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
+                                                        <span>📥 اليوم: <b style={{color:"#a78bfa"}}>{formatNum(vStats.usedTodayReceive)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
+                                                        <span style={{color: mrPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(vStats.usedMonthReceive)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
                                                     </div>
-                                                    <ProgressBar used={vStats.usedMonthReceive} limit={VISA_LIMIT_MONTHLY} color="#a78bfa"/>
+                                                    <ProgressBar used={vStats.usedTodayReceive} limit={VISA_LIMIT_DAILY} color="#a78bfa"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthReceive} limit={VISA_LIMIT_MONTHLY} color="#a78bfa" showPct={true}/></div>
                                                 </div>
                                             </div>
                                         );
                                     })}
+                                    </div>
                                 </div>
 
                                 {/* ===== قسم إنستا باي (مستقل تماماً) ===== */}
                                 <div style={{marginBottom:20}}>
-                                    <div style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #10b98140",borderRadius:14,padding:"10px 14px",marginBottom:10}}>
-                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                            <div>
-                                                <div style={{fontSize:14,fontWeight:700,color:"#10b981"}}>⚡ فيز إنستا باي ({instaPays.length})</div>
-                                                <div style={{fontSize:11,color:"#475569",marginTop:2}}>حد يومي: {formatNum(INSTAPAY_LIMIT_DAILY)} | شهري: {formatNum(INSTAPAY_LIMIT_MONTHLY)}</div>
-                                            </div>
+                                    <div className="accordion-header" onClick={()=>setAccordionOpen(s=>({...s,instapays:!s.instapays}))}>
+                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                            <div style={{fontSize:14,fontWeight:700,color:"#10b981"}}>⚡ فيز إنستا باي</div>
+                                            <span style={{fontSize:11,background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:20,padding:"1px 8px",color:"#10b981",fontWeight:700}}>{instaPays.length}</span>
+                                        </div>
+                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
                                             {isAdmin && (
-                                                <button onClick={()=>{
+                                                <button onClick={e=>{e.stopPropagation();
                                                     const newId = `instapay-${Date.now()}`;
                                                     const newIP = {id:newId, name:`إنستا باي ${instaPays.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
                                                     setInstaPays(prev=>[...prev, newIP]);
                                                     showToast("تم إضافة إنستا باي جديدة ✓");
-                                                }} style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:10,padding:"7px 14px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                                                    ➕ إنستا باي
+                                                }} style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:8,padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                                                    ➕
                                                 </button>
                                             )}
+                                            <div className={`accordion-arrow ${accordionOpen.instapays?"open":""}`}>▼</div>
                                         </div>
                                     </div>
+                                    <div className={`accordion-body ${accordionOpen.instapays?"open":"closed"}`} style={{maxHeight: accordionOpen.instapays ? `${instaPays.length * 200 + 100}px` : "0px"}}>
                                     {instaPays.length === 0 && (
-                                        <div style={{textAlign:"center",color:"#475569",padding:20,fontSize:13,border:"1px dashed #1e3a5f",borderRadius:12}}>
+                                        <div style={{textAlign:"center",color:"#3d4f65",padding:20,fontSize:13,border:"1px dashed #1a2235",borderRadius:12}}>
                                             لا توجد فيز إنستا باي بعد — اضغط ➕ لإضافة واحدة
                                         </div>
                                     )}
@@ -1776,11 +2118,11 @@
                                         const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
                                         const balance = ip.balance || 0;
                                         return (
-                                            <div key={ip.id} style={{background:"#0a1628",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                            <div key={ip.id} className="line-card" style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                                                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                                                         <span style={{fontSize:13,fontWeight:700,color:"#10b981"}}>⚡</span>
-                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#10b981" : "#94a3b8"}}>{ip.name}</span>
+                                                        <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#10b981" : "#7a8fa8"}}>{ip.name}</span>
                                                         <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -1799,25 +2141,26 @@
                                                     <span style={{fontSize:11,color:ip.number?"#64748b":"#334155",cursor:ip.number?"copy":"auto"}} onClick={()=>{if(ip.number){navigator.clipboard.writeText(ip.number);showToast("تم النسخ ✓");}}}>{ip.number ? `${ip.number} 📋` : "بلا رقم"}</span>
                                                     <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
                                                 </div>
-                                                {/* تحويل */}
                                                 <div style={{marginBottom:6}}>
-                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
-                                                        <span>💸 تحويل اليوم: <b style={{color:"#f59e0b"}}>{formatNum(ipStats.usedTodayTransfer)}</b> / {formatNum(INSTAPAY_LIMIT_DAILY)}</span>
-                                                        <span>الشهر: <b style={{color: mtPct>=80?"#ef4444":"#f59e0b"}}>{formatNum(ipStats.usedMonthTransfer)}</b> / {formatNum(INSTAPAY_LIMIT_MONTHLY)}</span>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
+                                                        <span>💸 اليوم: <b style={{color:"#f59e0b"}}>{formatNum(ipStats.usedTodayTransfer)}</b> / {formatNum(INSTAPAY_LIMIT_DAILY)}</span>
+                                                        <span style={{color: mtPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(ipStats.usedMonthTransfer)}</b> / {formatNum(INSTAPAY_LIMIT_MONTHLY)}</span>
                                                     </div>
-                                                    <ProgressBar used={ipStats.usedMonthTransfer} limit={INSTAPAY_LIMIT_MONTHLY} color="#f59e0b"/>
+                                                    <ProgressBar used={ipStats.usedTodayTransfer} limit={INSTAPAY_LIMIT_DAILY} color="#f59e0b"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthTransfer} limit={INSTAPAY_LIMIT_MONTHLY} color="#f59e0b" showPct={true}/></div>
                                                 </div>
-                                                {/* استلام */}
                                                 <div>
-                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginBottom:3}}>
-                                                        <span>📥 استلام اليوم: <b style={{color:"#10b981"}}>{formatNum(ipStats.usedTodayReceive)}</b> / {formatNum(INSTAPAY_LIMIT_DAILY)}</span>
-                                                        <span>الشهر: <b style={{color: mrPct>=80?"#ef4444":"#10b981"}}>{formatNum(ipStats.usedMonthReceive)}</b> / {formatNum(INSTAPAY_LIMIT_MONTHLY)}</span>
+                                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
+                                                        <span>📥 اليوم: <b style={{color:"#10b981"}}>{formatNum(ipStats.usedTodayReceive)}</b> / {formatNum(INSTAPAY_LIMIT_DAILY)}</span>
+                                                        <span style={{color: mrPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(ipStats.usedMonthReceive)}</b> / {formatNum(INSTAPAY_LIMIT_MONTHLY)}</span>
                                                     </div>
-                                                    <ProgressBar used={ipStats.usedMonthReceive} limit={INSTAPAY_LIMIT_MONTHLY} color="#10b981"/>
+                                                    <ProgressBar used={ipStats.usedTodayReceive} limit={INSTAPAY_LIMIT_DAILY} color="#10b981"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthReceive} limit={INSTAPAY_LIMIT_MONTHLY} color="#10b981" showPct={true}/></div>
                                                 </div>
                                             </div>
                                         );
                                     })}
+                                    </div>
                                 </div>
 
                                 {isAdmin && (
@@ -1913,17 +2256,47 @@
                                 showToast={showToast}
                                 formatNum={formatNum}
                                 canEdit={canEditAbuAdi}
+                                abuadiDate={abuadiDate}
+                                setAbuadiDate={setAbuadiDate}
+                            />
+                        )}
+
+                        {/* AI CHAT TAB */}
+                        {tab==="ai" && (
+                            <AIChatScreen
+                                transactions={transactions}
+                                lines={lines}
+                                visas={visas}
+                                instaPays={instaPays}
+                                capital={capital}
+                                financeLogs={financeLogs}
+                                people={people}
+                                abuadiTarget={abuadiTarget}
+                                abuadiPayments={abuadiPayments}
+                                sources={sources}
+                                formatNum={formatNum}
+                                today={today}
+                                currentMonthStr={currentMonthStr}
+                                showToast={showToast}
+                                getPersonBalance={getPersonBalance}
+                                LINES_LIMIT_DAILY={LINES_LIMIT_DAILY}
+                                LINES_LIMIT_MONTHLY={LINES_LIMIT_MONTHLY}
+                                VISA_LIMIT_DAILY={VISA_LIMIT_DAILY}
+                                VISA_LIMIT_MONTHLY={VISA_LIMIT_MONTHLY}
+                                INSTAPAY_LIMIT_DAILY={INSTAPAY_LIMIT_DAILY}
+                                INSTAPAY_LIMIT_MONTHLY={INSTAPAY_LIMIT_MONTHLY}
                             />
                         )}
 
                     </div>
 
                     {/* Bottom Nav */}
-                    <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#0a0f1e",borderTop:"1px solid #1e293b",display:"flex",padding:"8px 0",zIndex:100}}>
+                    <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(5,7,15,0.92)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderTop:"1px solid var(--border-dim)",display:"flex",padding:"8px 0 12px",zIndex:100}}>
                         {displayTabs.map(item=>(
-                            <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"6px 0"}}>
-                                <span style={{fontSize:20}}>{item.icon}</span>
-                                <span style={{fontSize:11,color:tab===item.id?"#22d3ee":"#475569",fontWeight:tab===item.id?700:400}}>{item.label}</span>
+                            <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"5px 0"}}>
+                                <span style={{fontSize:20,filter: tab===item.id?"drop-shadow(0 0 6px rgba(34,211,238,0.6))":"none",transition:"filter 0.2s ease"}}>{item.icon}</span>
+                                <span style={{fontSize:10,color:tab===item.id?"#22d3ee":"#3d4f65",fontWeight:tab===item.id?700:400,transition:"color 0.2s ease"}}>{item.label}</span>
+                                {tab===item.id && <div style={{width:4,height:4,borderRadius:99,background:"#22d3ee",boxShadow:"0 0 6px #22d3ee",marginTop:1}}/>}
                             </button>
                         ))}
                     </div>
@@ -2378,6 +2751,7 @@
             recordingId, setRecordingId, recordingState, setRecordingState,
             pendingAudio, setPendingAudio,
             showToast, formatNum,
+            abuadiDate, setAbuadiDate,
             canEdit = false
         }) {
             const totalPaid = payments.filter(p => {
@@ -2512,7 +2886,7 @@
                                     onClick={()=>{
                                         const v=parseFloat(targetInput);
                                         if(!v||v<=0){showToast("أدخل مبلغ صحيح","error");return;}
-                                        setTarget(v); showToast("✓ تم تحديد المبلغ المستهدف");
+                                        setTarget(v); if(setAbuadiDate) setAbuadiDate(new Date().toISOString().slice(0,10)); showToast("✓ تم تحديد المبلغ المستهدف");
                                     }}
                                     style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"10px 18px",color:"#0a0f1e",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}
                                 >تحديد</button>
@@ -2701,11 +3075,11 @@
 
         function Modal({title, onClose, children}) {
             return (
-                <div style={{position:"fixed",inset:0,background:"#000a",zIndex:200,display:"flex",alignItems:"flex-end"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-                    <div style={{background:"#0a1628",borderRadius:"20px 20px 0 0",border:"1px solid #1e3a5f",padding:20,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                            <div style={{fontSize:17,fontWeight:700,color:"#e2e8f0"}}>{title}</div>
-                            <button onClick={onClose} style={{background:"#1e293b",border:"none",borderRadius:8,width:32,height:32,color:"#94a3b8",cursor:"pointer",fontSize:16}}>×</button>
+                <div className="glass-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div className="glass-modal">
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+                            <div style={{fontSize:17,fontWeight:700,color:"var(--text-bright)"}}>{title}</div>
+                            <button onClick={onClose} style={{background:"rgba(255,255,255,0.06)",border:"1px solid var(--border-dim)",borderRadius:8,width:32,height:32,color:"var(--text-mid)",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
                         </div>
                         {children}
                     </div>
@@ -2714,11 +3088,11 @@
         }
 
         function Field({label, children}) {
-            return <div style={{marginBottom:14}}><div style={{fontSize:12,color:"#64748b",marginBottom:6,fontWeight:600}}>{label}</div>{children}</div>;
+            return <div style={{marginBottom:14}}><div style={{fontSize:12,color:"var(--text-mid)",marginBottom:6,fontWeight:600}}>{label}</div>{children}</div>;
         }
 
         function Input({value, onChange, placeholder, type="text"}) {
-            return <input type={type} value={value} placeholder={placeholder} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",textAlign:"right"}}/>;
+            return <input type={type} value={value} placeholder={placeholder} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:"var(--bg-input)",border:"1px solid var(--border-glow)",borderRadius:10,padding:"11px 14px",color:"var(--text-bright)",fontSize:14,outline:"none",boxSizing:"border-box",textAlign:"right",fontFamily:"'Tajawal',sans-serif"}}/>;
         }
 
         function EditSourceModal({source, isVisa, onSave, onClose}) {
@@ -2732,6 +3106,340 @@
                     <Field label="الرصيد الحالي (ج)"><Input value={balance} onChange={setBalance} placeholder="0" type="number"/></Field>
                     <button onClick={()=>onSave({name,number,balance:parseFloat(balance)||0})} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
                 </Modal>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════
+        //  ✨  AI CHAT SCREEN — Powered by Gemini 1.5 Flash
+        // ══════════════════════════════════════════════════════
+        function AIChatScreen({
+            transactions, lines, visas, instaPays, capital,
+            financeLogs, people, abuadiTarget, abuadiPayments,
+            sources, formatNum, today, currentMonthStr, showToast,
+            getPersonBalance,
+            LINES_LIMIT_DAILY, LINES_LIMIT_MONTHLY,
+            VISA_LIMIT_DAILY, VISA_LIMIT_MONTHLY,
+            INSTAPAY_LIMIT_DAILY, INSTAPAY_LIMIT_MONTHLY
+        }) {
+            const STORAGE_KEY = "gemini_chat_v1";
+            const [messages, setMessages] = useState(() => {
+                try { const s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : []; } catch(e) { return []; }
+            });
+            const [input, setInput] = useState("");
+            const [thinking, setThinking] = useState(false);
+            const bottomRef = useRef(null);
+
+            useEffect(() => {
+                bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, [messages, thinking]);
+
+            function persist(msgs) {
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs.slice(-80))); } catch(e) {}
+                try { firebase.database().ref("ai_chat_log").set(msgs.slice(-80)); } catch(e) {}
+            }
+
+            // ── بناء الـ System Prompt مع بيانات التطبيق ──────────────
+            function buildSystemPrompt() {
+                const todayStr  = today();
+                const monthStr  = currentMonthStr();
+                const todayTxns = transactions.filter(t => t.date === todayStr);
+                const last15    = [...transactions].slice(-15).reverse();
+
+                // ملخص الخطوط
+                const linesSummary = lines.map(l => {
+                    const s = sources.find(x => x.id === l.id) || l;
+                    return `• ${l.name}: رصيد=${formatNum(l.balance||0)}ج | يومي=${formatNum(s.usedToday||0)}/${formatNum(LINES_LIMIT_DAILY)}ج | شهري=${formatNum(s.usedMonth||0)}/${formatNum(LINES_LIMIT_MONTHLY)}ج`;
+                }).join("\n");
+
+                // ملخص الفيزا
+                const visasSummary = visas.map(v => {
+                    const s = sources.find(x => x.id === v.id) || v;
+                    return `• ${v.name}: رصيد=${formatNum(v.balance||0)}ج | يومي=${formatNum(s.usedToday||0)}/${formatNum(VISA_LIMIT_DAILY)}ج | شهري=${formatNum(s.usedMonth||0)}/${formatNum(VISA_LIMIT_MONTHLY)}ج`;
+                }).join("\n");
+
+                // ملخص InstaPay
+                const ipaySummary = instaPays.length ? instaPays.map(ip => {
+                    const s = sources.find(x => x.id === ip.id) || ip;
+                    return `• ${ip.name}: رصيد=${formatNum(ip.balance||0)}ج | شهري=${formatNum(s.usedMonth||0)}/${formatNum(INSTAPAY_LIMIT_MONTHLY)}ج`;
+                }).join("\n") : "لا يوجد";
+
+                // أرباح الشهر
+                const mLogs = financeLogs.filter(l => l.monthDate === monthStr);
+                const mInc  = mLogs.filter(l=>l.type==="income").reduce((s,l)=>s+l.amount,0);
+                const mExp  = mLogs.filter(l=>l.type==="expense").reduce((s,l)=>s+l.amount,0);
+
+                // العملاء المديونين
+                const debtors = people
+                    .map(p => ({ name: p.personName, bal: getPersonBalance(p) }))
+                    .filter(p => p.bal > 0)
+                    .sort((a,b) => b.bal - a.bal)
+                    .slice(0, 8)
+                    .map(p => `${p.name}: ${formatNum(p.bal)}ج`)
+                    .join(" | ");
+
+                // أبو عدي
+                const todayMsStr = new Date().toDateString();
+                const abuPaid = abuadiPayments.filter(p=>new Date(p.ts).toDateString()===todayMsStr).reduce((s,p)=>s+p.amount,0);
+                const abuRem  = Math.max(0, abuadiTarget - abuPaid);
+
+                // آخر 15 عملية
+                const txnSummary = last15.map(t => {
+                    const typeLabel = t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":"سحب فوري";
+                    return `[${t.date} ${t.time||""}] ${typeLabel} — ${t.personName} — ${formatNum(t.amount)}ج`;
+                }).join("\n");
+
+                // حساب إضافي — خطوط متاحة وعدد العملاء
+                const availLines = lines.filter(l => l.available !== false).length;
+                const availVisas = visas.filter(v => v.available !== false).length;
+                const totalDebtVal = people.reduce((s, p) => s + Math.max(0, getPersonBalance(p)), 0);
+                const debtorCount  = people.filter(p => getPersonBalance(p) > 0).length;
+                const todayTransfer = todayTxns.filter(t=>t.type==="transfer").reduce((s,t)=>s+t.amount,0);
+                const todayReceive  = todayTxns.filter(t=>t.type==="receive").reduce((s,t)=>s+t.amount,0);
+
+                return `أنت مساعد ذكي اسمك "حوكر AI" داخل تطبيق "فودافون كاش" لإدارة محافظ فودافون كاش التجارية.
+تكلم دايماً بالعامية المصرية بشكل ودود ومختصر وعملي.
+- ردك يكون مباشر ومفيد، مش أكتر من 4-5 جمل إلا لو الموضوع يحتاج جدول أو تفاصيل.
+- استخدم الأرقام الموجودة في البيانات دايماً، ومتقولش "مش عندي بيانات" لأن كل البيانات موجودة تحت.
+- لو حد سألك على أحسن خط، اقترح الخط اللي عنده أقل استخدام شهري ومتاح.
+- لو سألك عن الوضع العام، اعطيه ملخص سريع بالأرقام من البيانات دي.
+
+═══════════════════════════════════════
+📊 بيانات التطبيق اللحظية — ${todayStr}
+═══════════════════════════════════════
+
+💰 رأس المال الحالي: ${formatNum(capital)} ج
+📅 عمليات اليوم: ${todayTxns.length} عملية (تحويل: ${formatNum(todayTransfer)}ج | استلام: ${formatNum(todayReceive)}ج)
+📈 المالية الشهرية: دخل ${formatNum(mInc)}ج — مصاريف ${formatNum(mExp)}ج — صافي ${formatNum(mInc-mExp)}ج
+👥 إجمالي المديونية: ${formatNum(totalDebtVal)}ج من ${debtorCount} عميل
+
+📱 الخطوط (${availLines} متاح من ${lines.length}):
+${linesSummary}
+
+💳 فيزا فوري (${availVisas} متاح من ${visas.length}):
+${visasSummary}
+
+⚡ إنستا باي:
+${ipaySummary}
+
+👥 أكبر المديونين:
+${debtors || "لا يوجد ديون حالياً"}
+
+🤝 أبو عدي اليوم:
+- هدف التصفية: ${formatNum(abuadiTarget)}ج
+- تم تسليمه: ${formatNum(abuPaid)}ج
+- المتبقي: ${formatNum(abuRem)}ج ${abuRem === 0 && abuadiTarget > 0 ? "✅ تم تصفية الحساب بالكامل!" : ""}
+
+📋 آخر 15 عملية:
+${txnSummary || "لا توجد عمليات مسجلة"}
+
+═══════════════════════════════════════
+حدود الخطوط: يومي ${formatNum(LINES_LIMIT_DAILY)}ج | شهري ${formatNum(LINES_LIMIT_MONTHLY)}ج
+حدود الفيزا: يومي ${formatNum(VISA_LIMIT_DAILY)}ج | شهري ${formatNum(VISA_LIMIT_MONTHLY)}ج
+حدود إنستا باي: يومي ${formatNum(INSTAPAY_LIMIT_DAILY)}ج | شهري ${formatNum(INSTAPAY_LIMIT_MONTHLY)}ج`;
+            }
+
+            async function sendMessage(overrideText) {
+                const q = (overrideText || input).trim();
+                if (!q || thinking) return;
+                setInput("");
+
+                const userMsg = { role: "user", text: q, ts: Date.now() };
+                const newMsgs = [...messages, userMsg];
+                setMessages(newMsgs);
+                setThinking(true);
+
+                try {
+                    const sysPrompt = buildSystemPrompt();
+                    const aiText = await callClaudeChat(sysPrompt, newMsgs.slice(-20));
+                    const aiMsg = { role: "ai", text: aiText, ts: Date.now() };
+                    const final = [...newMsgs, aiMsg];
+                    setMessages(final);
+                    persist(final);
+                } catch(err) {
+                    const aiMsg = { role: "ai", text: `❌ خطأ: ${err.message}`, ts: Date.now() };
+                    const final = [...newMsgs, aiMsg];
+                    setMessages(final);
+                    persist(final);
+                } finally {
+                    setThinking(false);
+                }
+            }
+
+            function clearChat() {
+                if (!window.confirm("تمسح كل المحادثة؟")) return;
+                setMessages([]);
+                try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+                try { firebase.database().ref("ai_chat_log").remove(); } catch(e) {}
+            }
+
+            const QUICK_MSGS = [
+                "كم رأس المال دلوقتي؟",
+                "أفضل خط للتحويل؟",
+                "أرباح الشهر كام؟",
+                "مين أكتر حد مديون؟",
+                "باقي أبو عدي كام؟",
+                "ملخص عمليات اليوم؟",
+            ];
+
+            const hasKey = true; // Claude مدمج — لا يحتاج API Key
+
+            return (
+                <div style={{paddingBottom:24}}>
+
+                    {/* Header */}
+                    <div style={{
+                        background:"linear-gradient(135deg,#08090f,#0d1120)",
+                        border:"1px solid #a78bfa30",
+                        borderRadius:18,
+                        padding:20,
+                        marginBottom:16,
+                        textAlign:"center",
+                        position:"relative",
+                        overflow:"hidden"
+                    }}>
+                        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,#a78bfa10,transparent 70%)",pointerEvents:"none"}}/>
+                        <div style={{fontSize:34,marginBottom:6}}>✨</div>
+                        <div style={{fontSize:20,fontWeight:900,color:"#a78bfa",letterSpacing:0.5}}>المساعد الذكي</div>
+                        <div style={{fontSize:12,color:"#475569",marginTop:4}}>Claude Sonnet • يفهم بياناتك</div>
+                        <div style={{display:"inline-flex",alignItems:"center",gap:6,background: hasKey?"#10b98120":"#ef444420",border:`1px solid ${hasKey?"#10b98130":"#ef444430"}`,borderRadius:20,padding:"3px 12px",fontSize:10,color:hasKey?"#10b981":"#ef4444",marginTop:8,fontWeight:700}}>
+                            <div style={{width:6,height:6,borderRadius:99,background:hasKey?"#10b981":"#ef4444",animation:hasKey?"blink 2s infinite":"none"}}/>
+                            {hasKey ? "API متصل ✓" : "⚠️ أضف API Key"}
+                        </div>
+                    </div>
+
+                    {!hasKey && (
+                        <div style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:14,padding:14,marginBottom:16,fontSize:13,color:"#ef4444",lineHeight:1.7}}>
+                            <b>⚙️ خطوة واحدة للتفعيل:</b><br/>
+                            افتح الـ HTML بأي محرر نصوص → ابحث عن <code style={{background:"#1e293b",padding:"1px 6px",borderRadius:4,color:"#22d3ee"}}>GEMINI_API_KEY</code> → ضع مفتاحك من <b>aistudio.google.com</b>
+                        </div>
+                    )}
+
+                    {/* Quick Suggestions */}
+                    <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,color:"#3d4f65",marginBottom:8,fontWeight:600}}>⚡ اقتراحات سريعة</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                            {QUICK_MSGS.map((q,i) => (
+                                <button key={i} onClick={()=>sendMessage(q)} disabled={thinking}
+                                    style={{background:"#0d1120",border:"1px solid #a78bfa25",borderRadius:20,padding:"6px 12px",color:"#c8d6e8",fontSize:11,cursor:thinking?"not-allowed":"pointer",fontFamily:"'Tajawal',sans-serif",opacity:thinking?0.5:1}}>
+                                    {q}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Chat Messages */}
+                    <div style={{
+                        background:"#05070f",
+                        border:"1px solid #1a2235",
+                        borderRadius:16,
+                        padding:"14px 12px",
+                        minHeight:340,
+                        maxHeight:460,
+                        overflowY:"auto",
+                        marginBottom:12,
+                        display:"flex",
+                        flexDirection:"column",
+                        gap:10
+                    }}>
+                        {messages.length === 0 && !thinking && (
+                            <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"#1e3a5f",padding:30,textAlign:"center"}}>
+                                <div style={{fontSize:40,marginBottom:10,opacity:0.5}}>✨</div>
+                                <div style={{fontSize:13}}>اسأل عن بياناتك بالعامية المصرية</div>
+                                <div style={{fontSize:11,marginTop:6,color:"#1a2235"}}>مثلاً: "إيه أحسن خط أحول منه دلوقتي؟"</div>
+                            </div>
+                        )}
+
+                        {messages.map((m, i) => (
+                            <div key={i} style={{display:"flex",flexDirection:"column",alignItems: m.role==="user"?"flex-end":"flex-start"}}>
+                                {m.role==="ai" && (
+                                    <div style={{fontSize:10,color:"#a78bfa",fontWeight:700,marginBottom:3,marginRight:4}}>✨ Claude</div>
+                                )}
+                                <div style={{
+                                    maxWidth:"88%",
+                                    background: m.role==="user"
+                                        ? "linear-gradient(135deg,#7c3aed,#6d28d9)"
+                                        : "linear-gradient(135deg,#0d1120,#111827)",
+                                    border: m.role==="ai" ? "1px solid #1e3a5f" : "none",
+                                    borderRadius: m.role==="user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
+                                    padding:"11px 14px",
+                                    fontSize:13.5,
+                                    color: m.role==="user" ? "#fff" : "#c8d6e8",
+                                    lineHeight:1.7,
+                                    whiteSpace:"pre-wrap",
+                                    wordBreak:"break-word",
+                                    boxShadow: m.role==="user" ? "0 2px 12px #7c3aed30" : "none"
+                                }}>
+                                    {m.text}
+                                </div>
+                                <div style={{fontSize:9,color:"#1e3a5f",marginTop:3,paddingRight:4}}>
+                                    {new Date(m.ts).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"})}
+                                </div>
+                            </div>
+                        ))}
+
+                        {thinking && (
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
+                                <div style={{fontSize:10,color:"#a78bfa",fontWeight:700,marginBottom:3,marginRight:4}}>✨ Claude</div>
+                                <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:"4px 18px 18px 18px",padding:"12px 18px",display:"flex",gap:5,alignItems:"center"}}>
+                                    {[0,0.2,0.4].map((d,i) => (
+                                        <div key={i} style={{width:7,height:7,borderRadius:99,background:"#a78bfa",animation:`blink 1.2s ${d}s infinite`}}/>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div ref={bottomRef}/>
+                    </div>
+
+                    {/* Input Row */}
+                    <div style={{display:"flex",gap:8,marginBottom:10}}>
+                        <input
+                            value={input}
+                            onChange={e=>setInput(e.target.value)}
+                            onKeyPress={e=>e.key==="Enter"&&!thinking&&sendMessage()}
+                            placeholder="اسأل عن الأرباح، الخطوط، العملاء..."
+                            style={{
+                                flex:1,
+                                background:"#0d1120",
+                                border:"1px solid #1e3a5f",
+                                borderRadius:12,
+                                padding:"12px 14px",
+                                color:"#c8d6e8",
+                                fontSize:14,
+                                outline:"none",
+                                textAlign:"right",
+                                fontFamily:"'Tajawal',sans-serif",
+                                transition:"border-color 0.2s"
+                            }}
+                        />
+                        <button
+                            onClick={()=>!thinking&&sendMessage()}
+                            disabled={thinking || !input.trim()}
+                            style={{
+                                background: thinking||!input.trim() ? "#1e293b" : "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                                border:"none",
+                                borderRadius:12,
+                                padding:"12px 20px",
+                                color:"#fff",
+                                fontSize:16,
+                                cursor: thinking||!input.trim() ? "not-allowed" : "pointer",
+                                boxShadow: thinking||!input.trim() ? "none" : "0 4px 14px #7c3aed40",
+                                transition:"all 0.2s",
+                                fontFamily:"'Tajawal',sans-serif",
+                                fontWeight:700,
+                                minWidth:72
+                            }}>
+                            {thinking ? "⏳" : "إرسال"}
+                        </button>
+                    </div>
+
+                    {/* Clear Button */}
+                    {messages.length > 0 && (
+                        <button onClick={clearChat}
+                            style={{width:"100%",background:"#ef444410",border:"1px solid #ef444425",borderRadius:12,padding:10,color:"#ef4444",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"'Tajawal',sans-serif"}}>
+                            🗑️ مسح المحادثة
+                        </button>
+                    )}
+                </div>
             );
         }
 
