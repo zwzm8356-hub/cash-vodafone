@@ -2,7 +2,13 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- iOS PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="الحوكر v6">
+    <meta name="theme-color" content="#05070f">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>فودافون كاش - مدير التحويلات والمالية</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -55,7 +61,10 @@
         ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 4px; }
 
         /* ── Page fade-in ── */
-        .page-container { animation: fadeIn 0.3s ease; }
+        .page-container {
+            animation: fadeIn 0.3s ease;
+            -webkit-overflow-scrolling: touch;
+        }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(6px) scale(0.99); }
             to   { opacity: 1; transform: translateY(0)   scale(1);    }
@@ -104,6 +113,7 @@
             padding: 22px 20px 32px;
             max-height: 92vh;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             animation: slideUp 0.25s cubic-bezier(0.22,0.61,0.36,1);
             box-shadow: 0 -4px 40px rgba(0,0,0,0.7);
         }
@@ -202,6 +212,114 @@
             to   { opacity: 1; transform: translateY(0)    scale(1);    }
         }
         .toast-animate { animation: toastIn 0.2s ease; }
+
+        /* ── نيون وميض للتحذير عند الحد الأقصى ── */
+        @keyframes neonPulse {
+            0%,100% { box-shadow: 0 0 0px #ef444400, inset 0 0 0px #ef444400; }
+            50%      { box-shadow: 0 0 10px #ef444460, inset 0 0 6px #ef444418; }
+        }
+        @keyframes neonPulseAmber {
+            0%,100% { box-shadow: 0 0 0px #f59e0b00, inset 0 0 0px #f59e0b00; }
+            50%      { box-shadow: 0 0 8px #f59e0b50, inset 0 0 4px #f59e0b15; }
+        }
+        .limit-critical { animation: neonPulse 1.6s ease-in-out infinite; }
+        .limit-warning  { animation: neonPulseAmber 2s ease-in-out infinite; }
+
+        /* ── Smart Auto-Routing Badge ── */
+        @keyframes smartGlow {
+            0%,100% { box-shadow: 0 0 4px #a78bfa60, 0 0 10px #a78bfa30; opacity: 1; }
+            50%      { box-shadow: 0 0 10px #a78bfa90, 0 0 20px #a78bfa50; opacity: 0.85; }
+        }
+        .smart-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: linear-gradient(135deg, #a78bfa25, #7c3aed20);
+            border: 1px solid #a78bfa60; border-radius: 20px;
+            padding: 3px 10px; font-size: 10px; color: #a78bfa; font-weight: 700;
+            animation: smartGlow 2s ease-in-out infinite; white-space: nowrap;
+        }
+        .smart-badge-dot { width: 5px; height: 5px; border-radius: 50%; background: #a78bfa; animation: blink 1.5s infinite; }
+
+        /* ══════════════════════════════════════════
+           🖨️  Thermal Receipt Print Styles
+        ══════════════════════════════════════════ */
+        @media print {
+            body * { visibility: hidden; }
+            #thermal-receipt-print, #thermal-receipt-print * { visibility: visible; }
+            .thermal-receipt, .thermal-receipt * { visibility: visible; }
+            #thermal-receipt-print {
+                display: block !important;
+                position: absolute;
+                left: 0; top: 0;
+                width: 80mm;
+                padding: 4mm;
+                background: #fff !important;
+                color: #000 !important;
+                font-family: 'Tajawal', 'Courier New', monospace;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print { display: none !important; }
+            @page { margin: 0; size: 80mm auto; }
+        }
+        #thermal-receipt-print { display: none; }
+        /* ══════════════════════════════════════════
+           📱  iOS / PWA — تحسينات الجوال المتقدمة
+        ══════════════════════════════════════════ */
+
+        /* Safe area — Dynamic Island / Notch / Home Bar */
+        :root {
+            --sat: env(safe-area-inset-top,    0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+            --sal: env(safe-area-inset-left,   0px);
+            --sar: env(safe-area-inset-right,  0px);
+        }
+
+        /* منع الـ Auto-Zoom في iOS — كل الحقول ≥ 16px */
+        input, select, textarea {
+            font-size: 16px !important;
+        }
+
+        /* Momentum scrolling لكل القوائم */
+        .page-container,
+        .glass-modal,
+        div[style*="overflow-y: auto"],
+        div[style*="overflowY:\"auto\""] {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Premium iOS border radius */
+        .glass-modal {
+            border-radius: 26px 26px 0 0 !important;
+        }
+
+        /* منع تحديد النص أثناء اللمس */
+        button { -webkit-user-select: none; user-select: none; }
+
+        /* Tap highlight */
+        * { -webkit-tap-highlight-color: transparent; }
+
+        .no-print { /* أزرار لا تُطبع */ }
+
+        .receipt-paper {
+            font-family: 'Courier New', 'Tajawal', monospace;
+            background: #fff;
+            color: #000;
+            width: 100%;
+            max-width: 72mm;
+            margin: 0 auto;
+            padding: 8px 6px;
+            direction: rtl;
+        }
+        .receipt-divider {
+            border: none;
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+        }
+        .receipt-divider-solid {
+            border: none;
+            border-top: 2px solid #000;
+            margin: 6px 0;
+        }
     </style>
 </head>
 <body>
@@ -296,9 +414,9 @@
         const callGemini = (sys, msg) => callClaudeChat(sys, [{role:"user", text:msg}]);
         const callGeminiChat = callClaudeChat;
 
-        // ⭐ الحدود الصحيحة
+        // ⭐ الحدود الصحيحة — الثوابت هنا مرجعية فقط؛ الحد اليومي الفعلي لفودافون يأتي من vodDailyLimit (State ديناميكي)
         const LINES_LIMIT_MONTHLY = 200000;  // 200 ألف شهرياً
-        const LINES_LIMIT_DAILY   = 40000;   // 40 ألف يومياً
+        const LINES_LIMIT_DAILY   = 40000;   // ⚠️ هذا الثابت لا يُستخدَم في الإنذارات — الإنذارات تعتمد على vodDailyLimit (State)
         const VISA_LIMIT_MONTHLY  = 200000;
         const VISA_LIMIT_DAILY    = 30000;
         const INSTAPAY_LIMIT_MONTHLY = 400000;
@@ -418,6 +536,731 @@
             result.notes = `[رسالة تلقائية]: ${text.trim()}`;
             return result;
         }
+        // ══════════════════════════════════════════════════════════════
+        //  📊  DashboardCharts — رسوم بيانية SVG تفاعلية خفيفة
+        // ══════════════════════════════════════════════════════════════
+
+        // ── مكون مستقل: SVG Bar Chart ─────────────────────────────────
+        function SvgBarChart({ data, valueKey, gradient, id, labelColor, mounted, tooltip, setTooltip }) {
+            const W = 320, H = 140, padL = 38, padB = 28, padT = 12, padR = 8;
+            const chartW = W - padL - padR;
+            const chartH = H - padT - padB;
+            const maxVal = Math.max(...data.map(d => d[valueKey] || 0), 1);
+            const barW   = Math.floor(chartW / data.length) - 4;
+            const barGap = chartW / data.length;
+            const ySteps = [0, 0.25, 0.5, 0.75, 1];
+            const fmtY = (v) => {
+                if (v >= 1000000) return (v / 1000000).toFixed(1) + "م";
+                if (v >= 1000) return Math.round(v / 1000) + "ك";
+                return String(Math.round(v));
+            };
+            return (
+                <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}>
+                    <defs>
+                        <linearGradient id={id} x1="0" y1="1" x2="0" y2="0">
+                            {gradient.map((g, i) => (
+                                <stop key={i} offset={g.offset} stopColor={g.color} stopOpacity={g.opacity || 1} />
+                            ))}
+                        </linearGradient>
+                        <linearGradient id={`${id}-dim`} x1="0" y1="1" x2="0" y2="0">
+                            {gradient.map((g, i) => (
+                                <stop key={i} offset={g.offset} stopColor={g.color} stopOpacity={(g.opacity || 1) * 0.25} />
+                            ))}
+                        </linearGradient>
+                    </defs>
+                    {ySteps.map((s, i) => {
+                        const y = padT + chartH - s * chartH;
+                        return (
+                            <g key={i}>
+                                <line x1={padL} y1={y} x2={W - padR} y2={y}
+                                    stroke={s === 0 ? "#1e3a5f" : "#1a2235"} strokeWidth={s === 0 ? 1.5 : 0.8} />
+                                {i > 0 && (
+                                    <text x={padL - 4} y={y + 3.5} textAnchor="end"
+                                        fontSize="7.5" fill="#3d4f65" fontFamily="Tajawal,sans-serif">
+                                        {fmtY(maxVal * s)}
+                                    </text>
+                                )}
+                            </g>
+                        );
+                    })}
+                    {data.map((d, i) => {
+                        const val = d[valueKey] || 0;
+                        const pct = val / maxVal;
+                        const bH  = Math.max(pct * chartH, val > 0 ? 3 : 0);
+                        const x   = padL + i * barGap + (barGap - barW) / 2;
+                        const y   = padT + chartH - bH;
+                        const isHov = tooltip && tooltip.idx === i && tooltip.chartId === id;
+                        return (
+                            <g key={i}
+                                onMouseEnter={() => setTooltip({ idx: i, chartId: id, label: d.full, value: val })}
+                                onMouseLeave={() => setTooltip(null)}
+                                onTouchStart={() => setTooltip({ idx: i, chartId: id, label: d.full, value: val })}
+                                style={{ cursor: "pointer" }}>
+                                <rect x={x} y={padT} width={barW} height={chartH}
+                                    fill={isHov ? "#ffffff08" : "transparent"} rx="3" />
+                                <rect x={x} y={y} width={barW} height={bH}
+                                    fill={val > 0 ? `url(#${id})` : `url(#${id}-dim)`}
+                                    rx="3" opacity={isHov ? 1 : 0.85}
+                                    style={{ transition: mounted ? `height 0.6s cubic-bezier(0.34,1.56,0.64,1) ${i * 0.06}s` : "none" }} />
+                                {val > 0 && (
+                                    <circle cx={x + barW / 2} cy={y} r="2.5"
+                                        fill={gradient[1].color}
+                                        filter={`drop-shadow(0 0 3px ${gradient[1].color})`}
+                                        opacity={isHov ? 1 : 0.7} />
+                                )}
+                                <text x={x + barW / 2} y={H - 6} textAnchor="middle"
+                                    fontSize="8" fill={isHov ? labelColor : "#3d4f65"}
+                                    fontFamily="Tajawal,sans-serif" fontWeight={isHov ? "700" : "400"}>
+                                    {d.label}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </svg>
+            );
+        }
+
+        // ── مكون مستقل: SVG Line Chart ───────────────────────────────
+        function SvgLineChart({ data, valueKey, gradient, id, labelColor, mounted, tooltip, setTooltip }) {
+            const W = 320, H = 130, padL = 38, padB = 28, padT = 16, padR = 8;
+            const chartW = W - padL - padR;
+            const chartH = H - padT - padB;
+            const maxVal = Math.max(...data.map(d => d[valueKey] || 0), 1);
+            const ySteps = [0, 0.25, 0.5, 0.75, 1];
+            const fmtY = (v) => {
+                if (v >= 1000000) return (v / 1000000).toFixed(1) + "م";
+                if (v >= 1000) return Math.round(v / 1000) + "ك";
+                return String(Math.round(v));
+            };
+            const pts = data.map((d, i) => ({
+                x: padL + (i / Math.max(data.length - 1, 1)) * chartW,
+                y: padT + chartH - ((d[valueKey] || 0) / maxVal) * chartH,
+                d, i
+            }));
+            const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+            const areaPath = pts.length > 0
+                ? `${linePath} L ${pts[pts.length - 1].x} ${padT + chartH} L ${pts[0].x} ${padT + chartH} Z`
+                : "";
+            return (
+                <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}>
+                    <defs>
+                        <linearGradient id={id} x1="0" y1="1" x2="0" y2="0">
+                            {gradient.map((g, i) => (
+                                <stop key={i} offset={g.offset} stopColor={g.color} stopOpacity={g.opacity || 1} />
+                            ))}
+                        </linearGradient>
+                        <linearGradient id={`${id}-area`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={gradient[1].color} stopOpacity="0.25" />
+                            <stop offset="100%" stopColor={gradient[1].color} stopOpacity="0.02" />
+                        </linearGradient>
+                        <clipPath id={`${id}-clip`}>
+                            <rect x={padL} y={padT} width={chartW} height={chartH} />
+                        </clipPath>
+                    </defs>
+                    {ySteps.map((s, i) => {
+                        const y = padT + chartH - s * chartH;
+                        return (
+                            <g key={i}>
+                                <line x1={padL} y1={y} x2={W - padR} y2={y}
+                                    stroke={s === 0 ? "#1e3a5f" : "#1a2235"} strokeWidth={s === 0 ? 1.5 : 0.8} />
+                                {i > 0 && (
+                                    <text x={padL - 4} y={y + 3.5} textAnchor="end"
+                                        fontSize="7.5" fill="#3d4f65" fontFamily="Tajawal,sans-serif">
+                                        {fmtY(maxVal * s)}
+                                    </text>
+                                )}
+                            </g>
+                        );
+                    })}
+                    <path d={areaPath} fill={`url(#${id}-area)`} clipPath={`url(#${id}-clip)`}
+                        style={{ transition: mounted ? "opacity 0.8s ease" : "none", opacity: mounted ? 1 : 0 }} />
+                    <path d={linePath} fill="none" stroke={`url(#${id})`} strokeWidth="2.5"
+                        strokeLinecap="round" strokeLinejoin="round" clipPath={`url(#${id}-clip)`} />
+                    {pts.map((p, i) => {
+                        const isHov = tooltip && tooltip.idx === i && tooltip.chartId === id;
+                        return (
+                            <g key={i}
+                                onMouseEnter={() => setTooltip({ idx: i, chartId: id, label: p.d.full, value: p.d[valueKey] || 0 })}
+                                onMouseLeave={() => setTooltip(null)}
+                                onTouchStart={() => setTooltip({ idx: i, chartId: id, label: p.d.full, value: p.d[valueKey] || 0 })}
+                                style={{ cursor: "pointer" }}>
+                                <circle cx={p.x} cy={p.y} r="12" fill="transparent" />
+                                <circle cx={p.x} cy={p.y} r={isHov ? 5 : 3}
+                                    fill={gradient[1].color} stroke="#05070f" strokeWidth="1.5"
+                                    filter={isHov ? `drop-shadow(0 0 5px ${gradient[1].color})` : "none"} />
+                                <text x={p.x} y={H - 6} textAnchor="middle"
+                                    fontSize="8" fill={isHov ? labelColor : "#3d4f65"}
+                                    fontFamily="Tajawal,sans-serif" fontWeight={isHov ? "700" : "400"}>
+                                    {p.d.label}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </svg>
+            );
+        }
+
+        // ── المكون الرئيسي: DashboardCharts ──────────────────────────
+        function DashboardCharts({ transactions, financeLogs, formatNum }) {
+            const [tooltip, setTooltip] = React.useState(null);
+            const [mounted, setMounted] = React.useState(false);
+            React.useEffect(() => { const t = setTimeout(() => setMounted(true), 80); return () => clearTimeout(t); }, []);
+
+            // ── حساب بيانات آخر 7 أيام ──────────────────────────────
+            function getLast7Days() {
+                const days = [];
+                const dayNames = ["أحد","اثن","ثلا","أرب","خمس","جمع","سبت"];
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const yy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, "0");
+                    const dd = String(d.getDate()).padStart(2, "0");
+                    const dateStr = `${yy}-${mm}-${dd}`;
+                    const shortLabel = `${dd}/${mm}`;
+                    const dayName = dayNames[d.getDay()];
+                    days.push({ dateStr, label: dayName, shortLabel, full: `${dayName} ${dd}/${mm}` });
+                }
+                return days;
+            }
+
+            const last7 = getLast7Days();
+
+            // الرسم الأول: حجم التداول (تحويل + استلام) لكل يوم
+            const tradingData = last7.map(day => {
+                const dayTxns = transactions.filter(t => t.date === day.dateStr);
+                const transfers = dayTxns.filter(t => t.type === "transfer").reduce((s, t) => s + (t.amount || 0), 0);
+                const receives  = dayTxns.filter(t => t.type === "receive").reduce((s, t) => s + (t.amount || 0), 0);
+                const total     = transfers + receives;
+                return { ...day, transfers, receives, total };
+            });
+
+            // الرسم الثاني: صافي الأرباح (financeLogs) لكل يوم
+            const profitData = last7.map(day => {
+                const dayLogs = financeLogs.filter(l => l.date === day.dateStr || (l.monthDate && l.date === day.dateStr));
+                // أرباح من العمليات: عمولات السحب (bank: 1%, fawri: 0.57%+15)
+                const dayTxns   = transactions.filter(t => t.date === day.dateStr);
+                const bankComm  = dayTxns.filter(t => t.type === "bank_withdraw").reduce((s, t) => s + (t.amount || 0) * 0.01, 0);
+                const fawriComm = dayTxns.filter(t => t.type === "fawri_withdraw").reduce((s, t) => s + (t.amount || 0) * 0.0057 + 15, 0);
+                // دخل من finance logs يومي
+                const logIncome = dayLogs.filter(l => l.type === "income").reduce((s, l) => s + (l.amount || 0), 0);
+                const logExpense = dayLogs.filter(l => l.type === "expense").reduce((s, l) => s + (l.amount || 0), 0);
+                const profit = Math.round((bankComm + fawriComm + logIncome - logExpense) * 100) / 100;
+                return { ...day, profit: Math.max(0, profit) };
+            });
+
+            // حساب مؤشرات الملخص
+            const weekTotal  = tradingData.reduce((s, d) => s + d.total, 0);
+            const weekProfit = profitData.reduce((s, d) => s + d.profit, 0);
+            const peakDay    = tradingData.reduce((max, d) => d.total > max.total ? d : max, tradingData[0] || { total: 0, full: "—" });
+
+            return (
+                <div style={{ marginBottom: 16 }}>
+                    {/* Section Header */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                        <div style={{ width: 3, height: 20, background: "linear-gradient(to bottom, #8b5cf6, #3b82f6)", borderRadius: 99 }} />
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#94a3b8" }}>📊 التحليلات البيانية والأداء</div>
+                    </div>
+
+                    {/* KPI summary strip */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+                        {[
+                            { label: "حجم الأسبوع", value: formatNum(Math.round(weekTotal)) + " ج", color: "#8b5cf6", icon: "📈" },
+                            { label: "أرباح الأسبوع", value: formatNum(Math.round(weekProfit)) + " ج", color: "#10b981", icon: "💰" },
+                            { label: "أعلى يوم", value: peakDay.full || "—", color: "#f59e0b", icon: "🔥" },
+                        ].map((k, i) => (
+                            <div key={i} style={{
+                                background: "var(--bg-card)", border: `1px solid ${k.color}20`,
+                                borderRadius: 12, padding: "10px 8px", textAlign: "center"
+                            }}>
+                                <div style={{ fontSize: 14 }}>{k.icon}</div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: k.color, marginTop: 3, lineHeight: 1.3 }}>{k.value}</div>
+                                <div style={{ fontSize: 9, color: "#3d4f65", marginTop: 2 }}>{k.label}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Chart 1: حجم التداول الأسبوعي */}
+                    <div style={{
+                        background: "linear-gradient(135deg,#08090f,#0d1120)",
+                        border: "1px solid #3b82f620",
+                        borderRadius: 14, padding: "14px 12px", marginBottom: 12,
+                        position: "relative", overflow: "hidden"
+                    }}>
+                        <div style={{ position: "absolute", top: 0, right: 0, width: "100%", height: 2, background: "linear-gradient(to left, #3b82f6, #8b5cf6, transparent)" }} />
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b5cf6" }}>📊 حجم التداول الأسبوعي</div>
+                                <div style={{ fontSize: 10, color: "#3d4f65", marginTop: 2 }}>إيداع + سحب — آخر 7 أيام</div>
+                            </div>
+                            <div style={{ fontSize: 10, background: "#8b5cf620", border: "1px solid #8b5cf630", borderRadius: 20, padding: "3px 10px", color: "#8b5cf6", fontWeight: 700 }}>
+                                {formatNum(Math.round(weekTotal))} ج
+                            </div>
+                        </div>
+                        <div style={{ position: "relative" }}>
+                            <SvgBarChart
+                                data={tradingData}
+                                valueKey="total"
+                                id="chart-trading"
+                                labelColor="#8b5cf6"
+                                mounted={mounted}
+                                tooltip={tooltip}
+                                setTooltip={setTooltip}
+                                gradient={[
+                                    { offset: "0%",   color: "#3b82f6", opacity: 0.9 },
+                                    { offset: "100%", color: "#8b5cf6", opacity: 1 }
+                                ]}
+                            />
+                            {/* Tooltip */}
+                            {tooltip && tooltip.chartId === "chart-trading" && (
+                                <div style={{
+                                    position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)",
+                                    background: "linear-gradient(135deg,#1a0a3d,#0f1e3d)",
+                                    border: "1px solid #8b5cf660", borderRadius: 10,
+                                    padding: "7px 14px", textAlign: "center",
+                                    boxShadow: "0 4px 20px #8b5cf630",
+                                    pointerEvents: "none", zIndex: 10, minWidth: 100
+                                }}>
+                                    <div style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 700 }}>{tooltip.label}</div>
+                                    <div style={{ fontSize: 14, fontWeight: 900, color: "#e2e8f0", marginTop: 2 }}>
+                                        {formatNum(Math.round(tooltip.value))} ج
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Chart 2: صافي الأرباح اليومية */}
+                    <div style={{
+                        background: "linear-gradient(135deg,#08090f,#0d1120)",
+                        border: "1px solid #10b98120",
+                        borderRadius: 14, padding: "14px 12px",
+                        position: "relative", overflow: "hidden"
+                    }}>
+                        <div style={{ position: "absolute", top: 0, right: 0, width: "100%", height: 2, background: "linear-gradient(to left, #10b981, #34d399, transparent)" }} />
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "#10b981" }}>💹 صافي الأرباح اليومية</div>
+                                <div style={{ fontSize: 10, color: "#3d4f65", marginTop: 2 }}>عمولات + دخل — آخر 7 أيام</div>
+                            </div>
+                            <div style={{ fontSize: 10, background: "#10b98120", border: "1px solid #10b98130", borderRadius: 20, padding: "3px 10px", color: "#10b981", fontWeight: 700 }}>
+                                {formatNum(Math.round(weekProfit))} ج
+                            </div>
+                        </div>
+                        <div style={{ position: "relative" }}>
+                            <SvgLineChart
+                                data={profitData}
+                                valueKey="profit"
+                                id="chart-profit"
+                                labelColor="#10b981"
+                                mounted={mounted}
+                                tooltip={tooltip}
+                                setTooltip={setTooltip}
+                                gradient={[
+                                    { offset: "0%",   color: "#10b981", opacity: 0.9 },
+                                    { offset: "100%", color: "#34d399", opacity: 1 }
+                                ]}
+                            />
+                            {/* Tooltip */}
+                            {tooltip && tooltip.chartId === "chart-profit" && (
+                                <div style={{
+                                    position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)",
+                                    background: "linear-gradient(135deg,#021a0e,#0a1628)",
+                                    border: "1px solid #10b98160", borderRadius: 10,
+                                    padding: "7px 14px", textAlign: "center",
+                                    boxShadow: "0 4px 20px #10b98130",
+                                    pointerEvents: "none", zIndex: 10, minWidth: 100
+                                }}>
+                                    <div style={{ fontSize: 10, color: "#10b981", fontWeight: 700 }}>{tooltip.label}</div>
+                                    <div style={{ fontSize: 14, fontWeight: 900, color: "#e2e8f0", marginTop: 2 }}>
+                                        {formatNum(Math.round(tooltip.value))} ج
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🖨️  Thermal Receipt — نظام الفواتير الحرارية
+        // ══════════════════════════════════════════════════════════════
+
+        // ── QR Code generator (pure JS → SVG, بدون مكتبات) ──────────
+        // نستخدم خوارزمية بسيطة تولد matrix 25×25 من نص مشفر
+        function generateQRMatrix(text) {
+            // Simple deterministic pseudo-QR using hash-based pattern
+            const size = 25;
+            const mat  = Array.from({length:size}, ()=>Array(size).fill(0));
+            // Finder patterns (ركن أعلى يسار)
+            const fp = (r, c) => {
+                for (let i=0;i<7;i++) for (let j=0;j<7;j++) {
+                    const border = i===0||i===6||j===0||j===6;
+                    const inner  = i>=2&&i<=4&&j>=2&&j<=4;
+                    mat[r+i][c+j] = (border||inner) ? 1 : 0;
+                }
+            };
+            fp(0,0); fp(0,size-7); fp(size-7,0);
+            // Separators
+            for (let i=0;i<8;i++){mat[7][i]=0;mat[i][7]=0;mat[7][size-1-i]=0;mat[i][size-8]=0;mat[size-8][i]=0;mat[size-1-i][7]=0;}
+            // Timing patterns
+            for (let i=8;i<size-8;i++){mat[6][i]=i%2===0?1:0;mat[i][6]=i%2===0?1:0;}
+            // Dark module
+            mat[size-8][8]=1;
+            // Data area — fill with hash of text
+            let h = 5381;
+            for (let i=0;i<text.length;i++) h=((h<<5)+h)+text.charCodeAt(i);
+            let bit = 0;
+            for (let r=0;r<size;r++) for (let c=0;c<size;c++) {
+                if (mat[r][c]===0) {
+                    h = ((h*1664525)+1013904223)>>>0;
+                    mat[r][c] = (h>>>bit)&1 ? 1 : 0;
+                    bit = (bit+1)%32;
+                }
+            }
+            return mat;
+        }
+
+        function QRCodeSVG({ text, size = 120 }) {
+            const mat  = generateQRMatrix(text);
+            const n    = mat.length;
+            const cell = size / n;
+            const rects = [];
+            for (let r=0;r<n;r++) for (let c=0;c<n;c++) {
+                if (mat[r][c]) rects.push(<rect key={`${r}-${c}`} x={c*cell} y={r*cell} width={cell} height={cell} fill="#000"/>);
+            }
+            return (
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{display:"block",background:"#fff"}}>
+                    {rects}
+                </svg>
+            );
+        }
+
+        // ── مكون الفاتورة الحرارية ────────────────────────────────────
+        function ThermalReceiptModal({ txn, lines, visas, instaPays, formatNum, onClose }) {
+            if (!txn) return null;
+
+            const typeLabels = { transfer:"تحويل (سحب)", receive:"استلام (إيداع)", bank_withdraw:"سحب بنك", fawri_withdraw:"سحب فوري" };
+            const typeLabel  = typeLabels[txn.type] || txn.type;
+            const allSrcs    = [...(lines||[]), ...(visas||[]), ...(instaPays||[])];
+            const srcName    = txn.sourceId ? (allSrcs.find(s=>s.id===txn.sourceId)?.name || txn.sourceId) : "—";
+            const txnNum     = txn.id ? String(txn.id).slice(-6).toUpperCase() : "000000";
+            const qrData     = `TXN:${txnNum}|AMT:${txn.amount}|DATE:${txn.date||""}|TYPE:${txn.type}`;
+
+            function doPrint() {
+                // نسخ محتوى الفاتورة إلى div مخصص للطباعة
+                const printEl = document.getElementById("thermal-receipt-print");
+                const srcEl   = document.getElementById("receipt-content-inner");
+                if (printEl && srcEl) { printEl.innerHTML = srcEl.innerHTML; }
+                if (navigator.vibrate) navigator.vibrate(15);
+                window.print();
+            }
+
+            const receiptStyle = {
+                fontFamily:"'Courier New',monospace",
+                background:"#fff", color:"#000", direction:"rtl",
+                padding:"10px 8px", fontSize:12, lineHeight:1.5,
+            };
+
+            return (
+                <div className="glass-overlay" style={{alignItems:"center",justifyContent:"center",zIndex:300}}
+                    onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div style={{
+                        background:"#0a0c16", border:"1px solid #22d3ee30",
+                        borderRadius:18, padding:0, width:"92%", maxWidth:380,
+                        maxHeight:"90vh", overflowY:"auto",
+                        animation:"slideUp 0.25s cubic-bezier(0.22,0.61,0.36,1)",
+                        boxShadow:"0 -4px 40px rgba(0,0,0,0.8)"
+                    }}>
+                        {/* Header of modal */}
+                        <div style={{background:"linear-gradient(135deg,#0d1120,#111827)",borderRadius:"18px 18px 0 0",padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #1e3a5f"}}>
+                            <div style={{fontSize:15,fontWeight:700,color:"#22d3ee"}}>🖨️ معاينة الفاتورة الحرارية</div>
+                            <button onClick={onClose} style={{background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
+                        </div>
+
+                        {/* Receipt preview — dark card */}
+                        <div style={{padding:"16px 14px"}}>
+                            <div id="receipt-content-inner" style={{...receiptStyle, border:"1px solid #ddd", borderRadius:4, boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
+                                {/* ===== الهيدر ===== */}
+                                <div style={{textAlign:"center",marginBottom:4}}>
+                                    <div style={{fontSize:16,fontWeight:900,letterSpacing:1}}>✨ أبو زياد للكاش ✨</div>
+                                    <div style={{fontSize:10,marginTop:2}}>مدير التحويلات والمالية الذكي</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v6 — نظام متكامل</div>
+                                </div>
+                                <hr className="receipt-divider-solid"/>
+
+                                {/* ===== رقم الفاتورة والتاريخ ===== */}
+                                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
+                                    <span>رقم: <b>{txnNum}</b></span>
+                                    <span>{txn.date||""}</span>
+                                </div>
+                                <div style={{fontSize:10,textAlign:"center",marginBottom:4,color:"#333"}}>{txn.time || ""}</div>
+                                <hr className="receipt-divider"/>
+
+                                {/* ===== تفاصيل العملية ===== */}
+                                <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+                                    <tbody>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>النوع</td><td style={{textAlign:"left",fontWeight:700}}>{typeLabel}</td></tr>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>العميل</td><td style={{textAlign:"left",fontWeight:700}}>{txn.personName||"—"}</td></tr>
+                                        {txn.fromNumber && <tr><td style={{color:"#555",paddingBottom:3}}>من</td><td style={{textAlign:"left",direction:"ltr"}}>{txn.fromNumber}</td></tr>}
+                                        {txn.toNumber   && <tr><td style={{color:"#555",paddingBottom:3}}>إلى</td><td style={{textAlign:"left",direction:"ltr"}}>{txn.toNumber}</td></tr>}
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>الخط</td><td style={{textAlign:"left"}}>{srcName}</td></tr>
+                                    </tbody>
+                                </table>
+                                <hr className="receipt-divider"/>
+
+                                {/* ===== المبلغ — كبير وواضح ===== */}
+                                <div style={{textAlign:"center",margin:"8px 0"}}>
+                                    <div style={{fontSize:10,color:"#555",marginBottom:2}}>إجمالي المبلغ</div>
+                                    <div style={{fontSize:26,fontWeight:900,letterSpacing:1}}>
+                                        {formatNum(txn.amount)} ج
+                                    </div>
+                                    <div style={{fontSize:10,color:"#555"}}>EGP {Number(txn.amount).toFixed(2)}</div>
+                                </div>
+                                <hr className="receipt-divider"/>
+
+                                {/* ===== الملاحظات ===== */}
+                                {txn.notes && (
+                                    <div style={{fontSize:10,margin:"4px 0",background:"#f9f9f9",padding:"4px 6px",borderRadius:3}}>
+                                        <b>ملاحظة: </b>{txn.notes}
+                                    </div>
+                                )}
+
+                                {/* ===== QR Code ===== */}
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center",margin:"8px 0"}}>
+                                    <QRCodeSVG text={qrData} size={100}/>
+                                    <div style={{fontSize:8,color:"#888",marginTop:3,textAlign:"center",maxWidth:110,wordBreak:"break-all"}}>{qrData}</div>
+                                </div>
+                                <hr className="receipt-divider"/>
+
+                                {/* ===== الفوتر ===== */}
+                                <div style={{textAlign:"center",fontSize:10,color:"#555",marginTop:4}}>
+                                    <div>شكراً لتعاملك معنا! 🙏</div>
+                                    <div style={{marginTop:2,fontWeight:700}}>— الحوكر v6 —</div>
+                                    <div style={{fontSize:8,marginTop:3,color:"#999"}}>أبو زياد للكاش • خدمة على مدار الساعة</div>
+                                </div>
+
+                                {/* ===== Tear line ===== */}
+                                <div style={{textAlign:"center",fontSize:9,color:"#ccc",marginTop:8,letterSpacing:3}}>- - - - - - - - - - - - - - - -</div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div style={{display:"flex",gap:10,marginTop:14}}>
+                                <button onClick={onClose}
+                                    style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:12,color:"#94a3b8",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                    إغلاق
+                                </button>
+                                <button onClick={doPrint}
+                                    style={{flex:2,background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:12,color:"#000",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #22d3ee30"}}>
+                                    🖨️ تأكيد وطباعة الفاتورة
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🖨️  AbuAdi Receipt Modal — فاتورة حسابات أبو عدي
+        // ══════════════════════════════════════════════════════════════
+        function AbuAdiReceiptModal({ day, totalHistoryPaid, onClose }) {
+            if (!day) return null;
+            const qrData = `ABUADI|DATE:${day.dateStr}|PAID:${day.totalPaid}|TARGET:${day.target}|REM:${day.remaining||0}`;
+            function doPrint() {
+                const p = document.getElementById("thermal-receipt-print");
+                const s = document.getElementById("abuadi-receipt-inner");
+                if (p && s) p.innerHTML = s.innerHTML;
+                if (navigator.vibrate) navigator.vibrate(15);
+                window.print();
+            }
+            const rs = { fontFamily:"'Courier New',monospace", background:"#fff", color:"#000", direction:"rtl", padding:"10px 8px", fontSize:12, lineHeight:1.5 };
+            return (
+                <div className="glass-overlay" style={{alignItems:"center",justifyContent:"center",zIndex:400}}
+                    onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div style={{background:"#0a0c16",border:"1px solid #22d3ee30",borderRadius:18,width:"92%",maxWidth:380,maxHeight:"88vh",overflowY:"auto",animation:"slideUp 0.25s cubic-bezier(0.22,0.61,0.36,1)",boxShadow:"0 -4px 40px rgba(0,0,0,0.8)"}}>
+                        <div style={{background:"linear-gradient(135deg,#0d1120,#111827)",borderRadius:"18px 18px 0 0",padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #1e3a5f"}}>
+                            <div style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>🖨️ فاتورة أبو عدي</div>
+                            <button onClick={onClose} style={{background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer"}}>✕</button>
+                        </div>
+                        <div style={{padding:"14px 12px"}}>
+                            <div id="abuadi-receipt-inner" style={{...rs,border:"1px solid #ddd",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,0.1)"}}>
+                                <div style={{textAlign:"center",marginBottom:6}}>
+                                    <div style={{fontSize:15,fontWeight:900,letterSpacing:0.5}}>🔥 أبو زياد للكاش 🔥</div>
+                                    <div style={{fontSize:10,marginTop:2}}>حسابات أبو عدي التاريخية</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v6 — نظام التتبع المالي</div>
+                                </div>
+                                <hr style={{border:"none",borderTop:"2px solid #000",margin:"6px 0"}}/>
+                                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
+                                    <span>يوم التسوية:</span><span><b>{day.dateStr}</b></span>
+                                </div>
+                                <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
+                                <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+                                    <tbody>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>المستهدف</td><td style={{textAlign:"left",fontWeight:700}}>{Number(day.target||0).toLocaleString("ar-EG")} ج</td></tr>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>تم التسليم</td><td style={{textAlign:"left",fontWeight:700,color:"#166534"}}>{Number(day.totalPaid||0).toLocaleString("ar-EG")} ج</td></tr>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>المتبقي</td><td style={{textAlign:"left",fontWeight:700,color:day.settled?"#166534":"#991b1b"}}>{day.settled?"✓ صُفِّي":Number(day.remaining||0).toLocaleString("ar-EG")+" ج"}</td></tr>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>عدد الدفعات</td><td style={{textAlign:"left"}}>{day.paymentsCount||0}</td></tr>
+                                    </tbody>
+                                </table>
+                                <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
+                                <div style={{textAlign:"center",margin:"6px 0"}}>
+                                    <div style={{fontSize:9,color:"#555",marginBottom:2}}>إجمالي التسليم اليومي</div>
+                                    <div style={{fontSize:24,fontWeight:900,letterSpacing:1}}>{Number(day.totalPaid||0).toLocaleString("ar-EG")} ج</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:2}}>الحالة: <b>{day.settled?"✅ مُصفَّى":"⏳ لم يكتمل"}</b></div>
+                                </div>
+                                {totalHistoryPaid !== undefined && (
+                                    <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:4,padding:"6px 8px",margin:"6px 0",fontSize:10}}>
+                                        <div style={{color:"#166534",fontWeight:700}}>📊 الموقف التراكمي حتى هذا اليوم</div>
+                                        <div style={{color:"#555",marginTop:2}}>إجمالي ما سُلِّم: <b>{Number(totalHistoryPaid||0).toLocaleString("ar-EG")} ج</b></div>
+                                    </div>
+                                )}
+                                {day.note && (
+                                    <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:4,padding:"5px 7px",margin:"4px 0",fontSize:10}}>
+                                        <b>ملاحظات: </b>{day.note}
+                                    </div>
+                                )}
+                                {(day.payments||[]).length > 0 && (
+                                    <div style={{margin:"6px 0"}}>
+                                        <div style={{fontSize:10,fontWeight:700,marginBottom:3}}>تفصيل الدفعات:</div>
+                                        {(day.payments||[]).map((p,i)=>(
+                                            <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,borderBottom:"1px solid #eee",padding:"2px 0"}}>
+                                                <span>{p.label||`دفعة ${i+1}`}</span>
+                                                <span><b>{Number(p.amount||0).toLocaleString("ar-EG")} ج</b></span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center",margin:"8px 0"}}>
+                                    <QRCodeSVG text={qrData} size={90}/>
+                                    <div style={{fontSize:7,color:"#aaa",marginTop:2,textAlign:"center",maxWidth:100,wordBreak:"break-all"}}>{qrData}</div>
+                                </div>
+                                <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
+                                <div style={{textAlign:"center",fontSize:10,color:"#555"}}>
+                                    <div>شكراً لتعاملك معنا! 🙏</div>
+                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v6 —</div>
+                                    <div style={{fontSize:8,marginTop:3,color:"#999",letterSpacing:2}}>- - - - - - - - - - - - - - -</div>
+                                </div>
+                            </div>
+                            <div style={{display:"flex",gap:10,marginTop:12}}>
+                                <button onClick={onClose} className="no-print"
+                                    style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:11,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                    ❌ إغلاق
+                                </button>
+                                <button onClick={doPrint} className="no-print"
+                                    style={{flex:2,background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:11,color:"#000",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #22d3ee30"}}>
+                                    🖨️ طباعة الفاتورة
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🖨️  Customer Receipt Modal — فاتورة كشف الحساب الجاري
+        // ══════════════════════════════════════════════════════════════
+        function CustomerReceiptModal({ person, getPersonBalance, formatNum, onClose }) {
+            if (!person) return null;
+            const balance   = getPersonBalance(person);
+            const moves     = person.moves || [];
+            const totalD    = moves.filter(m=>m.type==="debit").reduce((s,m)=>s+(m.amount||0),0);
+            const totalC    = moves.filter(m=>m.type==="credit").reduce((s,m)=>s+(m.amount||0),0);
+            const lastMove  = moves.length > 0 ? moves[moves.length-1] : null;
+            const today     = new Date().toISOString().slice(0,10);
+            const qrData    = `CUST:${person.personName}|BAL:${balance}|DATE:${today}|TX:${moves.length}`;
+            function doPrint() {
+                const p = document.getElementById("thermal-receipt-print");
+                const s = document.getElementById("cust-receipt-inner");
+                if (p && s) p.innerHTML = s.innerHTML;
+                if (navigator.vibrate) navigator.vibrate(15);
+                window.print();
+            }
+            const rs = { fontFamily:"'Courier New',monospace", background:"#fff", color:"#000", direction:"rtl", padding:"10px 8px", fontSize:12, lineHeight:1.5 };
+            return (
+                <div className="glass-overlay" style={{alignItems:"center",justifyContent:"center",zIndex:400}}
+                    onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div style={{background:"#0a0c16",border:"1px solid #a78bfa30",borderRadius:18,width:"92%",maxWidth:380,maxHeight:"88vh",overflowY:"auto",animation:"slideUp 0.25s cubic-bezier(0.22,0.61,0.36,1)",boxShadow:"0 -4px 40px rgba(0,0,0,0.8)"}}>
+                        <div style={{background:"linear-gradient(135deg,#0d1120,#111827)",borderRadius:"18px 18px 0 0",padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #1e3a5f"}}>
+                            <div style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>🖨️ إيصال كشف حساب عميل</div>
+                            <button onClick={onClose} style={{background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer"}}>✕</button>
+                        </div>
+                        <div style={{padding:"14px 12px"}}>
+                            <div id="cust-receipt-inner" style={{...rs,border:"1px solid #ddd",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,0.1)"}}>
+                                <div style={{textAlign:"center",marginBottom:6}}>
+                                    <div style={{fontSize:15,fontWeight:900,letterSpacing:0.5}}>🔥 أبو زياد للكاش 🔥</div>
+                                    <div style={{fontSize:10,marginTop:2}}>إيصال حساب عميل</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v6 — نظام الحساب الجاري</div>
+                                </div>
+                                <hr style={{border:"none",borderTop:"2px solid #000",margin:"6px 0"}}/>
+                                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
+                                    <span>تاريخ الإصدار:</span><span><b>{today}</b></span>
+                                </div>
+                                <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
+                                <div style={{textAlign:"center",margin:"4px 0"}}>
+                                    <div style={{fontSize:9,color:"#555"}}>اسم العميل</div>
+                                    <div style={{fontSize:18,fontWeight:900}}>{person.personName}</div>
+                                    {person.phone && <div style={{fontSize:10,color:"#555",direction:"ltr"}}>{person.phone}</div>}
+                                </div>
+                                <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
+                                <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+                                    <tbody>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>إجمالي المحوَّل</td><td style={{textAlign:"left",fontWeight:700,color:"#991b1b"}}>{Number(totalD).toLocaleString("ar-EG")} ج</td></tr>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>إجمالي ما سدَّد</td><td style={{textAlign:"left",fontWeight:700,color:"#166534"}}>{Number(totalC).toLocaleString("ar-EG")} ج</td></tr>
+                                        <tr><td style={{color:"#555",paddingBottom:3}}>عدد الحركات</td><td style={{textAlign:"left"}}>{moves.length}</td></tr>
+                                        {lastMove && <tr><td style={{color:"#555",paddingBottom:3}}>آخر حركة</td><td style={{textAlign:"left",fontSize:10}}>{lastMove.date||"—"} — {lastMove.type==="debit"?"حوّل":"سدّد"}</td></tr>}
+                                    </tbody>
+                                </table>
+                                <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
+                                <div style={{textAlign:"center",margin:"8px 0"}}>
+                                    <div style={{fontSize:9,color:"#555",marginBottom:2}}>الرصيد المتبقي في الذمة</div>
+                                    <div style={{fontSize:26,fontWeight:900,letterSpacing:1,color:balance>0?"#991b1b":balance<0?"#166534":"#555"}}>
+                                        {Number(Math.abs(balance)).toLocaleString("ar-EG")} ج
+                                    </div>
+                                    <div style={{fontSize:11,fontWeight:700,color:balance>0?"#991b1b":balance<0?"#166534":"#555"}}>
+                                        {balance>0?"عليه (مدين)":balance<0?"له (دائن)":"الحساب مصفَّى ✅"}
+                                    </div>
+                                </div>
+                                {moves.length > 0 && (
+                                    <div style={{margin:"6px 0"}}>
+                                        <div style={{fontSize:10,fontWeight:700,marginBottom:3}}>آخر 5 حركات:</div>
+                                        {[...moves].slice(-5).reverse().map((m,i)=>(
+                                            <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,borderBottom:"1px solid #eee",padding:"2px 0"}}>
+                                                <span style={{color:m.type==="debit"?"#991b1b":"#166534"}}>{m.type==="debit"?"➕ حوّل":"✅ سدّد"} {m.note&&`(${m.note})`}</span>
+                                                <span><b>{Number(m.amount||0).toLocaleString("ar-EG")} ج</b></span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center",margin:"8px 0"}}>
+                                    <QRCodeSVG text={qrData} size={90}/>
+                                    <div style={{fontSize:7,color:"#aaa",marginTop:2,textAlign:"center",maxWidth:110,wordBreak:"break-all"}}>{qrData}</div>
+                                </div>
+                                <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
+                                <div style={{textAlign:"center",fontSize:10,color:"#555"}}>
+                                    <div>شكراً لتعاملك معنا! 🙏</div>
+                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v6 —</div>
+                                    <div style={{fontSize:8,marginTop:3,color:"#999",letterSpacing:2}}>- - - - - - - - - - - - - - -</div>
+                                </div>
+                            </div>
+                            <div style={{display:"flex",gap:10,marginTop:12}}>
+                                <button onClick={onClose} className="no-print"
+                                    style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:11,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                    ❌ إغلاق
+                                </button>
+                                <button onClick={doPrint} className="no-print"
+                                    style={{flex:2,background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:12,padding:11,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #a78bfa30"}}>
+                                    🖨️ طباعة الفاتورة
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         function ProgressBar({ used, limit, color, showPct }) {
             const pct = Math.min(limit > 0 ? (used / limit) * 100 : 0, 100);
             const bg = pct >= 85 ? "#ef4444" : pct >= 60 ? "#f59e0b" : color || "#22d3ee";
@@ -556,6 +1399,11 @@
             const [searchQ, setSearchQ] = useState("");
             const [toast, setToast] = useState(null);
             const [financeTab, setFinanceTab] = useState("daily");
+
+            // ⭐ فلترة سجل العمليات المتقدمة
+            const [operationsTab, setOperationsTab] = useState("all"); // 'all' | 'withdraw' | 'deposit'
+            const [opStartDate, setOpStartDate]     = useState("");
+            const [opEndDate,   setOpEndDate]       = useState("");
             
             const [form, setForm] = useState({ 
                 type: "transfer",
@@ -573,6 +1421,14 @@
 
             // ⭐ حقل Paste الذكي الجديد
             const [smartPaste, setSmartPaste] = useState("");
+
+            // ⭐ توزيع العمليات الذكي — Auto-Routing State
+            const [autoRouting, setAutoRouting] = useState({ suggestedId: null, allAtLimit: false, userOverrode: false });
+
+            // ⭐ نظام الفواتير الحرارية
+            const [activeReceipt, setActiveReceipt] = useState(null);
+            const [activeAbuAdiReceipt, setActiveAbuAdiReceipt] = useState(null);
+            const [activeCustomerReceipt, setActiveCustomerReceipt] = useState(null);
 
             const [financeForm, setFinanceForm] = useState({ type: "income", amount: "", desc: "" });
             const [capitalInput, setCapitalInput] = useState("");
@@ -603,6 +1459,14 @@
             // ⭐ السجل التاريخي التراكمي لأبو عدي
             const [abuadiHistory, setAbuadiHistory] = useState(() => loadFromLocalStorage('abuadiHistory', [])); // [{dateStr, target, totalPaid, payments, archivedAt}]
 
+            // ⭐ الحدود الديناميكية القابلة للتعديل — يومي الخطوط متغير، الباقي ثابت افتراضياً
+            const [vodDailyLimit,    setVodDailyLimit]    = useState(() => loadFromLocalStorage('vodDailyLimit',    60000)); // ⭐ 60 ألف افتراضي — يتغير يومياً بأمر الأدمن
+            const [linesMonthlyLimit,  setLinesMonthlyLimit]  = useState(() => loadFromLocalStorage('linesMonthlyLimit',  200000));
+            const [visaDailyLimit,     setVisaDailyLimit]     = useState(() => loadFromLocalStorage('visaDailyLimit',     30000));
+            const [visaMonthlyLimit,   setVisaMonthlyLimit]   = useState(() => loadFromLocalStorage('visaMonthlyLimit',   200000));
+            const [instapayDailyLimit, setInstapayDailyLimit] = useState(() => loadFromLocalStorage('instapayDailyLimit', 50000));
+            const [instapayMonthlyLimit, setInstapayMonthlyLimit] = useState(() => loadFromLocalStorage('instapayMonthlyLimit', 400000));
+
             // ⭐ Accordion state — أقسام قابلة للطي في تاب الخطوط
             const [accordionOpen, setAccordionOpen] = useState({ lines: true, visas: true, instapays: true });
 
@@ -610,6 +1474,44 @@
             useEffect(() => { saveToLocalStorage('abuadiPayments', abuadiPayments); }, [abuadiPayments]);
             useEffect(() => { saveToLocalStorage('abuadiDate', abuadiDate); }, [abuadiDate]);
             useEffect(() => { saveToLocalStorage('abuadiHistory', abuadiHistory); }, [abuadiHistory]);
+
+            // ⭐ حفظ الحدود الديناميكية في localStorage و Firebase
+            useEffect(() => {
+                saveToLocalStorage('vodDailyLimit', vodDailyLimit);
+                if (isAdmin && auth.currentUser && firebaseReady) {
+                    try { db.ref('settings/vodDailyLimit').set(vodDailyLimit); } catch(e){}
+                }
+            }, [vodDailyLimit]);
+            useEffect(() => {
+                saveToLocalStorage('linesMonthlyLimit', linesMonthlyLimit);
+                if (isAdmin && auth.currentUser && firebaseReady) {
+                    try { db.ref('settings/linesMonthlyLimit').set(linesMonthlyLimit); } catch(e){}
+                }
+            }, [linesMonthlyLimit]);
+            useEffect(() => {
+                saveToLocalStorage('visaDailyLimit', visaDailyLimit);
+                if (isAdmin && auth.currentUser && firebaseReady) {
+                    try { db.ref('settings/visaDailyLimit').set(visaDailyLimit); } catch(e){}
+                }
+            }, [visaDailyLimit]);
+            useEffect(() => {
+                saveToLocalStorage('visaMonthlyLimit', visaMonthlyLimit);
+                if (isAdmin && auth.currentUser && firebaseReady) {
+                    try { db.ref('settings/visaMonthlyLimit').set(visaMonthlyLimit); } catch(e){}
+                }
+            }, [visaMonthlyLimit]);
+            useEffect(() => {
+                saveToLocalStorage('instapayDailyLimit', instapayDailyLimit);
+                if (isAdmin && auth.currentUser && firebaseReady) {
+                    try { db.ref('settings/instapayDailyLimit').set(instapayDailyLimit); } catch(e){}
+                }
+            }, [instapayDailyLimit]);
+            useEffect(() => {
+                saveToLocalStorage('instapayMonthlyLimit', instapayMonthlyLimit);
+                if (isAdmin && auth.currentUser && firebaseReady) {
+                    try { db.ref('settings/instapayMonthlyLimit').set(instapayMonthlyLimit); } catch(e){}
+                }
+            }, [instapayMonthlyLimit]);
             // ⭐ ملاحظة: الـ Firebase sync لأبو عدي موجود في الـ useEffect المجمع أسفل
 
             const touchStartX = useRef(0);
@@ -728,6 +1630,18 @@
                         }
                     });
 
+                    // ⭐ Real-time listener للحدود الديناميكية — تتزامن فوراً بين كل الأجهزة
+                    db.ref('settings').on('value', (snapshot) => {
+                        const s = snapshot.val();
+                        if (!s) return;
+                        if (s.vodDailyLimit    !== undefined) { setVodDailyLimit(s.vodDailyLimit);       saveToLocalStorage('vodDailyLimit', s.vodDailyLimit); }
+                        if (s.linesMonthlyLimit  !== undefined) { setLinesMonthlyLimit(s.linesMonthlyLimit);   saveToLocalStorage('linesMonthlyLimit', s.linesMonthlyLimit); }
+                        if (s.visaDailyLimit     !== undefined) { setVisaDailyLimit(s.visaDailyLimit);         saveToLocalStorage('visaDailyLimit', s.visaDailyLimit); }
+                        if (s.visaMonthlyLimit   !== undefined) { setVisaMonthlyLimit(s.visaMonthlyLimit);     saveToLocalStorage('visaMonthlyLimit', s.visaMonthlyLimit); }
+                        if (s.instapayDailyLimit !== undefined) { setInstapayDailyLimit(s.instapayDailyLimit); saveToLocalStorage('instapayDailyLimit', s.instapayDailyLimit); }
+                        if (s.instapayMonthlyLimit !== undefined) { setInstapayMonthlyLimit(s.instapayMonthlyLimit); saveToLocalStorage('instapayMonthlyLimit', s.instapayMonthlyLimit); }
+                    });
+
                 } catch (error) {
                     console.error('Error setting up Firebase listeners:', error);
                 }
@@ -742,6 +1656,7 @@
                     db.ref('financeLogs').off();
                     db.ref('abuAdi').off();
                     db.ref('abuAdi_history').off();
+                    db.ref('settings').off();
                 };
             }, [userRole]);
 
@@ -828,13 +1743,13 @@
                 }
             }, [firebaseReady]);
 
-            // ⭐ Alert when line hits 80%
+            // ⭐ Alert when line hits 80% (يستخدم الحدود الديناميكية)
             useEffect(() => {
                 const warned = loadFromLocalStorage('warnedSources', []);
                 const newWarned = [...warned];
                 let changed = false;
                 [...lines, ...visas].forEach(s => {
-                    const monthlyLimit = s.id.startsWith('visa') ? VISA_LIMIT_MONTHLY : LINES_LIMIT_MONTHLY;
+                    const monthlyLimit = s.id.startsWith('visa') ? visaMonthlyLimit : linesMonthlyLimit;
                     const stats = calcSourceStats(s, transactions);
                     const usedMonth = stats.usedMonthTransfer + stats.usedMonthReceive;
                     const pct = (usedMonth / monthlyLimit) * 100;
@@ -847,7 +1762,47 @@
                     }
                 });
                 if (changed) saveToLocalStorage('warnedSources', newWarned);
-            }, [lines, visas, transactions]);
+            }, [lines, visas, transactions, linesMonthlyLimit, visaMonthlyLimit]);
+
+            // ⭐ Auto-Routing: يجري قبل أي return مشروط — قاعدة hooks
+            useEffect(() => {
+                if (modal !== "addTxn" || autoRouting.userOverrode) return;
+                // نحسب getSmartRoute مؤجلة لأن sources مش متاح هنا — بنستخدم lines/visas/instaPays مباشرة
+                const amt = parseFloat(form.amount);
+                if (!amt || isNaN(amt) || amt <= 0) return;
+                const WARN = 0.85;
+                const allSrcs = [
+                    ...lines.map(l => {
+                        const s = calcSourceStats(l, transactions);
+                        return {...l, type:"line", dailyLimit:vodDailyLimit, monthlyLimit:linesMonthlyLimit, usedToday:s.usedTodayTransfer+s.usedTodayReceive, usedMonth:s.usedMonthTransfer+s.usedMonthReceive};
+                    }),
+                    ...visas.map(v => {
+                        const s = calcSourceStats(v, transactions);
+                        return {...v, type:"visa", dailyLimit:visaDailyLimit, monthlyLimit:visaMonthlyLimit, usedToday:s.usedTodayTransfer+s.usedTodayReceive, usedMonth:s.usedMonthTransfer+s.usedMonthReceive};
+                    }),
+                    ...instaPays.map(ip => {
+                        const s = calcSourceStats(ip, transactions);
+                        return {...ip, type:"instapay", dailyLimit:instapayDailyLimit, monthlyLimit:instapayMonthlyLimit, usedToday:s.usedTodayTransfer+s.usedTodayReceive, usedMonth:s.usedMonthTransfer+s.usedMonthReceive};
+                    }),
+                ];
+                const avail = allSrcs.filter(s => s.available !== false);
+                let suggestedId = null, allAtLimit = false;
+                if (form.type === "receive" || form.type === "transfer") {
+                    const elig = avail.filter(s => (s.balance||0)>=amt && (s.dailyLimit>0?(s.usedToday+amt)/s.dailyLimit<WARN:true) && (s.monthlyLimit>0?(s.usedMonth+amt)/s.monthlyLimit<WARN:true));
+                    const pool = elig.length ? elig : avail.filter(s=>(s.balance||0)>=amt);
+                    if (!pool.length) { allAtLimit = true; }
+                    else { pool.sort((a,b)=>(b.balance||0)-(a.balance||0)); suggestedId = pool[0].id; }
+                } else {
+                    const pool = avail.map(s=>({...s,space:Math.min(s.dailyLimit>0?Math.max(0,s.dailyLimit-s.usedToday):Infinity,s.monthlyLimit>0?Math.max(0,s.monthlyLimit-s.usedMonth):Infinity)})).filter(s=>s.space>=amt);
+                    if (!pool.length) { allAtLimit = true; }
+                    else { pool.sort((a,b)=>b.space-a.space); suggestedId = pool[0].id; }
+                }
+                setAutoRouting(prev => ({ ...prev, suggestedId, allAtLimit }));
+                if (suggestedId) {
+                    const sel = allSrcs.find(s => s.id === suggestedId);
+                    setForm(f => ({ ...f, sourceId: suggestedId, sourceType: sel ? sel.type : "line" }));
+                }
+            }, [form.amount, form.type, modal]);
 
             if (authLoading) {
                 return (
@@ -911,26 +1866,86 @@
             const sources = [
                 ...lines.map(l => {
                     const stats = calcSourceStats(l, transactions);
-                    return {...l, type:"line", dailyLimit:LINES_LIMIT_DAILY, monthlyLimit:LINES_LIMIT_MONTHLY,
+                    return {...l, type:"line", dailyLimit:vodDailyLimit, monthlyLimit:linesMonthlyLimit,
                         usedToday: stats.usedTodayTransfer + stats.usedTodayReceive,
                         usedMonth: stats.usedMonthTransfer + stats.usedMonthReceive,
                     };
                 }),
                 ...visas.map(v => {
                     const stats = calcSourceStats(v, transactions);
-                    return {...v, type:"visa", dailyLimit:VISA_LIMIT_DAILY, monthlyLimit:VISA_LIMIT_MONTHLY,
+                    return {...v, type:"visa", dailyLimit:visaDailyLimit, monthlyLimit:visaMonthlyLimit,
                         usedToday: stats.usedTodayTransfer + stats.usedTodayReceive,
                         usedMonth: stats.usedMonthTransfer + stats.usedMonthReceive,
                     };
                 }),
                 ...instaPays.map(ip => {
                     const stats = calcSourceStats(ip, transactions);
-                    return {...ip, type:"instapay", dailyLimit:INSTAPAY_LIMIT_DAILY, monthlyLimit:INSTAPAY_LIMIT_MONTHLY,
+                    return {...ip, type:"instapay", dailyLimit:instapayDailyLimit, monthlyLimit:instapayMonthlyLimit,
                         usedToday: stats.usedTodayTransfer + stats.usedTodayReceive,
                         usedMonth: stats.usedMonthTransfer + stats.usedMonthReceive,
                     };
                 }),
             ];
+
+            // ══════════════════════════════════════════════════════
+            //  💡 توزيع العمليات الذكي — Smart Auto-Routing Logic
+            // ══════════════════════════════════════════════════════
+            function getSmartRoute(amount, txnType) {
+                const amt = parseFloat(amount);
+                if (!amt || isNaN(amt) || amt <= 0) return { suggestedId: null, allAtLimit: false };
+
+                // الخطوط المتاحة فقط
+                const available = sources.filter(s => s.available !== false);
+                if (available.length === 0) return { suggestedId: null, allAtLimit: true };
+
+                const WARN_THRESHOLD = 0.85; // 85% من الحد = خط مرهق
+
+                if (txnType === "receive" || txnType === "transfer") {
+                    // ═══ إيداع/تحويل: نحتاج خطاً يحتمل رصيده وله مساحة ═══
+                    // نرشح الخطوط التي:
+                    // 1) رصيدها >= المبلغ
+                    // 2) بعد إضافة المبلغ لا تتجاوز 85% من الحد اليومي والشهري
+                    const eligible = available.filter(s => {
+                        const bal = s.balance || 0;
+                        const hasBalance = bal >= amt;
+                        const afterDaily   = s.usedToday + amt;
+                        const afterMonthly = s.usedMonth + amt;
+                        const dailyOk   = s.dailyLimit   > 0 ? (afterDaily   / s.dailyLimit)   < WARN_THRESHOLD : true;
+                        const monthlyOk = s.monthlyLimit > 0 ? (afterMonthly / s.monthlyLimit) < WARN_THRESHOLD : true;
+                        return hasBalance && dailyOk && monthlyOk;
+                    });
+
+                    if (eligible.length === 0) {
+                        // جرب بدون شرط الـ 85% (أي على الأقل رصيد كافٍ)
+                        const fallback = available.filter(s => (s.balance || 0) >= amt);
+                        if (fallback.length === 0) return { suggestedId: null, allAtLimit: true };
+                        // اختر الأعلى رصيداً
+                        fallback.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                        return { suggestedId: fallback[0].id, allAtLimit: false };
+                    }
+                    // من بين المؤهلين → اختر الأعلى رصيداً (لتخفيف الضغط)
+                    eligible.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                    return { suggestedId: eligible[0].id, allAtLimit: false };
+
+                } else {
+                    // ═══ سحب (bank_withdraw / fawri_withdraw): نحتاج خطاً يمتص الأموال القادمة ═══
+                    // نرشح الخطوط بناءً على أكبر مساحة متبقية في الحد اليومي والشهري
+                    const withSpace = available.map(s => {
+                        const dailyRemaining   = s.dailyLimit   > 0 ? Math.max(0, s.dailyLimit   - s.usedToday) : Infinity;
+                        const monthlyRemaining = s.monthlyLimit > 0 ? Math.max(0, s.monthlyLimit - s.usedMonth) : Infinity;
+                        const space = Math.min(dailyRemaining, monthlyRemaining);
+                        const canAbsorb = space >= amt;
+                        return { ...s, space, canAbsorb };
+                    });
+
+                    const canAbsorb = withSpace.filter(s => s.canAbsorb);
+                    if (canAbsorb.length === 0) return { suggestedId: null, allAtLimit: true };
+
+                    // اختر الأبعد عن حده (أكبر مساحة متبقية)
+                    canAbsorb.sort((a, b) => b.space - a.space);
+                    return { suggestedId: canAbsorb[0].id, allAtLimit: false };
+                }
+            }
 
             function handleImagePick(e) {
                 const file = e.target.files[0]; if (!file) return;
@@ -1090,6 +2105,8 @@
                     return;
                 }
 
+                // ⭐ Haptic feedback — iOS
+                if (navigator.vibrate) navigator.vibrate(15);
                 const personName = form.personName.trim();
                 const fullDateTime = `${form.date} ${form.time}`;
 
@@ -1541,33 +2558,60 @@
             const netMonthProfit = monthIncome - monthExpense;
 
             const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
+
+            // ══════════════════════════════════════════════════════
+            //  🔐  نظام الصلاحيات المتقدم — Granular Access Control
+            // ══════════════════════════════════════════════════════
             const isAdmin     = userRole === "admin";
             const isAssistant = userRole === "assistant";
             const isViewer    = userRole === "viewer";
-            // ⭐ Computed permission helpers
-            const canEditAbuAdi  = isAdmin || isAssistant;
-            const canEditPeople  = isAdmin || isAssistant;
-            const canCopyLine    = isAdmin || isAssistant;
-            const canEditLines   = isAdmin;
+
+            // ⭐ عمر — مساعد ذو صلاحيات مخصصة (omar@gmail.com)
+            const isOmar = firebaseUser?.email === "omar@gmail.com";
+
+            // قسم أبو عدي والأشخاص: عمر له صلاحيات كاملة كالأدمن
+            const canEditAbuAdi  = isAdmin || isAssistant || isOmar;
+            const canEditPeople  = isAdmin || isAssistant || isOmar;
+
+            // قسم الخطوط: عمر يرى وينسخ فقط — لا يعدل ولا يضيف
+            const canCopyLine    = isAdmin || isAssistant || isOmar;
+            const canEditLines   = isAdmin;  // عمر محظور من التعديل
+            const canAddLine     = isAdmin;  // عمر محظور من الإضافة
+
+            // قسم المالية: أدمن فقط
             const canEditFinance = isAdmin;
 
-            const tabs = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "settings"];
+            // سجل العمليات: عمر يطبع ويبحث لكن لا يحذف ولا يعكس
+            const canDeleteTxn   = isAdmin;
+            const canReverseTxn  = isAdmin;
+            const canPrintTxn    = isAdmin || isOmar;  // عمر يطبع الفواتير
+            const canAddTxn      = isAdmin;  // إضافة عمليات: أدمن فقط
+
+            // لوحة التحكم: عمر يرى كل شيء بالكامل
+            const canViewDashboard = true;
+
+            // التبويبات المتاحة لعمر
+            const omarTabs = ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
+            const allTabs  = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "settings"];
+
+            const tabs = isAdmin ? allTabs : isOmar ? omarTabs : ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
 
             const displayTabs = [
-                {id:"dashboard",icon:"🏠",label:"الرئيسية"},
-                {id:"transactions",icon:"💸",label:"العمليات"},
-                {id:"people",icon:"👥",label:"الأشخاص"},
-                {id:"lines",icon:"📱",label:"الخطوط"},
-                {id:"finance",icon:"💰",label:"المالية", adminOnly: true},
-                {id:"abuadi",icon:"🤝",label:"أبو عدي"},
-                {id:"ai",icon:"✨",label:"AI"},
-                {id:"settings",icon:"⚙️",label:"إعدادات"}
+                {id:"dashboard",   icon:"🏠", label:"الرئيسية"},
+                {id:"transactions",icon:"💸", label:"العمليات"},
+                {id:"people",      icon:"👥", label:"الأشخاص"},
+                {id:"lines",       icon:"📱", label:"الخطوط"},
+                {id:"finance",     icon:"💰", label:"المالية",  adminOnly: true},
+                {id:"abuadi",      icon:"🤝", label:"أبو عدي"},
+                {id:"ai",          icon:"✨", label:"AI"},
+                {id:"settings",    icon:"⚙️", label:"إعدادات", adminOnly: true}
             ].filter(t => tabs.includes(t.id) && (!t.adminOnly || isAdmin));
 
             const getRoleName = () => {
-                if (isAdmin)     return "👑 مدير رئيسي";
+                if (isAdmin) return "👑 مدير رئيسي";
+                if (isOmar)  return "🤝 مساعد — عمر";
                 if (isAssistant) return "🤝 مساعد";
-                if (isViewer)    return "👁️ مشاهد";
+                if (isViewer) return "👁️ مشاهد";
                 return "👁️ مشاهد";
             };
 
@@ -1575,16 +2619,16 @@
                 <div 
                     onTouchStart={handleTouchStart}
                     onTouchEnd={handleTouchEnd}
-                    style={{minHeight:"100vh",background:"var(--bg-void)",direction:"rtl",color:"var(--text-bright)",paddingBottom:80}}
+                    style={{minHeight:"100vh",background:"var(--bg-void)",direction:"rtl",color:"var(--text-bright)",paddingBottom:"calc(80px + env(safe-area-inset-bottom, 0px))",WebkitOverflowScrolling:"touch"}}
                 >
                     
                     {/* Header */}
-                    <div style={{background:"rgba(5,7,15,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",borderBottom:"1px solid var(--border-dim)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+                    <div style={{background:"rgba(5,7,15,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",borderBottom:"1px solid var(--border-dim)",paddingTop:"calc(14px + env(safe-area-inset-top, 0px))",paddingBottom:14,paddingLeft:20,paddingRight:20,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
                             <div style={{width:38,height:38,borderRadius:10,background:"linear-gradient(135deg,#e40000,#cc0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:900,color:"#fff",boxShadow:"0 0 16px #e4000055"}}>V</div>
                             <div>
                                 <div style={{fontSize:16,fontWeight:700,color:"#fff"}}>فودافون كاش</div>
-                                <div style={{fontSize:11,color: isAdmin?"#f59e0b":isAssistant?"#10b981":"#64748b",fontWeight:isAdmin||isAssistant?700:400}}>{getRoleName()}</div>
+                                <div style={{fontSize:11,color: isAdmin?"#f59e0b":isOmar?"#22d3ee":isAssistant?"#10b981":"#64748b",fontWeight:isAdmin||isOmar||isAssistant?700:400}}>{getRoleName()}</div>
                             </div>
                         </div>
                         <div style={{display:"flex", gap:10, alignItems:"center"}}>
@@ -1674,9 +2718,16 @@
                                     </div>
                                 )}
 
-                                {isAdmin && (
-                                    <button onClick={()=>setModal("addTxn")} style={{width:"100%",background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ عملية جديدة</button>
+                                {canAddTxn && (
+                                    <button onClick={()=>{ setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} style={{width:"100%",background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ عملية جديدة</button>
                                 )}
+
+                                {/* ⭐ الرسوم البيانية التفاعلية */}
+                                <DashboardCharts
+                                    transactions={transactions}
+                                    financeLogs={financeLogs}
+                                    formatNum={formatNum}
+                                />
 
                                 <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>آخر العمليات</div>
                                 {transactions.slice(0,5).map(t=>(
@@ -1695,12 +2746,18 @@
                                             </div>
                                             <div style={{display:"flex",gap:8}}>
                                                 {t.image && <button onClick={()=>setViewImg(t.image)} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"4px 8px",color:"#94a3b8",cursor:"pointer"}}>🖼</button>}
+                                                <button onClick={()=>setActiveReceipt(t)} title="طباعة الفاتورة"
+                                                    style={{background:"#0a1628",border:"1px solid #22d3ee30",borderRadius:8,padding:"4px 9px",color:"#22d3ee",cursor:"pointer",fontSize:13}}>🖨️</button>
                                                 {isAdmin && (
                                                 <div style={{display:"flex",gap:6}}>
-                                                    <button onClick={()=>setConfirmDelete({type:"reverse",data:t})} 
-                                                        style={{background:"#f59e0b20",border:"1px solid #f59e0b",borderRadius:8,padding:"4px 10px",color:"#f59e0b",cursor:"pointer",fontSize:12,fontWeight:700}}>↩️ عكس</button>
-                                                    <button onClick={()=>setConfirmDelete({type:"txn",data:t})} 
-                                                        style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>
+                                                    {canReverseTxn && (
+                                                        <button onClick={()=>setConfirmDelete({type:"reverse",data:t})} 
+                                                            style={{background:"#f59e0b20",border:"1px solid #f59e0b",borderRadius:8,padding:"4px 10px",color:"#f59e0b",cursor:"pointer",fontSize:12,fontWeight:700}}>↩️ عكس</button>
+                                                    )}
+                                                    {canDeleteTxn && (
+                                                        <button onClick={()=>setConfirmDelete({type:"txn",data:t})} 
+                                                            style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>
+                                                    )}
                                                 </div>
                                             )}
                                             </div>
@@ -1708,9 +2765,9 @@
                                         <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
                                         {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                                                 من: {t.fromNumber}
-                                                {(isViewer||isAdmin) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                                {(isViewer||isAdmin||isOmar) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
                                                 ← إلى: {t.toNumber}
-                                                {(isViewer||isAdmin) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                                {(isViewer||isAdmin||isOmar) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
                                             </div>}
                                     </div>
                                 ))}
@@ -1721,60 +2778,205 @@
                         {/* TRANSACTIONS */}
                         {tab==="transactions" && (
                             <div>
+                                {/* ══ شريط البحث ══ */}
                                 <input placeholder="🔍 ابحث باسم، رقم، مبلغ، تاريخ" value={searchQ} onChange={e=>setSearchQ(e.target.value)}
-                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 16px",color:"#e2e8f0",fontSize:14,marginBottom:12,boxSizing:"border-box",outline:"none",textAlign:"right"}}/>
-                                
-                                {isAdmin && (
-                                    <button onClick={()=>{
-                                        const txnTypeLabel = (t) => t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":"سحب فوري";
-                                        const rows = [["الاسم","النوع","المبلغ","العمولة","الإجمالي المخصوم","من","إلى","التاريخ","ملاحظات"],...transactions.map(t=>[t.personName,txnTypeLabel(t),t.amount,t.commission||0,t.totalAmount||t.amount,t.fromNumber||"",t.toNumber||"",t.dateTime||t.date,t.notes||""])];
-                                        const csv = rows.map(r=>r.join(",")).join("\n");
-                                        const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
-                                        const url = URL.createObjectURL(blob);
-                                        const a = document.createElement("a"); a.href=url; a.download="transactions.csv"; a.click();
-                                        URL.revokeObjectURL(url);
-                                    }} style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:11,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:12}}>📥 تصدير CSV</button>
-                                )}
-                                
-                                {transactions.filter(t => !searchQ || t.personName.includes(searchQ) || t.fromNumber?.includes(searchQ) || t.toNumber?.includes(searchQ) || String(t.amount).includes(searchQ) || t.date?.includes(searchQ)).map(t=>(
-                                    <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
-                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                                            <div>
-                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>
-                                                    {t.type === "transfer" ? "💸" : t.type === "receive" ? "📥" : t.type === "bank_withdraw" ? "🏦" : "💳"} {t.personName}
-                                                    {(t.type === "bank_withdraw" || t.type === "fawri_withdraw") && (
-                                                        <span style={{fontSize:10,marginRight:6,background: t.type==="bank_withdraw"?"#3b82f620":"#a78bfa20",color: t.type==="bank_withdraw"?"#3b82f6":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
-                                                            {t.type === "bank_withdraw" ? "سحب بنك" : "سحب فوري"}
-                                                        </span>
+                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 16px",color:"#e2e8f0",fontSize:14,marginBottom:10,boxSizing:"border-box",outline:"none",textAlign:"right"}}/>
+
+                                {/* ══ تبويبات النوع ══ */}
+                                {(() => {
+                                    const opTabs = [
+                                        { id:"all",      label:"كل العمليات",       icon:"📊", color:"#22d3ee" },
+                                        { id:"withdraw", label:"السحب",             icon:"⬇️", color:"#ef4444" },
+                                        { id:"deposit",  label:"الإيداع/الاستلام",  icon:"⬆️", color:"#10b981" },
+                                    ];
+                                    return (
+                                        <div style={{display:"flex",gap:6,marginBottom:10,background:"#0a0c16",borderRadius:12,padding:4,border:"1px solid #1a2235"}}>
+                                            {opTabs.map(tb=>(
+                                                <button key={tb.id} onClick={()=>setOperationsTab(tb.id)}
+                                                    style={{
+                                                        flex:1,border:"none",borderRadius:9,padding:"9px 4px",
+                                                        fontFamily:"'Tajawal',sans-serif",fontWeight:700,fontSize:11,
+                                                        cursor:"pointer",transition:"all 0.2s",
+                                                        background: operationsTab===tb.id
+                                                            ? `linear-gradient(135deg,${tb.color}30,${tb.color}18)`
+                                                            : "none",
+                                                        color: operationsTab===tb.id ? tb.color : "#3d4f65",
+                                                        boxShadow: operationsTab===tb.id ? `0 0 0 1px ${tb.color}40` : "none",
+                                                    }}>
+                                                    {tb.icon} {tb.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* ══ فلتر التواريخ ══ */}
+                                <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
+                                    <div style={{flex:1,minWidth:120}}>
+                                        <div style={{fontSize:10,color:"#3d4f65",marginBottom:4,fontWeight:600}}>من تاريخ</div>
+                                        <input type="date" value={opStartDate} onChange={e=>setOpStartDate(e.target.value)}
+                                            style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"8px 10px",color:opStartDate?"#e2e8f0":"#3d4f65",fontSize:16,outline:"none",boxSizing:"border-box",fontFamily:"'Tajawal',sans-serif"}}/>
+                                    </div>
+                                    <div style={{flex:1,minWidth:120}}>
+                                        <div style={{fontSize:10,color:"#3d4f65",marginBottom:4,fontWeight:600}}>إلى تاريخ</div>
+                                        <input type="date" value={opEndDate} onChange={e=>setOpEndDate(e.target.value)}
+                                            style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"8px 10px",color:opEndDate?"#e2e8f0":"#3d4f65",fontSize:16,outline:"none",boxSizing:"border-box",fontFamily:"'Tajawal',sans-serif"}}/>
+                                    </div>
+                                    {(opStartDate||opEndDate) && (
+                                        <div style={{paddingTop:18}}>
+                                            <button onClick={()=>{setOpStartDate("");setOpEndDate("");}}
+                                                style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"8px 12px",color:"#ef4444",fontSize:12,cursor:"pointer",fontWeight:700,fontFamily:"'Tajawal',sans-serif",whiteSpace:"nowrap"}}>
+                                                ✕ تفريغ
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ══ منطق الفلترة المتقدم ══ */}
+                                {(()=>{
+                                    const isWithdraw = t => t.type==="transfer" || t.type==="bank_withdraw" || t.type==="fawri_withdraw";
+                                    const isDeposit  = t => t.type==="receive";
+
+                                    const filtered = transactions.filter(t => {
+                                        // فلتر البحث النصي
+                                        if (searchQ) {
+                                            const q = searchQ;
+                                            const match = t.personName?.includes(q) || t.fromNumber?.includes(q) || t.toNumber?.includes(q) || String(t.amount).includes(q) || t.date?.includes(q);
+                                            if (!match) return false;
+                                        }
+                                        // فلتر التبويب
+                                        if (operationsTab==="withdraw" && !isWithdraw(t)) return false;
+                                        if (operationsTab==="deposit"  && !isDeposit(t))  return false;
+                                        // فلتر التاريخ
+                                        if (opStartDate && t.date && t.date < opStartDate) return false;
+                                        if (opEndDate   && t.date && t.date > opEndDate)   return false;
+                                        return true;
+                                    });
+
+                                    // ══ بطاقة الإحصاء السريع ══
+                                    const totalAmt   = filtered.reduce((s,t)=>s+(t.amount||0),0);
+                                    const withdrawAmt= filtered.filter(isWithdraw).reduce((s,t)=>s+(t.amount||0),0);
+                                    const depositAmt = filtered.filter(isDeposit).reduce((s,t)=>s+(t.amount||0),0);
+                                    const hasDateFilter = opStartDate || opEndDate;
+                                    const periodLabel = hasDateFilter
+                                        ? `${opStartDate||"..."} → ${opEndDate||"..."}`
+                                        : "كل الفترات";
+
+                                    const summaryColor = operationsTab==="withdraw"?"#ef4444":operationsTab==="deposit"?"#10b981":"#22d3ee";
+                                    const summaryLabel = operationsTab==="withdraw"
+                                        ? `⬇️ إجمالي السحب (${periodLabel})`
+                                        : operationsTab==="deposit"
+                                        ? `⬆️ إجمالي الإيداع (${periodLabel})`
+                                        : `📊 إجمالي العمليات (${periodLabel})`;
+                                    const summaryVal  = operationsTab==="withdraw" ? withdrawAmt
+                                                      : operationsTab==="deposit"  ? depositAmt
+                                                      : totalAmt;
+
+                                    return (
+                                        <>
+                                            {/* بطاقة الإحصاء */}
+                                            <div style={{
+                                                background:`linear-gradient(135deg,${summaryColor}12,${summaryColor}06)`,
+                                                border:`1px solid ${summaryColor}30`,
+                                                borderRadius:12, padding:"10px 14px",
+                                                marginBottom:10,
+                                                display:"flex", justifyContent:"space-between", alignItems:"center",
+                                                flexWrap:"wrap", gap:8
+                                            }}>
+                                                <div>
+                                                    <div style={{fontSize:10,color:summaryColor,fontWeight:700,marginBottom:2}}>{summaryLabel}</div>
+                                                    <div style={{fontSize:11,color:"#3d4f65"}}>{filtered.length} عملية</div>
+                                                </div>
+                                                <div style={{textAlign:"left"}}>
+                                                    <div style={{fontSize:20,fontWeight:900,color:summaryColor}}>{formatNum(Math.round(summaryVal))} ج</div>
+                                                    {operationsTab==="all" && (
+                                                        <div style={{fontSize:10,color:"#3d4f65",marginTop:2}}>
+                                                            سحب: <span style={{color:"#ef4444"}}>{formatNum(Math.round(withdrawAmt))}</span>
+                                                            {" · "}إيداع: <span style={{color:"#10b981"}}>{formatNum(Math.round(depositAmt))}</span>
+                                                        </div>
                                                     )}
                                                 </div>
-                                                <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateArabic(t.date)} - {t.time}</div>
                                             </div>
+
+                                            {/* تصدير CSV */}
                                             {isAdmin && (
-                                                <div style={{display:"flex",gap:6}}>
-                                                    <button onClick={()=>setConfirmDelete({type:"reverse",data:t})} 
-                                                        style={{background:"#f59e0b20",border:"1px solid #f59e0b",borderRadius:8,padding:"4px 10px",color:"#f59e0b",cursor:"pointer",fontSize:12,fontWeight:700}}>↩️ عكس</button>
-                                                    <button onClick={()=>setConfirmDelete({type:"txn",data:t})} 
-                                                        style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>
-                                                </div>
+                                                <button onClick={()=>{
+                                                    const txnTypeLabel = (t) => t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":"سحب فوري";
+                                                    const rows = [["الاسم","النوع","المبلغ","العمولة","الإجمالي المخصوم","من","إلى","التاريخ","ملاحظات"],...filtered.map(t=>[t.personName,txnTypeLabel(t),t.amount,t.commission||0,t.totalAmount||t.amount,t.fromNumber||"",t.toNumber||"",t.dateTime||t.date,t.notes||""])];
+                                                    const csv = rows.map(r=>r.join(",")).join("\n");
+                                                    const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+                                                    const url = URL.createObjectURL(blob);
+                                                    const a = document.createElement("a"); a.href=url; a.download="transactions.csv"; a.click();
+                                                    URL.revokeObjectURL(url);
+                                                }} style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:11,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:12}}>
+                                                    📥 تصدير CSV ({filtered.length} عملية)
+                                                </button>
                                             )}
-                                        </div>
-                                        <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
-                                        {t.type === "transfer" && <>
-                                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
-                                                من: {t.fromNumber}
-                                                {(isViewer||isAdmin) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
-                                            </div>
-                                            <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6}}>
-                                                إلى: {t.toNumber}
-                                                {(isViewer||isAdmin) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
-                                            </div>
-                                        </>}
-                                        {t.notes && <div style={{fontSize:11,color:"#94a3b8",marginTop:8,background:"#0a0f1e",borderRadius:8,padding:"6px 10px"}}>📝 {t.notes}</div>}
-                                        {isViewer && <button onClick={()=>setViewerNote({txnId:t.id,text:t.notes||""}) } style={{marginTop:8,background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"5px 12px",color:"#22d3ee",cursor:"pointer",fontSize:12,fontWeight:600}}>📝 {t.notes ? "تعديل ملاحظة" : "+ ملاحظة"}</button>}
-                                        {t.image && getImageSrc(t.image) && <img src={getImageSrc(t.image)} onClick={()=>setViewImg(getImageSrc(t.image))} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginTop:10,cursor:"pointer"}}/>}
-                                    </div>
-                                ))}
+
+                                            {/* قائمة العمليات المفلترة */}
+                                            {filtered.length === 0 ? (
+                                                <div style={{textAlign:"center",color:"#334155",padding:"40px 20px",background:"#0a0c16",borderRadius:14,border:"1px dashed #1a2235"}}>
+                                                    <div style={{fontSize:36,marginBottom:10}}>🔍</div>
+                                                    <div style={{fontSize:13,color:"#3d4f65"}}>لا توجد عمليات تطابق هذه الفلاتر</div>
+                                                </div>
+                                            ) : (
+                                                filtered.map(t=>(
+                                                    <div key={t.id} style={{
+                                                        background:"linear-gradient(135deg,#0f1e3d,#0a1628)",
+                                                        border:`1px solid ${t.type==="receive"?"#10b98130":t.type==="transfer"?"#22d3ee20":"#a78bfa20"}`,
+                                                        borderRadius:14,padding:14,marginBottom:10
+                                                    }}>
+                                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                                                            <div>
+                                                                <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>
+                                                                    {t.type==="transfer"?"💸":t.type==="receive"?"📥":t.type==="bank_withdraw"?"🏦":"💳"} {t.personName}
+                                                                    {(t.type==="bank_withdraw"||t.type==="fawri_withdraw") && (
+                                                                        <span style={{fontSize:10,marginRight:6,background:t.type==="bank_withdraw"?"#3b82f620":"#a78bfa20",color:t.type==="bank_withdraw"?"#3b82f6":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
+                                                                            {t.type==="bank_withdraw"?"سحب بنك":"سحب فوري"}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateArabic(t.date)} - {t.time}</div>
+                                                            </div>
+                                                            {(canPrintTxn || canDeleteTxn || canReverseTxn) && (
+                                                                <div style={{display:"flex",gap:6}}>
+                                                                    {canPrintTxn && (
+                                                                        <button onClick={()=>setActiveReceipt(t)} title="طباعة الفاتورة"
+                                                                            style={{background:"#0a1628",border:"1px solid #22d3ee30",borderRadius:8,padding:"4px 9px",color:"#22d3ee",cursor:"pointer",fontSize:13}}>🖨️</button>
+                                                                    )}
+                                                                    {canReverseTxn && (
+                                                                        <button onClick={()=>setConfirmDelete({type:"reverse",data:t})}
+                                                                            style={{background:"#f59e0b20",border:"1px solid #f59e0b",borderRadius:8,padding:"4px 10px",color:"#f59e0b",cursor:"pointer",fontSize:12,fontWeight:700}}>↩️ عكس</button>
+                                                                    )}
+                                                                    {canDeleteTxn && (
+                                                                        <button onClick={()=>setConfirmDelete({type:"txn",data:t})}
+                                                                            style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer"}}>🗑️</button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div style={{fontSize:13,fontWeight:700,color:t.type==="receive"?"#10b981":"#22d3ee",marginBottom:8}}>
+                                                            {t.type==="receive"?"⬆️":"⬇️"} {formatNum(t.amount)} ج
+                                                        </div>
+                                                        {t.type==="transfer" && <>
+                                                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+                                                                من: {t.fromNumber}
+                                                                {(isViewer||isAdmin||isOmar) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                                            </div>
+                                                            <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6}}>
+                                                                إلى: {t.toNumber}
+                                                                {(isViewer||isAdmin||isOmar) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                                            </div>
+                                                        </>}
+                                                        {t.notes && <div style={{fontSize:11,color:"#94a3b8",marginTop:8,background:"#0a0f1e",borderRadius:8,padding:"6px 10px"}}>📝 {t.notes}</div>}
+                                                        {isViewer && <button onClick={()=>setViewerNote({txnId:t.id,text:t.notes||""})} style={{marginTop:8,background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"5px 12px",color:"#22d3ee",cursor:"pointer",fontSize:12,fontWeight:600}}>📝 {t.notes?"تعديل ملاحظة":"+ ملاحظة"}</button>}
+                                                        {t.image && getImageSrc(t.image) && <img src={getImageSrc(t.image)} onClick={()=>setViewImg(getImageSrc(t.image))} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginTop:10,cursor:"pointer"}}/>}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )}
 
@@ -1851,13 +3053,23 @@
                                                         style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"7px 12px",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>
                                                         📋
                                                     </button>
+                                                    <button onClick={()=>setActiveCustomerReceipt(person)} title="طباعة كشف الحساب"
+                                                        style={{background:"#0a1628",border:"1px solid #a78bfa30",borderRadius:8,padding:"7px 10px",color:"#a78bfa",fontSize:13,cursor:"pointer"}}>
+                                                        🖨️
+                                                    </button>
                                                 </div>
                                             )}
                                             {!canEditPeople && (
-                                                <button onClick={()=>setSelectedPersonId(person.id)}
-                                                    style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"7px 0",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>
-                                                    📋 عرض الكشف
-                                                </button>
+                                                <div style={{display:"flex",gap:6}}>
+                                                    <button onClick={()=>setSelectedPersonId(person.id)}
+                                                        style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"7px 0",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>
+                                                        📋 عرض الكشف
+                                                    </button>
+                                                    <button onClick={()=>setActiveCustomerReceipt(person)} title="طباعة كشف الحساب"
+                                                        style={{background:"#0a1628",border:"1px solid #a78bfa30",borderRadius:8,padding:"7px 10px",color:"#a78bfa",fontSize:13,cursor:"pointer"}}>
+                                                        🖨️
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     );
@@ -2002,20 +3214,30 @@
                                     <div className={`accordion-body ${accordionOpen.lines?"open":"closed"}`} style={{maxHeight: accordionOpen.lines ? `${lines.length * 200 + 100}px` : "0px"}}>
                                     {lines.map(l=>{
                                         const lStats = calcSourceStats(l, transactions);
-                                        const mtPct = (lStats.usedMonthTransfer/LINES_LIMIT_MONTHLY)*100;
-                                        const mrPct = (lStats.usedMonthReceive/LINES_LIMIT_MONTHLY)*100;
-                                        const isDanger = mtPct >= 80 || mrPct >= 80;
-                                        const isAvail = l.available !== false;
-                                        const borderColor = isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
-                                        const availColor = isAvail ? "#22c55e" : "#ef4444";
-                                        const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
-                                        const balance = l.balance || 0;
+                                        const mtPct = (lStats.usedMonthTransfer/linesMonthlyLimit)*100;
+                                        const mrPct = (lStats.usedMonthReceive/linesMonthlyLimit)*100;
+                                        const dtPct = (lStats.usedTodayTransfer/vodDailyLimit)*100;
+                                        const drPct = (lStats.usedTodayReceive/vodDailyLimit)*100;
+                                        // مستوى التحذير: critical ≥85%, warning ≥65%
+                                        const isCritical = mtPct >= 85 || mrPct >= 85 || dtPct >= 85 || drPct >= 85;
+                                        const isWarning  = !isCritical && (mtPct >= 65 || mrPct >= 65 || dtPct >= 65 || drPct >= 65);
+                                        const isDanger   = mtPct >= 80 || mrPct >= 80;
+                                        const isAvail    = l.available !== false;
+                                        const borderColor = isCritical ? "#ef444460" : isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
+                                        const availColor  = isAvail ? "#22c55e" : "#ef4444";
+                                        const availLabel  = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const balance     = l.balance || 0;
+                                        // دالة لون العداد بناءً على نسبته
+                                        const cntColor = (pct) => pct >= 85 ? "#ef4444" : pct >= 65 ? "#f59e0b" : pct >= 40 ? "#22d3ee" : "#7a8fa8";
+                                        const alertClass = isCritical ? "line-card limit-critical" : isWarning ? "line-card limit-warning" : "line-card";
                                         return (
-                                            <div key={l.id} className="line-card" style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                            <div key={l.id} className={alertClass} style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                                                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                                                         <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#22d3ee" : "#7a8fa8"}}>{l.name}</span>
                                                         <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
+                                                        {isCritical && <span style={{fontSize:10,background:"#ef444420",color:"#ef4444",border:"1px solid #ef444450",borderRadius:20,padding:"2px 8px",fontWeight:700,animation:"blink 1s infinite"}}>⚠️ تجاوز 85%</span>}
+                                                        {isWarning  && <span style={{fontSize:10,background:"#f59e0b15",color:"#f59e0b",border:"1px solid #f59e0b40",borderRadius:20,padding:"2px 8px",fontWeight:700}}>⚡ اقترب من الحد</span>}
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                         {isAdmin && <button onClick={()=>setLines(p=>p.map(x=>x.id===l.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
@@ -2036,20 +3258,20 @@
                                                 {/* تحويل */}
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>💸 اليوم: <b style={{color:"#f59e0b"}}>{formatNum(lStats.usedTodayTransfer)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
-                                                        <span style={{color: mtPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(lStats.usedMonthTransfer)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
+                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{formatNum(lStats.usedTodayTransfer)}</b> / {formatNum(vodDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{formatNum(lStats.usedMonthTransfer)}</b> / {formatNum(linesMonthlyLimit)}</span>
                                                     </div>
-                                                    <ProgressBar used={lStats.usedTodayTransfer} limit={LINES_LIMIT_DAILY} color="#f59e0b" showPct={false}/>
-                                                    <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthTransfer} limit={LINES_LIMIT_MONTHLY} color="#f59e0b" showPct={true}/></div>
+                                                    <ProgressBar used={lStats.usedTodayTransfer} limit={vodDailyLimit} color="#f59e0b" showPct={false}/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthTransfer} limit={linesMonthlyLimit} color="#f59e0b" showPct={true}/></div>
                                                 </div>
                                                 {/* استلام */}
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>📥 اليوم: <b style={{color:"#22d3ee"}}>{formatNum(lStats.usedTodayReceive)}</b> / {formatNum(LINES_LIMIT_DAILY)}</span>
-                                                        <span style={{color: mrPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(lStats.usedMonthReceive)}</b> / {formatNum(LINES_LIMIT_MONTHLY)}</span>
+                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{formatNum(lStats.usedTodayReceive)}</b> / {formatNum(vodDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{formatNum(lStats.usedMonthReceive)}</b> / {formatNum(linesMonthlyLimit)}</span>
                                                     </div>
-                                                    <ProgressBar used={lStats.usedTodayReceive} limit={LINES_LIMIT_DAILY} color="#22d3ee" showPct={false}/>
-                                                    <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthReceive} limit={LINES_LIMIT_MONTHLY} color="#22d3ee" showPct={true}/></div>
+                                                    <ProgressBar used={lStats.usedTodayReceive} limit={vodDailyLimit} color="#22d3ee" showPct={false}/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthReceive} limit={linesMonthlyLimit} color="#22d3ee" showPct={true}/></div>
                                                 </div>
                                             </div>
                                         );
@@ -2081,20 +3303,28 @@
                                     <div className={`accordion-body ${accordionOpen.visas?"open":"closed"}`} style={{maxHeight: accordionOpen.visas ? `${visas.length * 200 + 100}px` : "0px"}}>
                                     {visas.map(v=>{
                                         const vStats = calcSourceStats(v, transactions);
-                                        const mtPct = (vStats.usedMonthTransfer/VISA_LIMIT_MONTHLY)*100;
-                                        const mrPct = (vStats.usedMonthReceive/VISA_LIMIT_MONTHLY)*100;
-                                        const isDanger = mtPct >= 80 || mrPct >= 80;
-                                        const isAvail = v.available !== false;
-                                        const borderColor = isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
-                                        const availColor = isAvail ? "#22c55e" : "#ef4444";
-                                        const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
-                                        const balance = v.balance || 0;
+                                        const mtPct = (vStats.usedMonthTransfer/visaMonthlyLimit)*100;
+                                        const mrPct = (vStats.usedMonthReceive/visaMonthlyLimit)*100;
+                                        const dtPct = (vStats.usedTodayTransfer/visaDailyLimit)*100;
+                                        const drPct = (vStats.usedTodayReceive/visaDailyLimit)*100;
+                                        const isCritical = mtPct >= 85 || mrPct >= 85 || dtPct >= 85 || drPct >= 85;
+                                        const isWarning  = !isCritical && (mtPct >= 65 || mrPct >= 65 || dtPct >= 65 || drPct >= 65);
+                                        const isDanger   = mtPct >= 80 || mrPct >= 80;
+                                        const isAvail    = v.available !== false;
+                                        const borderColor = isCritical ? "#ef444460" : isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
+                                        const availColor  = isAvail ? "#22c55e" : "#ef4444";
+                                        const availLabel  = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const balance     = v.balance || 0;
+                                        const cntColor = (pct) => pct >= 85 ? "#ef4444" : pct >= 65 ? "#f59e0b" : pct >= 40 ? "#a78bfa" : "#7a8fa8";
+                                        const alertClass = isCritical ? "line-card limit-critical" : isWarning ? "line-card limit-warning" : "line-card";
                                         return (
-                                            <div key={v.id} className="line-card" style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                            <div key={v.id} className={alertClass} style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                                                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                                                         <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#a78bfa" : "#7a8fa8"}}>{v.name}</span>
                                                         <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
+                                                        {isCritical && <span style={{fontSize:10,background:"#ef444420",color:"#ef4444",border:"1px solid #ef444450",borderRadius:20,padding:"2px 8px",fontWeight:700,animation:"blink 1s infinite"}}>⚠️ تجاوز 85%</span>}
+                                                        {isWarning  && <span style={{fontSize:10,background:"#f59e0b15",color:"#f59e0b",border:"1px solid #f59e0b40",borderRadius:20,padding:"2px 8px",fontWeight:700}}>⚡ اقترب من الحد</span>}
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                         {isAdmin && <button onClick={()=>setVisas(p=>p.map(x=>x.id===v.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
@@ -2114,19 +3344,19 @@
                                                 </div>
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>💸 اليوم: <b style={{color:"#f59e0b"}}>{formatNum(vStats.usedTodayTransfer)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
-                                                        <span style={{color: mtPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(vStats.usedMonthTransfer)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{formatNum(vStats.usedTodayTransfer)}</b> / {formatNum(visaDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{formatNum(vStats.usedMonthTransfer)}</b> / {formatNum(visaMonthlyLimit)}</span>
                                                     </div>
-                                                    <ProgressBar used={vStats.usedTodayTransfer} limit={VISA_LIMIT_DAILY} color="#f59e0b"/>
-                                                    <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthTransfer} limit={VISA_LIMIT_MONTHLY} color="#f59e0b" showPct={true}/></div>
+                                                    <ProgressBar used={vStats.usedTodayTransfer} limit={visaDailyLimit} color="#f59e0b"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthTransfer} limit={visaMonthlyLimit} color="#f59e0b" showPct={true}/></div>
                                                 </div>
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>📥 اليوم: <b style={{color:"#a78bfa"}}>{formatNum(vStats.usedTodayReceive)}</b> / {formatNum(VISA_LIMIT_DAILY)}</span>
-                                                        <span style={{color: mrPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(vStats.usedMonthReceive)}</b> / {formatNum(VISA_LIMIT_MONTHLY)}</span>
+                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{formatNum(vStats.usedTodayReceive)}</b> / {formatNum(visaDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{formatNum(vStats.usedMonthReceive)}</b> / {formatNum(visaMonthlyLimit)}</span>
                                                     </div>
-                                                    <ProgressBar used={vStats.usedTodayReceive} limit={VISA_LIMIT_DAILY} color="#a78bfa"/>
-                                                    <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthReceive} limit={VISA_LIMIT_MONTHLY} color="#a78bfa" showPct={true}/></div>
+                                                    <ProgressBar used={vStats.usedTodayReceive} limit={visaDailyLimit} color="#a78bfa"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthReceive} limit={visaMonthlyLimit} color="#a78bfa" showPct={true}/></div>
                                                 </div>
                                             </div>
                                         );
@@ -2163,21 +3393,29 @@
                                     )}
                                     {instaPays.map(ip=>{
                                         const ipStats = calcSourceStats(ip, transactions);
-                                        const mtPct = (ipStats.usedMonthTransfer/INSTAPAY_LIMIT_MONTHLY)*100;
-                                        const mrPct = (ipStats.usedMonthReceive/INSTAPAY_LIMIT_MONTHLY)*100;
-                                        const isDanger = mtPct >= 80 || mrPct >= 80;
-                                        const isAvail = ip.available !== false;
-                                        const borderColor = isDanger ? "#ef444440" : isAvail ? "#10b98160" : "#ef444460";
-                                        const availColor = isAvail ? "#22c55e" : "#ef4444";
-                                        const availLabel = isAvail ? "✅ متاح" : "🔴 مش متاح";
-                                        const balance = ip.balance || 0;
+                                        const mtPct = (ipStats.usedMonthTransfer/instapayMonthlyLimit)*100;
+                                        const mrPct = (ipStats.usedMonthReceive/instapayMonthlyLimit)*100;
+                                        const dtPct = (ipStats.usedTodayTransfer/instapayDailyLimit)*100;
+                                        const drPct = (ipStats.usedTodayReceive/instapayDailyLimit)*100;
+                                        const isCritical = mtPct >= 85 || mrPct >= 85 || dtPct >= 85 || drPct >= 85;
+                                        const isWarning  = !isCritical && (mtPct >= 65 || mrPct >= 65 || dtPct >= 65 || drPct >= 65);
+                                        const isDanger   = mtPct >= 80 || mrPct >= 80;
+                                        const isAvail    = ip.available !== false;
+                                        const borderColor = isCritical ? "#ef444460" : isDanger ? "#ef444440" : isAvail ? "#10b98160" : "#ef444460";
+                                        const availColor  = isAvail ? "#22c55e" : "#ef4444";
+                                        const availLabel  = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const balance     = ip.balance || 0;
+                                        const cntColor = (pct) => pct >= 85 ? "#ef4444" : pct >= 65 ? "#f59e0b" : pct >= 40 ? "#10b981" : "#7a8fa8";
+                                        const alertClass = isCritical ? "line-card limit-critical" : isWarning ? "line-card limit-warning" : "line-card";
                                         return (
-                                            <div key={ip.id} className="line-card" style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
+                                            <div key={ip.id} className={alertClass} style={{background:"var(--bg-card)",border:`1px solid ${borderColor}`,borderRadius:12,padding:12,marginBottom:8,opacity: isAvail ? 1 : 0.65}}>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                                                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                                                         <span style={{fontSize:13,fontWeight:700,color:"#10b981"}}>⚡</span>
                                                         <span style={{fontSize:14,fontWeight:700,color: isAvail ? "#10b981" : "#7a8fa8"}}>{ip.name}</span>
                                                         <span style={{fontSize:10,background: isAvail ? "#22c55e20" : "#ef444420",color: availColor,border:`1px solid ${availColor}40`,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{availLabel}</span>
+                                                        {isCritical && <span style={{fontSize:10,background:"#ef444420",color:"#ef4444",border:"1px solid #ef444450",borderRadius:20,padding:"2px 8px",fontWeight:700,animation:"blink 1s infinite"}}>⚠️ تجاوز 85%</span>}
+                                                        {isWarning  && <span style={{fontSize:10,background:"#f59e0b15",color:"#f59e0b",border:"1px solid #f59e0b40",borderRadius:20,padding:"2px 8px",fontWeight:700}}>⚡ اقترب من الحد</span>}
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                         {isAdmin && <button onClick={()=>setInstaPays(p=>p.map(x=>x.id===ip.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
@@ -2197,19 +3435,19 @@
                                                 </div>
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>💸 اليوم: <b style={{color:"#f59e0b"}}>{formatNum(ipStats.usedTodayTransfer)}</b> / {formatNum(INSTAPAY_LIMIT_DAILY)}</span>
-                                                        <span style={{color: mtPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(ipStats.usedMonthTransfer)}</b> / {formatNum(INSTAPAY_LIMIT_MONTHLY)}</span>
+                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{formatNum(ipStats.usedTodayTransfer)}</b> / {formatNum(instapayDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{formatNum(ipStats.usedMonthTransfer)}</b> / {formatNum(instapayMonthlyLimit)}</span>
                                                     </div>
-                                                    <ProgressBar used={ipStats.usedTodayTransfer} limit={INSTAPAY_LIMIT_DAILY} color="#f59e0b"/>
-                                                    <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthTransfer} limit={INSTAPAY_LIMIT_MONTHLY} color="#f59e0b" showPct={true}/></div>
+                                                    <ProgressBar used={ipStats.usedTodayTransfer} limit={instapayDailyLimit} color="#f59e0b"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthTransfer} limit={instapayMonthlyLimit} color="#f59e0b" showPct={true}/></div>
                                                 </div>
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>📥 اليوم: <b style={{color:"#10b981"}}>{formatNum(ipStats.usedTodayReceive)}</b> / {formatNum(INSTAPAY_LIMIT_DAILY)}</span>
-                                                        <span style={{color: mrPct>=80?"#ef4444":"#7a8fa8"}}>شهري: <b>{formatNum(ipStats.usedMonthReceive)}</b> / {formatNum(INSTAPAY_LIMIT_MONTHLY)}</span>
+                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{formatNum(ipStats.usedTodayReceive)}</b> / {formatNum(instapayDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{formatNum(ipStats.usedMonthReceive)}</b> / {formatNum(instapayMonthlyLimit)}</span>
                                                     </div>
-                                                    <ProgressBar used={ipStats.usedTodayReceive} limit={INSTAPAY_LIMIT_DAILY} color="#10b981"/>
-                                                    <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthReceive} limit={INSTAPAY_LIMIT_MONTHLY} color="#10b981" showPct={true}/></div>
+                                                    <ProgressBar used={ipStats.usedTodayReceive} limit={instapayDailyLimit} color="#10b981"/>
+                                                    <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthReceive} limit={instapayMonthlyLimit} color="#10b981" showPct={true}/></div>
                                                 </div>
                                             </div>
                                         );
@@ -2319,6 +3557,7 @@
                                 auth={auth}
                                 firebaseReady={firebaseReady}
                                 saveToLocalStorage={saveToLocalStorage}
+                                setActiveAbuAdiReceipt={setActiveAbuAdiReceipt}
                             />
                         )}
 
@@ -2340,12 +3579,12 @@
                                 currentMonthStr={currentMonthStr}
                                 showToast={showToast}
                                 getPersonBalance={getPersonBalance}
-                                LINES_LIMIT_DAILY={LINES_LIMIT_DAILY}
-                                LINES_LIMIT_MONTHLY={LINES_LIMIT_MONTHLY}
-                                VISA_LIMIT_DAILY={VISA_LIMIT_DAILY}
-                                VISA_LIMIT_MONTHLY={VISA_LIMIT_MONTHLY}
-                                INSTAPAY_LIMIT_DAILY={INSTAPAY_LIMIT_DAILY}
-                                INSTAPAY_LIMIT_MONTHLY={INSTAPAY_LIMIT_MONTHLY}
+                                LINES_LIMIT_DAILY={vodDailyLimit}
+                                LINES_LIMIT_MONTHLY={linesMonthlyLimit}
+                                VISA_LIMIT_DAILY={visaDailyLimit}
+                                VISA_LIMIT_MONTHLY={visaMonthlyLimit}
+                                INSTAPAY_LIMIT_DAILY={instapayDailyLimit}
+                                INSTAPAY_LIMIT_MONTHLY={instapayMonthlyLimit}
                             />
                         )}
 
@@ -2369,11 +3608,18 @@
                             db={db} auth={auth} firebaseReady={firebaseReady}
                             isAdmin={isAdmin} showToast={showToast}
                             saveToLocalStorage={saveToLocalStorage}
+                            vodDailyLimit={vodDailyLimit}       setVodDailyLimit={setVodDailyLimit}
+                            linesMonthlyLimit={linesMonthlyLimit}   setLinesMonthlyLimit={setLinesMonthlyLimit}
+                            visaDailyLimit={visaDailyLimit}         setVisaDailyLimit={setVisaDailyLimit}
+                            visaMonthlyLimit={visaMonthlyLimit}     setVisaMonthlyLimit={setVisaMonthlyLimit}
+                            instapayDailyLimit={instapayDailyLimit} setInstapayDailyLimit={setInstapayDailyLimit}
+                            instapayMonthlyLimit={instapayMonthlyLimit} setInstapayMonthlyLimit={setInstapayMonthlyLimit}
+                            formatNum={formatNum}
                         />
                     )}
 
                     {/* Bottom Nav */}
-                    <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(5,7,15,0.92)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderTop:"1px solid var(--border-dim)",display:"flex",padding:"8px 0 12px",zIndex:100}}>
+                    <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(5,7,15,0.92)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderTop:"1px solid var(--border-dim)",display:"flex",paddingTop:8,paddingBottom:"calc(12px + env(safe-area-inset-bottom, 0px))",paddingLeft:"env(safe-area-inset-left, 0px)",paddingRight:"env(safe-area-inset-right, 0px)",zIndex:100}}>
                         {displayTabs.map(item=>(
                             <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"5px 0"}}>
                                 <span style={{fontSize:20,filter: tab===item.id?"drop-shadow(0 0 6px rgba(34,211,238,0.6))":"none",transition:"filter 0.2s ease"}}>{item.icon}</span>
@@ -2385,7 +3631,7 @@
 
                     {/* MODAL: Add Transaction */}
                     {modal==="addTxn" && (
-                        <Modal title="إضافة عملية جديدة" onClose={() => setModal(null)}>
+                        <Modal title="إضافة عملية جديدة" onClose={() => { setModal(null); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); }}>
                             {/* 1. حقل اللصق الذكي (Smart Paste) في بداية الفورم */}
                             <div style={{ marginBottom: 20, background: "#162545", padding: 15, borderRadius: 12, border: "1px dashed #1e3a5f" }}>
                                 <label style={{ display: "block", fontSize: 13, color: "#22d3ee", marginBottom: 8, fontWeight: "bold" }}>
@@ -2608,29 +3854,97 @@
                             )}
 
                             <Field label="اختر الخط أو الفيزا">
+                                {/* ⭐ تنبيه: جميع الخطوط عند الحد */}
+                                {autoRouting.allAtLimit && (
+                                    <div style={{
+                                        display: "flex", alignItems: "center", gap: 8,
+                                        background: "#ef444415", border: "1px solid #ef444440",
+                                        borderRadius: 10, padding: "8px 12px", marginBottom: 8,
+                                        fontSize: 12, color: "#ef4444", fontWeight: 700
+                                    }}>
+                                        <span>⚠️</span>
+                                        <span>تنبيه: جميع الخطوط تقترب من حدها الأقصى أو لا تمتلك رصيداً كافياً</span>
+                                    </div>
+                                )}
+                                {/* ⭐ شارة الاقتراح الذكي */}
+                                {autoRouting.suggestedId && !autoRouting.userOverrode && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                                        <span className="smart-badge">
+                                            <span className="smart-badge-dot"/>
+                                            💡 مقترح ذكي — الأنسب للعملية
+                                        </span>
+                                        <span style={{ fontSize: 10, color: "#64748b" }}>يمكنك تغييره يدوياً</span>
+                                    </div>
+                                )}
+                                {autoRouting.suggestedId && autoRouting.userOverrode && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                                        <span style={{ fontSize: 10, background: "#3b82f620", border: "1px solid #3b82f640", borderRadius: 20, padding: "2px 10px", color: "#3b82f6", fontWeight: 700 }}>
+                                            ✏️ اختيار يدوي
+                                        </span>
+                                        <button
+                                            onClick={() => {
+                                                setAutoRouting(prev => ({ ...prev, userOverrode: false }));
+                                                const result = getSmartRoute(form.amount, form.type);
+                                                if (result.suggestedId) {
+                                                    const sel = sources.find(s => s.id === result.suggestedId);
+                                                    setForm(f => ({ ...f, sourceId: result.suggestedId, sourceType: sel ? sel.type : "line" }));
+                                                    setAutoRouting({ suggestedId: result.suggestedId, allAtLimit: false, userOverrode: false });
+                                                }
+                                            }}
+                                            style={{ fontSize: 10, background: "none", border: "none", color: "#a78bfa", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                                        >↩ استعادة الاقتراح الذكي</button>
+                                    </div>
+                                )}
                                 <select
                                     value={form.sourceId}
                                     onChange={e => {
                                         const sel = sources.find(s => s.id === e.target.value);
                                         setForm({...form, sourceId: e.target.value, sourceType: sel ? sel.type : "line"});
+                                        // المستخدم غيّر يدوياً → ضع علامة override
+                                        if (e.target.value !== autoRouting.suggestedId) {
+                                            setAutoRouting(prev => ({ ...prev, userOverrode: true }));
+                                        } else {
+                                            setAutoRouting(prev => ({ ...prev, userOverrode: false }));
+                                        }
                                     }}
-                                    style={{ width: "100%", background: "#0f1e3d", border: "1px solid #1e3a5f", borderRadius: 10, padding: 11, color: "#e2e8f0" }}
+                                    style={{
+                                        width: "100%",
+                                        background: autoRouting.suggestedId && !autoRouting.userOverrode
+                                            ? "linear-gradient(135deg,#1a0a3d,#0f1e3d)"
+                                            : "#0f1e3d",
+                                        border: autoRouting.suggestedId && !autoRouting.userOverrode
+                                            ? "1px solid #a78bfa60"
+                                            : "1px solid #1e3a5f",
+                                        borderRadius: 10,
+                                        padding: 11,
+                                        color: "#e2e8f0",
+                                        boxShadow: autoRouting.suggestedId && !autoRouting.userOverrode
+                                            ? "0 0 0 2px #a78bfa20"
+                                            : "none",
+                                        transition: "all 0.3s ease"
+                                    }}
                                 >
                                     <option value="">-- اختر خط العملية --</option>
                                     <optgroup label="📱 الخطوط">
                                         {lines.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} (رصيده: {formatNum(s.balance || 0)} ج)</option>
+                                            <option key={s.id} value={s.id}>
+                                                {s.id === autoRouting.suggestedId ? "💡 " : ""}{s.name} (رصيده: {formatNum(s.balance || 0)} ج)
+                                            </option>
                                         ))}
                                     </optgroup>
                                     <optgroup label="💳 فيزا فوري">
                                         {visas.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} (رصيده: {formatNum(s.balance || 0)} ج)</option>
+                                            <option key={s.id} value={s.id}>
+                                                {s.id === autoRouting.suggestedId ? "💡 " : ""}{s.name} (رصيده: {formatNum(s.balance || 0)} ج)
+                                            </option>
                                         ))}
                                     </optgroup>
                                     {instaPays.length > 0 && (
                                         <optgroup label="⚡ إنستا باي">
                                             {instaPays.map(s => (
-                                                <option key={s.id} value={s.id}>{s.name} (رصيده: {formatNum(s.balance || 0)} ج)</option>
+                                                <option key={s.id} value={s.id}>
+                                                    {s.id === autoRouting.suggestedId ? "💡 " : ""}{s.name} (رصيده: {formatNum(s.balance || 0)} ج)
+                                                </option>
                                             ))}
                                         </optgroup>
                                     )}
@@ -2821,6 +4135,40 @@
                             onClose={()=>setModal(null)}
                         />
                     )}
+
+                    {/* 🖨️ MODAL: Thermal Receipt */}
+                    {activeReceipt && (
+                        <ThermalReceiptModal
+                            txn={activeReceipt}
+                            lines={lines}
+                            visas={visas}
+                            instaPays={instaPays}
+                            formatNum={formatNum}
+                            onClose={()=>setActiveReceipt(null)}
+                        />
+                    )}
+
+                    {/* 🖨️ MODAL: AbuAdi Receipt */}
+                    {activeAbuAdiReceipt && (
+                        <AbuAdiReceiptModal
+                            day={activeAbuAdiReceipt.day}
+                            totalHistoryPaid={activeAbuAdiReceipt.totalHistoryPaid}
+                            onClose={()=>setActiveAbuAdiReceipt(null)}
+                        />
+                    )}
+
+                    {/* 🖨️ MODAL: Customer Receipt */}
+                    {activeCustomerReceipt && (
+                        <CustomerReceiptModal
+                            person={activeCustomerReceipt}
+                            getPersonBalance={getPersonBalance}
+                            formatNum={formatNum}
+                            onClose={()=>setActiveCustomerReceipt(null)}
+                        />
+                    )}
+
+                    {/* Hidden print container */}
+                    <div id="thermal-receipt-print" aria-hidden="true"/>
                 </div>
             );
         }
@@ -2838,7 +4186,8 @@
             db, auth, firebaseReady,
             saveToLocalStorage,
             canEdit = false,
-            isAdmin = false
+            isAdmin = false,
+            setActiveAbuAdiReceipt = null
         }) {
             // ── حسابات اليوم الحالي ──────────────────────────────────
             const todayStr = new Date().toISOString().slice(0, 10);
@@ -2853,6 +4202,8 @@
             // ── عرض السجل التاريخي ───────────────────────────────────
             const [showHistory, setShowHistory] = useState(false);
             const [historyDetailDate, setHistoryDetailDate] = useState(null); // dateStr لعرض التفاصيل
+            const [dayNote, setDayNote] = useState(""); // ملاحظات اليوم قبل الأرشفة
+            const [historyFilter, setHistoryFilter] = useState(""); // فلتر التاريخ YYYY-MM-DD
 
             function nowMsStr() {
                 const d = new Date();
@@ -2867,7 +4218,7 @@
             }
 
             // ── دالة الأرشفة اليومية (تحفظ اليوم في السجل التاريخي) ──
-            function archiveToday(onDone) {
+            function archiveToday(onDone, noteOverride) {
                 if (totalPaid === 0 && target === 0) {
                     showToast("لا توجد بيانات لأرشفتها اليوم", "error");
                     return;
@@ -2881,6 +4232,7 @@
                     remaining: Math.max(0, target - totalPaid),
                     settled: target > 0 && totalPaid >= target,
                     paymentsCount: todayPayments.length,
+                    note: (noteOverride !== undefined ? noteOverride : dayNote).trim(),
                     // نحفظ الدفعات بدون الـ audio لتوفير المساحة
                     payments: todayPayments.map(p => ({ id: p.id, amount: p.amount, label: p.label, ts: p.ts })),
                     archivedAt: new Date().toISOString(),
@@ -2913,14 +4265,16 @@
             // ── إنهاء اليوم: أرشفة ثم تصفير ─────────────────────────
             function closeDay() {
                 if (!window.confirm(`هيتم أرشفة يوم ${todayStr} (هدف: ${formatNum(target)} ج | تم: ${formatNum(totalPaid)} ج) ثم تصفير اليوم. متأكد؟`)) return;
+                const noteToSave = dayNote.trim();
                 archiveToday(() => {
                     // تصفير دفعات اليوم فقط — الدفعات السابقة (لو موجودة) تفضل
                     setPayments(prev => prev.filter(p => new Date(p.ts).toISOString().slice(0, 10) !== todayStr));
                     setTarget(0);
                     setTargetInput("");
+                    setDayNote("");
                     if (setAbuadiDate) setAbuadiDate(todayStr);
                     showToast(`✅ تم أرشفة يوم ${todayStr} وتصفير الحساب`);
-                });
+                }, noteToSave);
             }
 
             // ── تصفير اليوم بدون أرشفة (طلب صريح من الأدمن) ─────────
@@ -2988,6 +4342,8 @@
             function addPayment() {
                 const amt = parseFloat(amountInput);
                 if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح","error"); return; }
+                // ⭐ Haptic feedback — iOS
+                if (navigator.vibrate) navigator.vibrate(15);
                 const newP = {
                     id: Date.now(),
                     amount: amt,
@@ -3020,6 +4376,22 @@
             const historyList = (history || []).slice().sort((a,b) => b.dateStr.localeCompare(a.dateStr));
             const totalHistoryTarget = historyList.reduce((s,h) => s + (h.target||0), 0);
             const totalHistoryPaid   = historyList.reduce((s,h) => s + (h.totalPaid||0), 0);
+
+            // ── إحصائيات آخر 7 أيام والشهر الحالي ──────────────────
+            const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+            const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0,10);
+            const currentMonthPrefix = todayStr.slice(0,7); // YYYY-MM
+            const last7List   = historyList.filter(h => h.dateStr >= sevenDaysAgoStr);
+            const thisMonthList = historyList.filter(h => h.dateStr.startsWith(currentMonthPrefix));
+            const last7Paid     = last7List.reduce((s,h) => s + (h.totalPaid||0), 0);
+            const last7Target   = last7List.reduce((s,h) => s + (h.target||0), 0);
+            const monthPaid     = thisMonthList.reduce((s,h) => s + (h.totalPaid||0), 0);
+            const monthTarget   = thisMonthList.reduce((s,h) => s + (h.target||0), 0);
+
+            // ── الفلترة بالتاريخ ─────────────────────────────────────
+            const filteredHistory = historyFilter
+                ? historyList.filter(h => h.dateStr === historyFilter)
+                : historyList;
 
             // ── يوم التفاصيل ─────────────────────────────────────────
             const detailDay = historyDetailDate ? historyList.find(h => h.dateStr === historyDetailDate) : null;
@@ -3122,17 +4494,31 @@
                             )}
                         </div>
 
-                        {/* ── أزرار إنهاء اليوم (أدمن فقط) ── */}
+                        {/* ── ملاحظات اليوم + أزرار إنهاء اليوم (أدمن فقط) ── */}
                         {canEdit && (
-                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                                <button onClick={closeDay}
-                                    style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:"13px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #10b98130"}}>
-                                    📁 إنهاء اليوم وأرشفة
-                                </button>
-                                <button onClick={()=>archiveToday(()=>showToast(`✅ تم أرشفة يوم ${todayStr}`))}
-                                    style={{background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:"13px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #3b82f630"}}>
-                                    💾 أرشفة بدون تصفير
-                                </button>
+                            <div style={{marginBottom:14}}>
+                                {/* خانة الملاحظات */}
+                                <div style={{marginBottom:10}}>
+                                    <div style={{fontSize:11,color:"#64748b",fontWeight:600,marginBottom:6}}>📝 ملاحظات اليوم (تُحفظ مع الأرشيف)</div>
+                                    <textarea
+                                        value={dayNote}
+                                        onChange={e=>setDayNote(e.target.value)}
+                                        placeholder="مثال: تأخير في التسليم بسبب كذا، أو أي ملاحظة تريد حفظها..."
+                                        rows={2}
+                                        style={{width:"100%",background:"#0a0f1e",border:"1px solid #1e3a5f",borderRadius:10,padding:"10px 14px",color:"#e2e8f0",fontSize:13,outline:"none",resize:"none",textAlign:"right",fontFamily:"'Tajawal',sans-serif",boxSizing:"border-box",lineHeight:1.6}}
+                                    />
+                                </div>
+                                {/* أزرار الإجراءات */}
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                                    <button onClick={closeDay}
+                                        style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:"13px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #10b98130"}}>
+                                        📁 إنهاء اليوم وأرشفة
+                                    </button>
+                                    <button onClick={()=>archiveToday(()=>showToast(`✅ تم أرشفة يوم ${todayStr}`), dayNote.trim())}
+                                        style={{background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:"13px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #3b82f630"}}>
+                                        💾 أرشفة بدون تصفير
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -3228,6 +4614,12 @@
                                                             ✏️
                                                         </button>
                                                     )}
+                                                    {setActiveAbuAdiReceipt && (
+                                                        <button onClick={()=>setActiveAbuAdiReceipt({ day:{ dateStr:todayStr, totalPaid:p.amount, target, remaining, settled, paymentsCount:1, note:p.label, payments:[p], archivedAt:new Date().toISOString() }, totalHistoryPaid })}
+                                                            style={{background:"#0a1628",border:"1px solid #22d3ee30",borderRadius:8,padding:"5px 10px",color:"#22d3ee",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                                            🖨️
+                                                        </button>
+                                                    )}
                                                     {canEdit && (
                                                         <button onClick={()=>deletePayment(p.id)}
                                                             style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"5px 10px",color:"#ef4444",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
@@ -3255,10 +4647,12 @@
                     ══════════════════════════════════════════ */}
                     {showHistory && (
                     <div>
-                        {/* مجاميع الأرشيف الكلية */}
+                        {/* ── كروت إحصائية سريعة (Widgets) ── */}
                         {historyList.length > 0 && (
-                            <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #a78bfa40",borderRadius:14,padding:16,marginBottom:14}}>
-                                <div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:10}}>📊 الإجمالي التراكمي الكلي</div>
+                        <div style={{marginBottom:14}}>
+                            {/* الإجمالي التراكمي الكلي */}
+                            <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #a78bfa40",borderRadius:14,padding:14,marginBottom:10}}>
+                                <div style={{fontSize:11,color:"#a78bfa",fontWeight:700,marginBottom:10}}>📊 الإجمالي التراكمي الكلي</div>
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
                                     <div style={{background:"#0a0f1e",borderRadius:10,padding:10,textAlign:"center",border:"1px solid #a78bfa30"}}>
                                         <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>إجمالي الأيام</div>
@@ -3274,6 +4668,52 @@
                                     </div>
                                 </div>
                             </div>
+
+                            {/* آخر 7 أيام */}
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:0}}>
+                                <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #22d3ee30",borderRadius:14,padding:14}}>
+                                    <div style={{fontSize:10,color:"#22d3ee",fontWeight:700,marginBottom:8}}>📅 آخر 7 أيام</div>
+                                    <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>{last7List.length} يوم مسجّل</div>
+                                    <div style={{fontSize:16,fontWeight:900,color:"#10b981",marginBottom:2}}>{formatNum(last7Paid)} ج</div>
+                                    <div style={{fontSize:10,color:"#3d4f65"}}>من مستهدف {formatNum(last7Target)} ج</div>
+                                    {last7Target > 0 && (
+                                        <div style={{marginTop:8,background:"#0a0c16",borderRadius:99,height:4,overflow:"hidden"}}>
+                                            <div style={{width:`${Math.min(100,(last7Paid/last7Target)*100)}%`,height:"100%",background:"#22d3ee",borderRadius:99}}/>
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #f59e0b30",borderRadius:14,padding:14}}>
+                                    <div style={{fontSize:10,color:"#f59e0b",fontWeight:700,marginBottom:8}}>📆 الشهر الحالي</div>
+                                    <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>{thisMonthList.length} يوم مسجّل</div>
+                                    <div style={{fontSize:16,fontWeight:900,color:"#10b981",marginBottom:2}}>{formatNum(monthPaid)} ج</div>
+                                    <div style={{fontSize:10,color:"#3d4f65"}}>من مستهدف {formatNum(monthTarget)} ج</div>
+                                    {monthTarget > 0 && (
+                                        <div style={{marginTop:8,background:"#0a0c16",borderRadius:99,height:4,overflow:"hidden"}}>
+                                            <div style={{width:`${Math.min(100,(monthPaid/monthTarget)*100)}%`,height:"100%",background:"#f59e0b",borderRadius:99}}/>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        )}
+
+                        {/* ── فلتر التاريخ ── */}
+                        {historyList.length > 0 && (
+                        <div style={{background:"#0a0c16",border:"1px solid #1a2235",borderRadius:12,padding:12,marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
+                            <div style={{fontSize:11,color:"#3d4f65",fontWeight:600,flexShrink:0}}>🔍 فلتر:</div>
+                            <input
+                                type="date"
+                                value={historyFilter}
+                                onChange={e=>{ setHistoryFilter(e.target.value); setHistoryDetailDate(null); }}
+                                style={{flex:1,background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:8,padding:"7px 10px",color:"#c8d6e8",fontSize:13,outline:"none",fontFamily:"'Tajawal',sans-serif"}}
+                            />
+                            {historyFilter && (
+                                <button onClick={()=>{setHistoryFilter("");setHistoryDetailDate(null);}}
+                                    style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"6px 12px",color:"#ef4444",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"'Tajawal',sans-serif",flexShrink:0}}>
+                                    ✕ كل الأيام
+                                </button>
+                            )}
+                        </div>
                         )}
 
                         {/* ── عرض تفاصيل يوم محدد ── */}
@@ -3309,6 +4749,13 @@
                                         </div>
                                     </div>
                                 )}
+                                {/* ملاحظات اليوم */}
+                                {detailDay.note && (
+                                    <div style={{background:"#0a0f1e",border:"1px solid #f59e0b20",borderRadius:10,padding:"10px 14px",marginBottom:10}}>
+                                        <div style={{fontSize:10,color:"#f59e0b",fontWeight:700,marginBottom:4}}>📝 ملاحظات:</div>
+                                        <div style={{fontSize:12,color:"#94a3b8",lineHeight:1.7}}>{detailDay.note}</div>
+                                    </div>
+                                )}
                                 {/* قائمة الدفعات */}
                                 {(detailDay.payments||[]).length > 0 && (
                                     <div>
@@ -3328,14 +4775,16 @@
                         )}
 
                         {/* ── جدول الأيام السابقة ── */}
-                        {historyList.length === 0 ? (
+                        {filteredHistory.length === 0 ? (
                             <div style={{textAlign:"center",color:"#334155",padding:"40px 20px",background:"#0a0c16",borderRadius:14,border:"1px dashed #1a2235"}}>
-                                <div style={{fontSize:36,marginBottom:10}}>📭</div>
-                                <div style={{fontSize:13,color:"#3d4f65"}}>لا يوجد سجل تاريخي بعد</div>
-                                <div style={{fontSize:11,color:"#1e3a5f",marginTop:6}}>اضغط "إنهاء اليوم وأرشفة" بعد الانتهاء من كل يوم</div>
+                                <div style={{fontSize:36,marginBottom:10}}>{historyFilter ? "🔍" : "📭"}</div>
+                                <div style={{fontSize:13,color:"#3d4f65"}}>
+                                    {historyFilter ? `لا يوجد سجل ليوم ${historyFilter}` : "لا يوجد سجل تاريخي بعد"}
+                                </div>
+                                {!historyFilter && <div style={{fontSize:11,color:"#1e3a5f",marginTop:6}}>اضغط "إنهاء اليوم وأرشفة" بعد الانتهاء من كل يوم</div>}
                             </div>
                         ) : (
-                            historyList.map((day) => {
+                            filteredHistory.map((day) => {
                                 const dayPct = day.target > 0 ? Math.min(100,(day.totalPaid/day.target)*100) : 0;
                                 const isSelected = historyDetailDate === day.dateStr;
                                 return (
@@ -3353,6 +4802,12 @@
                                                     {day.settled?"✅":"📅"} {fmtDate(day.dateStr)}
                                                 </div>
                                                 <div style={{fontSize:10,color:"#3d4f65",marginTop:2}}>{day.paymentsCount} دفعة</div>
+                                                {/* معاينة الملاحظة في الكرت */}
+                                                {day.note && (
+                                                    <div style={{fontSize:10,color:"#f59e0b",marginTop:3,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                                        📝 {day.note}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div style={{textAlign:"left"}}>
                                                 <div style={{fontSize:15,fontWeight:900,color:"#10b981"}}>{formatNum(day.totalPaid)} ج</div>
@@ -3368,6 +4823,13 @@
                                             <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                 {!day.settled && day.remaining > 0 && (
                                                     <span style={{fontSize:10,color:"#ef4444"}}>متبقي {formatNum(day.remaining)}</span>
+                                                )}
+                                                {setActiveAbuAdiReceipt && (
+                                                    <button
+                                                        onClick={(e)=>{e.stopPropagation();setActiveAbuAdiReceipt({day, totalHistoryPaid});}}
+                                                        style={{background:"#0a1628",border:"1px solid #22d3ee30",borderRadius:6,padding:"2px 8px",color:"#22d3ee",fontSize:11,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                                        🖨️
+                                                    </button>
                                                 )}
                                                 {isAdmin && (
                                                     <button
@@ -3459,12 +4921,141 @@
             return new TextDecoder().decode(dec);
         }
 
+        // ── خانة إدخال الحد اليومي لفودافون — بارزة ومباشرة دائماً ────
+        function VodDailyLimitEditor({ value, onSave }) {
+            const [draft, setDraft] = React.useState(String(value));
+            const [saved, setSaved] = React.useState(false);
+
+            React.useEffect(() => { setDraft(String(value)); }, [value]);
+
+            const QUICK = [30000, 40000, 50000, 60000, 70000, 80000];
+
+            const commit = () => {
+                const v = parseFloat(String(draft).replace(/[^0-9.]/g, ""));
+                if (!v || v <= 0) { setDraft(String(value)); return; }
+                onSave(Math.round(v));
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2000);
+            };
+
+            return (
+                <div>
+                    {/* خانة الإدخال المباشرة */}
+                    <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                        <input
+                            type="number"
+                            value={draft}
+                            onChange={e => { setDraft(e.target.value); setSaved(false); }}
+                            onKeyPress={e => { if(e.key === "Enter") commit(); }}
+                            placeholder="مثال: 60000"
+                            style={{
+                                flex:1, background:"#0a0f1e", border:"2px solid #22d3ee50",
+                                borderRadius:10, padding:"13px 16px", color:"#e2e8f0",
+                                fontSize:17, fontWeight:700, outline:"none",
+                                textAlign:"right", fontFamily:"'Tajawal',sans-serif",
+                                boxSizing:"border-box"
+                            }}
+                        />
+                        <button onClick={commit} style={{
+                            background: saved ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#22d3ee,#0891b2)",
+                            border:"none", borderRadius:10, padding:"13px 20px",
+                            color:"#0a0c16", fontWeight:900, fontSize:15,
+                            cursor:"pointer", fontFamily:"'Tajawal',sans-serif",
+                            flexShrink:0, minWidth:80, transition:"all 0.2s"
+                        }}>
+                            {saved ? "✅ تم" : "💾 حفظ"}
+                        </button>
+                    </div>
+                    {/* أزرار اختيار سريع */}
+                    <div style={{ marginBottom:4 }}>
+                        <div style={{ fontSize:10, color:"#3d4f65", marginBottom:6, fontWeight:600 }}>⚡ اختيار سريع:</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                            {QUICK.map(q => (
+                                <button key={q} onClick={() => { setDraft(String(q)); onSave(q); setSaved(true); setTimeout(()=>setSaved(false),2000); }}
+                                    style={{
+                                        background: value === q ? "linear-gradient(135deg,#22d3ee,#0891b2)" : "#0a0f1e",
+                                        border: `1px solid ${value === q ? "#22d3ee" : "#1e3a5f"}`,
+                                        borderRadius:8, padding:"6px 14px",
+                                        color: value === q ? "#0a0c16" : "#94a3b8",
+                                        fontSize:12, fontWeight: value === q ? 700 : 400,
+                                        cursor:"pointer", fontFamily:"'Tajawal',sans-serif",
+                                        transition:"all 0.15s"
+                                    }}>
+                                    {(q/1000).toFixed(0)}k
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ── مكوّن خانة إدخال الحد الديناميكي ────────────────────────────
+        function LimitInput({ label, value, color, onSave, formatNum, isAdmin }) {
+            const [editing, setEditing] = React.useState(false);
+            const [draft, setDraft] = React.useState(String(value));
+
+            // مزامنة draft لو تغيّرت القيمة من الخارج (Firebase)
+            React.useEffect(() => { if (!editing) setDraft(String(value)); }, [value, editing]);
+
+            const commit = () => {
+                const v = parseFloat(draft.replace(/[^0-9.]/g, ""));
+                if (!v || v <= 0) { setDraft(String(value)); setEditing(false); return; }
+                onSave(Math.round(v));
+                setEditing(false);
+            };
+
+            const iStyle = {
+                width:"100%", background:"#0a0f1e", border:`1px solid ${color}50`,
+                borderRadius:8, padding:"8px 10px", color:"#e2e8f0", fontSize:13,
+                outline:"none", textAlign:"right", fontFamily:"'Tajawal',sans-serif",
+                boxSizing:"border-box"
+            };
+
+            return (
+                <div style={{background:"#080c14",border:`1px solid ${color}20`,borderRadius:10,padding:10}}>
+                    <div style={{fontSize:10,color:"#475569",marginBottom:5,fontWeight:600}}>{label}</div>
+                    {editing && isAdmin ? (
+                        <div style={{display:"flex",gap:6}}>
+                            <input
+                                type="number" value={draft}
+                                onChange={e=>setDraft(e.target.value)}
+                                onKeyPress={e=>{ if(e.key==="Enter") commit(); }}
+                                autoFocus style={iStyle}
+                            />
+                            <button onClick={commit}
+                                style={{background:`linear-gradient(135deg,${color},${color}bb)`,border:"none",borderRadius:8,padding:"8px 12px",color:"#0a0c16",fontWeight:700,cursor:"pointer",fontSize:12,flexShrink:0}}>
+                                ✓
+                            </button>
+                        </div>
+                    ) : (
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                            <div style={{fontSize:15,fontWeight:800,color}}>{formatNum(value)} ج</div>
+                            {isAdmin && (
+                                <button onClick={()=>{setDraft(String(value));setEditing(true);}}
+                                    style={{background:"none",border:`1px solid ${color}30`,borderRadius:7,padding:"4px 10px",color,fontSize:11,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                    ✏️ تعديل
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         function BackupRestoreScreen({
             lines, visas, instaPays, transactions, people,
             capital, financeLogs, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
             setLines, setVisas, setInstaPays, setTransactions, setPeople,
             setCapital, setFinanceLogs, setAbuadiTarget, setAbuadiPayments, setAbuadiDate, setAbuadiHistory,
-            db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage
+            db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage,
+            vodDailyLimit,    setVodDailyLimit,
+            linesMonthlyLimit,  setLinesMonthlyLimit,
+            visaDailyLimit,     setVisaDailyLimit,
+            visaMonthlyLimit,   setVisaMonthlyLimit,
+            instapayDailyLimit, setInstapayDailyLimit,
+            instapayMonthlyLimit, setInstapayMonthlyLimit,
+            formatNum
         }) {
             const [status, setStatus] = useState({ msg: "", type: "" });
             const [loading, setLoading] = useState(false);
@@ -3733,6 +5324,88 @@
                             {status.msg}
                         </div>
                     )}
+
+                    {/* ─── قسم 0: الحد اليومي لخطوط فودافون — الأهم والأكثر تغيراً ─── */}
+                    <div style={{ background: "linear-gradient(135deg,#0a1628,#0d1525)", border: "2px solid #22d3ee40", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: "#22d3ee", marginBottom: 4 }}>📱 الحد اليومي لخطوط فودافون كاش اليوم</div>
+                        <div style={{ fontSize: 11, color: "#3d4f65", marginBottom: 14, lineHeight: 1.7 }}>
+                            هذا الرقم يتغير يومياً بقرار فودافون — عدّله مباشرة هنا. تُحفظ القيمة تلقائياً وتُحدَّث على جميع الأجهزة فوراً عبر Firebase.
+                        </div>
+
+                        {/* القيمة الحالية */}
+                        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                            <div style={{ flex:1, background:"#080c14", border:"1px solid #22d3ee30", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
+                                <div style={{ fontSize:10, color:"#3d4f65", marginBottom:2 }}>الحد الحالي المُفعَّل</div>
+                                <div style={{ fontSize:22, fontWeight:900, color:"#22d3ee" }}>{formatNum ? formatNum(vodDailyLimit) : vodDailyLimit.toLocaleString()} ج</div>
+                            </div>
+                            <div style={{ fontSize:20, color:"#1e3a5f" }}>→</div>
+                            <div style={{ flex:1, background:"#080c14", border:"1px solid #10b98130", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
+                                <div style={{ fontSize:10, color:"#3d4f65", marginBottom:2 }}>الحد الشهري</div>
+                                <div style={{ fontSize:16, fontWeight:700, color:"#10b981" }}>{formatNum ? formatNum(linesMonthlyLimit) : linesMonthlyLimit.toLocaleString()} ج</div>
+                            </div>
+                        </div>
+
+                        {/* خانة الإدخال المباشرة */}
+                        {isAdmin && (
+                            <VodDailyLimitEditor
+                                value={vodDailyLimit}
+                                onSave={(v) => { setVodDailyLimit(v); showToast(`✅ الحد اليومي أصبح ${v.toLocaleString()} ج`); }}
+                            />
+                        )}
+                        {!isAdmin && (
+                            <div style={{ fontSize:11, color:"#475569", textAlign:"center", background:"#0a0c16", borderRadius:8, padding:"8px 12px" }}>
+                                🔒 تعديل الحد اليومي متاح للمدير الرئيسي فقط
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ─── قسم 0b: بقية الحدود الديناميكية ─── */}
+                    <div style={{ background: "#0d1120", border: "1px solid #f59e0b25", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>⚙️ باقي حدود المحافظ</div>
+                        <div style={{ fontSize: 11, color: "#3d4f65", marginBottom: 14, lineHeight: 1.7 }}>
+                            الحد الشهري لفودافون وحدود فوري وإنستا باي — عدّلها عند الحاجة.
+                        </div>
+
+                        {/* الحد الشهري لفودافون */}
+                        <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, color: "#22d3ee", fontWeight: 700, marginBottom: 6 }}>📱 فودافون — الحد الشهري</div>
+                            <LimitInput label="الحد الشهري (ج)" value={linesMonthlyLimit} color="#22d3ee"
+                                onSave={(v) => { setLinesMonthlyLimit(v); showToast("✓ تم حفظ الحد الشهري لفودافون"); }}
+                                formatNum={formatNum} isAdmin={isAdmin} />
+                        </div>
+
+                        {/* فيزا فوري */}
+                        <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, color: "#a78bfa", fontWeight: 700, marginBottom: 6 }}>💳 فيزا فوري</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                <LimitInput label="يومي (ج)" value={visaDailyLimit} color="#a78bfa"
+                                    onSave={(v) => { setVisaDailyLimit(v); showToast("✓ تم حفظ الحد اليومي لفوري"); }}
+                                    formatNum={formatNum} isAdmin={isAdmin} />
+                                <LimitInput label="شهري (ج)" value={visaMonthlyLimit} color="#a78bfa"
+                                    onSave={(v) => { setVisaMonthlyLimit(v); showToast("✓ تم حفظ الحد الشهري لفوري"); }}
+                                    formatNum={formatNum} isAdmin={isAdmin} />
+                            </div>
+                        </div>
+
+                        {/* إنستا باي */}
+                        <div>
+                            <div style={{ fontSize: 11, color: "#10b981", fontWeight: 700, marginBottom: 6 }}>⚡ إنستا باي</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                <LimitInput label="يومي (ج)" value={instapayDailyLimit} color="#10b981"
+                                    onSave={(v) => { setInstapayDailyLimit(v); showToast("✓ تم حفظ الحد اليومي لإنستا باي"); }}
+                                    formatNum={formatNum} isAdmin={isAdmin} />
+                                <LimitInput label="شهري (ج)" value={instapayMonthlyLimit} color="#10b981"
+                                    onSave={(v) => { setInstapayMonthlyLimit(v); showToast("✓ تم حفظ الحد الشهري لإنستا باي"); }}
+                                    formatNum={formatNum} isAdmin={isAdmin} />
+                            </div>
+                        </div>
+
+                        {!isAdmin && (
+                            <div style={{ marginTop:10, fontSize:11, color:"#475569", textAlign:"center", background:"#0a0c16", borderRadius:8, padding:"8px 12px" }}>
+                                🔒 تعديل الحدود متاح للمدير الرئيسي فقط
+                            </div>
+                        )}
+                    </div>
 
                     {/* ─── قسم 1: نسخة احتياطية عادية ─── */}
                     <div style={{ background: "#0d1120", border: "1px solid #22d3ee20", borderRadius: 16, padding: 18, marginBottom: 14 }}>
@@ -4018,6 +5691,13 @@
             VISA_LIMIT_DAILY, VISA_LIMIT_MONTHLY,
             INSTAPAY_LIMIT_DAILY, INSTAPAY_LIMIT_MONTHLY
         }) {
+            // ── LINES_LIMIT_DAILY يُمرَّر من App بالقيمة الديناميكية vodDailyLimit — لا نُعيد تعيينه من الثابت
+            const vodDailyLimit       = LINES_LIMIT_DAILY;   // = vodDailyLimit من App (60,000 افتراضاً)
+            const linesMonthlyLimit   = LINES_LIMIT_MONTHLY;
+            const visaDailyLimit      = VISA_LIMIT_DAILY;
+            const visaMonthlyLimit    = VISA_LIMIT_MONTHLY;
+            const instapayDailyLimit  = INSTAPAY_LIMIT_DAILY;
+            const instapayMonthlyLimit = INSTAPAY_LIMIT_MONTHLY;
             const STORAGE_KEY = "gemini_chat_v1";
             const [messages, setMessages] = useState(() => {
                 try { const s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : []; } catch(e) { return []; }
