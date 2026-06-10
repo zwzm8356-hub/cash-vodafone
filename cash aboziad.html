@@ -3,17 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <!-- iOS PWA Meta Tags -->
+
+    <!-- ══ PWA Core ══ -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#05070f">
+    <meta name="background-color" content="#05070f">
+    <meta name="application-name" content="الحوكر">
+    <meta name="description" content="مدير التحويلات والمالية — فودافون كاش">
+
+    <!-- ══ iOS PWA ══ -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="الحوكر v6">
-    <meta name="theme-color" content="#05070f">
+    <meta name="apple-mobile-web-app-title" content="الحوكر">
+    <!-- Apple Touch Icons (inline SVG-based PNG via data URI) -->
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-startup-image" href="icon-512.png">
+
+    <!-- ══ Android / Chrome ══ -->
     <meta name="mobile-web-app-capable" content="yes">
-    <title>فودافون كاش - مدير التحويلات والمالية</title>
+
+    <!-- ══ Windows / Edge ══ -->
+    <meta name="msapplication-TileColor" content="#05070f">
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <!-- ══ Open Graph (optional but helps share) ══ -->
+    <meta property="og:title" content="الحوكر — مدير فودافون كاش">
+    <meta property="og:description" content="تتبع التحويلات والأرصدة بذكاء">
+    <meta property="og:type" content="website">
+
+    <title>الحوكر — فودافون كاش</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- ══ Inline Manifest fallback (بديل لو manifest.json مش موجود) ══ -->
+    <script id="pwa-manifest-inline">
+    (function() {
+        // Inline manifest as blob — يشتغل حتى لو الملف مرفوع مباشرةً بدون web server
+        const manifest = {
+            name: "الحوكر — مدير فودافون كاش",
+            short_name: "الحوكر",
+            description: "مدير التحويلات والمالية",
+            start_url: "./",
+            display: "standalone",
+            orientation: "portrait-primary",
+            background_color: "#05070f",
+            theme_color: "#05070f",
+            lang: "ar",
+            dir: "rtl",
+            icons: [
+                {
+                    src: "data:image/svg+xml," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='36' fill='%2305070f'/><text x='96' y='130' font-size='110' text-anchor='middle' fill='%23e40000' font-family='serif' font-weight='bold'>V</text></svg>`),
+                    sizes: "192x192",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                },
+                {
+                    src: "data:image/svg+xml," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='%2305070f'/><text x='256' y='350' font-size='290' text-anchor='middle' fill='%23e40000' font-family='serif' font-weight='bold'>V</text></svg>`),
+                    sizes: "512x512",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }
+            ],
+            categories: ["finance", "productivity"],
+            shortcuts: [
+                {
+                    name: "عملية جديدة",
+                    short_name: "جديد",
+                    description: "إضافة عملية تحويل",
+                    url: "./"
+                }
+            ]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], {type: "application/manifest+json"});
+        const url  = URL.createObjectURL(blob);
+        // نفعّل الـ blob manifest لو مفيش manifest.json حقيقي
+        const existing = document.querySelector('link[rel="manifest"]');
+        if (existing) {
+            fetch(existing.href).catch(() => { existing.href = url; });
+        }
+    })();
+    </script>
 
     <style>
         /* ══════════════════════════════════════════
@@ -42,6 +113,28 @@
             --radius-card: 14px;
             --radius-btn:  10px;
         }
+
+
+        /* ══════════════════════════════════════════
+           ☀️  Light Mode — data-theme="light"
+        ══════════════════════════════════════════ */
+        [data-theme="light"] {
+            --bg-void:     #f0f4f8;
+            --bg-deep:     #e8edf3;
+            --bg-card:     #ffffff;
+            --bg-card2:    #f5f8fc;
+            --bg-input:    #edf2f7;
+            --border-dim:  #cbd5e1;
+            --border-glow: #93c5fd;
+            --text-bright: #0f172a;
+            --text-mid:    #475569;
+            --text-dim:    #94a3b8;
+            --glass-bg:    rgba(255,255,255,0.88);
+            --shadow-deep: 0 8px 32px rgba(0,0,0,0.12);
+        }
+        [data-theme="light"] body { background-color: #f0f4f8; }
+        [data-theme="light"] ::-webkit-scrollbar-track { background: #e8edf3; }
+        [data-theme="light"] ::-webkit-scrollbar-thumb { background: #93c5fd; }
 
         * { box-sizing: border-box; }
 
@@ -323,7 +416,7 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root" role="main" aria-label="تطبيق الحوكر — مدير فودافون كاش"></div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
@@ -332,6 +425,46 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+
+        // ══════════════════════════════════════════════════════════════
+        //  🛡️  Error Boundary — يحمي التطبيق من الكراش الكامل
+        // ══════════════════════════════════════════════════════════════
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+            componentDidCatch(error, info) {
+                console.error("🚨 ErrorBoundary caught:", error, info);
+            }
+            render() {
+                if (this.state.hasError) {
+                    return React.createElement("div", {
+                        style: { padding: 32, textAlign: "center", color: "#ef4444", fontFamily: "Tajawal,sans-serif" }
+                    },
+                        React.createElement("div", { style: { fontSize: 40 } }, "⚠️"),
+                        React.createElement("div", { style: { fontSize: 18, fontWeight: 700, marginTop: 12 } }, "حصل خطأ غير متوقع"),
+                        React.createElement("div", { style: { fontSize: 13, color: "#94a3b8", marginTop: 8 } }, String(this.state.error?.message || "")),
+                        React.createElement("button", {
+                            onClick: () => this.setState({ hasError: false, error: null }),
+                            style: { marginTop: 20, background: "#ef444420", border: "1px solid #ef444450", borderRadius: 10, padding: "10px 24px", color: "#ef4444", cursor: "pointer", fontFamily: "Tajawal,sans-serif", fontSize: 14 }
+                        }, "🔄 إعادة المحاولة")
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🌙  Light/Dark Mode — يحفظ التفضيل في localStorage
+        // ══════════════════════════════════════════════════════════════
+        (function initTheme() {
+            const saved = (() => { try { return localStorage.getItem("hawker_theme"); } catch(e) { return null; } })();
+            if (saved === "light") document.documentElement.setAttribute("data-theme", "light");
+        })();
 
         // ══════════════════════════════════════════════════════════════════
         //  🤖  Claude AI — يشتغل تلقائي بدون API Key
@@ -365,9 +498,19 @@
         // ══════════════════════════════════════════════════════════════════
         //  🤖  OpenRouter AI API
         // ══════════════════════════════════════════════════════════════════
-        const OPENROUTER_KEY = "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";
+        // ⭐ OpenRouter Key — محفوظ في localStorage للأمان (مش مكتوب في الكود)
+        function getOpenRouterKey() {
+            try { return localStorage.getItem("openrouter_api_key") || ""; } catch(e) { return ""; }
+        }
+        function setOpenRouterKey(k) {
+            try { localStorage.setItem("openrouter_api_key", k.trim()); } catch(e) {}
+        }
 
         async function callClaudeChat(systemPrompt, history) {
+            const key = getOpenRouterKey();
+            if (!key) {
+                throw new Error("مفيش API Key — روح تبويب AI وأضف مفتاح OpenRouter");
+            }
             const messages = [
                 { role: "user", content: `[تعليمات النظام]:\n${systemPrompt}\n\nحاضر.` },
                 { role: "assistant", content: "حاضر، هتبعت على حسب التعليمات دي." },
@@ -391,7 +534,7 @@
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
-                            "Authorization": `Bearer ${OPENROUTER_KEY}`,
+                            "Authorization": `Bearer ${getOpenRouterKey()}`,
                             "HTTP-Referer": "https://hawker-app.local",
                             "X-Title": "Hawker AI"
                         },
@@ -476,6 +619,14 @@
             return `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
         }
         function formatNum(n) { return Number(n).toLocaleString("ar-EG"); }
+
+        // ⭐ Privacy Mask — يخفي الأرقام في وضع الشارع
+        function maskNum(n, isPrivate) {
+            if (!isPrivate) return formatNum(n);
+            const s = String(Math.round(Number(n)));
+            if (s.length <= 2) return "**";
+            return "*".repeat(s.length - 2) + s.slice(-2);
+        }
         function formatDateOnly(dateStr) {
             if (!dateStr) return "";
             const parts = dateStr.split(" ");
@@ -740,8 +891,13 @@
                 const dayLogs = financeLogs.filter(l => l.date === day.dateStr || (l.monthDate && l.date === day.dateStr));
                 // أرباح من العمليات: عمولات السحب (bank: 1%, fawri: 0.57%+15)
                 const dayTxns   = transactions.filter(t => t.date === day.dateStr);
-                const bankComm  = dayTxns.filter(t => t.type === "bank_withdraw").reduce((s, t) => s + (t.amount || 0) * 0.01, 0);
-                const fawriComm = dayTxns.filter(t => t.type === "fawri_withdraw").reduce((s, t) => s + (t.amount || 0) * 0.0057 + 15, 0);
+                // ⭐ نسب العمولات من الـ Settings (قابلة للتعديل) مع fallback للقيم الافتراضية
+                const _commSettings = (() => { try { const s = localStorage.getItem("commissionSettings"); return s ? JSON.parse(s) : null; } catch(e) { return null; } })();
+                const _bankRate  = _commSettings?.bankWithdrawRate  ?? 0.002;
+                const _fawriRate = _commSettings?.fawriWithdrawRate ?? 0.0057;
+                const _fawriFixed = _commSettings?.fawriWithdrawFixed ?? 15;
+                const bankComm  = dayTxns.filter(t => t.type === "bank_withdraw").reduce((s, t) => s + (t.amount || 0) * _bankRate, 0);
+                const fawriComm = dayTxns.filter(t => t.type === "fawri_withdraw").reduce((s, t) => s + (t.amount || 0) * _fawriRate + _fawriFixed, 0);
                 // دخل من finance logs يومي
                 const logIncome = dayLogs.filter(l => l.type === "income").reduce((s, l) => s + (l.amount || 0), 0);
                 const logExpense = dayLogs.filter(l => l.type === "expense").reduce((s, l) => s + (l.amount || 0), 0);
@@ -941,7 +1097,7 @@
         function ThermalReceiptModal({ txn, lines, visas, instaPays, formatNum, onClose }) {
             if (!txn) return null;
 
-            const typeLabels = { transfer:"تحويل (سحب)", receive:"استلام (إيداع)", bank_withdraw:"سحب بنك", fawri_withdraw:"سحب فوري" };
+            const typeLabels = { transfer:"تحويل (سحب)", receive:"استلام (إيداع)", bank_withdraw:"سحب بنك", fawri_withdraw:"سحب فوري", fawri_transfer:"تحويل إلى فوري" };
             const typeLabel  = typeLabels[txn.type] || txn.type;
             const allSrcs    = [...(lines||[]), ...(visas||[]), ...(instaPays||[])];
             const srcName    = txn.sourceId ? (allSrcs.find(s=>s.id===txn.sourceId)?.name || txn.sourceId) : "—";
@@ -1282,8 +1438,8 @@
             const [showPassword, setShowPassword] = useState(false);
 
             const ADMIN_EMAIL     = "ziad@gmail.com";
-            const ASSISTANT_EMAIL = "assistant@gmail.com"; // ⭐ غيّر للإيميل الفعلي للمساعد
-            const VIEWER_EMAIL    = "omar@gmail.com";
+            const ASSISTANT_EMAIL = "omar@gmail.com"; // ⭐ غيّر للإيميل الفعلي للمساعد
+            const VIEWER_EMAIL    = "viewer@gmail.com";
 
             const handleLogin = async () => {
                 if (!email.trim() || !password.trim()) {
@@ -1372,7 +1528,281 @@
             );
         }
 
-        function App() {
+        // ══════════════════════════════════════════════════════════════
+        //  ⚡  QuickAddModal — إضافة عملية سريعة بـ 3 حقول
+        // ══════════════════════════════════════════════════════════════
+        function QuickAddModal({ sources, onSave, onClose, showToast, commissionSettings }) {
+            const [amount, setAmount] = useState("");
+            const [toNumber, setToNumber] = useState("");
+            const [sourceId, setSourceId] = useState(sources[0]?.id || "");
+            const [type, setType] = useState("transfer");
+            const fawriRate = commissionSettings?.fawriWithdrawRate ?? 0.0057;
+            const fawriFixed = commissionSettings?.fawriWithdrawFixed ?? 15;
+            const bankRate = commissionSettings?.bankWithdrawRate ?? 0.002;
+
+            function calcCommission() {
+                const amt = parseFloat(amount) || 0;
+                if (!amt) return null;
+                if (type === "fawri_withdraw") return { label: "عمولة فوري", val: Math.round((amt * fawriRate + fawriFixed) * 100) / 100 };
+                if (type === "bank_withdraw")  return { label: "عمولة بنك",  val: Math.round(amt * bankRate * 100) / 100 };
+                return null;
+            }
+            const comm = calcCommission();
+            const availSources = sources.filter(s => s.available !== false);
+            function pad(n) { return String(n).padStart(2,"0"); }
+            function getToday() { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+            function getTime()  { const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+            function handleSave() {
+                if (!amount || isNaN(parseFloat(amount))) { showToast("أدخل مبلغ صحيح","error"); return; }
+                if (!sourceId) { showToast("اختار خط أو فيزا","error"); return; }
+                const src = sources.find(s=>s.id===sourceId);
+                onSave({
+                    type, amount: parseFloat(amount),
+                    fromNumber: src?.number || "",
+                    toNumber, personName: toNumber || "—",
+                    sourceId, sourceType: src?.type || "line",
+                    date: getToday(), time: getTime(), notes: "عملية سريعة", image: null,
+                    id: "txn-" + Date.now()
+                });
+                onClose();
+            }
+
+            const iStyle = { width:"100%", background:"#05070f", border:"1px solid #1e3a5f", borderRadius:10, padding:"12px 14px", color:"#c8d6e8", fontSize:14, outline:"none", boxSizing:"border-box", textAlign:"right", fontFamily:"Tajawal,sans-serif" };
+            return (
+                <div className="glass-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div className="glass-modal">
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                            <div style={{fontSize:16,fontWeight:700,color:"#22d3ee"}}>⚡ عملية سريعة</div>
+                            <button onClick={onClose} aria-label="إغلاق" style={{background:"rgba(255,255,255,0.06)",border:"1px solid #1a2235",borderRadius:8,width:32,height:32,color:"#7a8fa8",cursor:"pointer",fontSize:16}}>×</button>
+                        </div>
+                        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+                            {[["transfer","تحويل","#22d3ee"],["receive","استلام","#10b981"],["bank_withdraw","سحب بنك","#3b82f6"],["fawri_withdraw","سحب فوري","#a78bfa"]].map(([v,l,c])=>(
+                                <button key={v} onClick={()=>setType(v)}
+                                    style={{flex:1,minWidth:70,background:type===v?`${c}22`:"#0d1120",border:`1px solid ${type===v?c:"#1e3a5f"}`,borderRadius:8,padding:"8px 4px",color:type===v?c:"#7a8fa8",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>
+                                    {l}
+                                </button>
+                            ))}
+                        </div>
+                        <div style={{marginBottom:12}}>
+                            <div style={{fontSize:11,color:"#7a8fa8",marginBottom:5}}>المبلغ (ج)</div>
+                            <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0" autoFocus style={iStyle}/>
+                            {comm && (
+                                <div style={{marginTop:6,background:"#10b98115",border:"1px solid #10b98130",borderRadius:8,padding:"6px 10px",fontSize:12,color:"#10b981",display:"flex",justifyContent:"space-between"}}>
+                                    <span>{comm.label}</span><span style={{fontWeight:700}}>{comm.val} ج</span>
+                                </div>
+                            )}
+                        </div>
+                        <div style={{marginBottom:12}}>
+                            <div style={{fontSize:11,color:"#7a8fa8",marginBottom:5}}>رقم العميل</div>
+                            <input type="tel" value={toNumber} onChange={e=>setToNumber(e.target.value)} placeholder="01xxxxxxxxx" style={iStyle}/>
+                        </div>
+                        <div style={{marginBottom:16}}>
+                            <div style={{fontSize:11,color:"#7a8fa8",marginBottom:5}}>الخط / الفيزا</div>
+                            <select value={sourceId} onChange={e=>setSourceId(e.target.value)} style={{...iStyle}}>
+                                {availSources.map(s=><option key={s.id} value={s.id}>{s.name}{s.balance?` (${s.balance} ج)`:""}</option>)}
+                            </select>
+                        </div>
+                        <button onClick={handleSave}
+                            style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>
+                            ✓ حفظ العملية
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🔍  GlobalSearch — بحث شامل في العملاء والعمليات والأرقام
+        // ══════════════════════════════════════════════════════════════
+        function GlobalSearch({ transactions, people, lines, visas, onClose, formatNum, getPersonBalance }) {
+            const [q, setQ] = useState("");
+            const inputRef = React.useRef();
+            React.useEffect(()=>{ inputRef.current?.focus(); },[]);
+
+            const results = React.useMemo(()=>{
+                if (!q.trim() || q.length < 2) return { txns:[], persons:[], sources:[] };
+                const ql = q.toLowerCase();
+                const txns = transactions.filter(t=>
+                    (t.personName||"").includes(q) ||
+                    (t.fromNumber||"").includes(q) ||
+                    (t.toNumber||"").includes(q) ||
+                    String(t.amount).includes(q) ||
+                    (t.notes||"").includes(q) ||
+                    (t.date||"").includes(q)
+                ).slice(0,8);
+                const persons = people.filter(p=>
+                    (p.personName||"").includes(q)||
+                    (p.phone||"").includes(q)
+                ).slice(0,5);
+                const sources = [...lines,...visas].filter(s=>
+                    (s.name||"").includes(q)||(s.number||"").includes(q)
+                ).slice(0,4);
+                return { txns, persons, sources };
+            }, [q, transactions, people, lines, visas]);
+
+            const total = results.txns.length + results.persons.length + results.sources.length;
+            const typeLabel = t => t.type==="transfer"?"💸 تحويل":t.type==="receive"?"📥 استلام":t.type==="bank_withdraw"?"🏦 سحب بنك":t.type==="fawri_withdraw"?"💳 سحب فوري":"⚡";
+
+            return (
+                <div className="glass-overlay" style={{alignItems:"flex-start",paddingTop:60}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div style={{width:"100%",background:"#0a0c16",borderRadius:"0 0 22px 22px",padding:"16px 16px 24px",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 8px 40px rgba(0,0,0,0.8)"}}>
+                        <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
+                            <div style={{fontSize:18}}>🔍</div>
+                            <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)}
+                                placeholder="ابحث في كل شيء — عملاء، أرقام، مبالغ، تواريخ..."
+                                style={{flex:1,background:"#05070f",border:"1px solid #22d3ee40",borderRadius:10,padding:"12px 14px",color:"#c8d6e8",fontSize:14,outline:"none",fontFamily:"Tajawal,sans-serif",textAlign:"right"}}/>
+                            <button onClick={onClose} aria-label="إغلاق البحث" style={{background:"none",border:"none",color:"#7a8fa8",fontSize:22,cursor:"pointer"}}>✕</button>
+                        </div>
+                        {q.length >= 2 && total === 0 && (
+                            <div style={{textAlign:"center",color:"#3d4f65",padding:30,fontSize:14}}>لا توجد نتائج لـ "{q}"</div>
+                        )}
+                        {results.persons.length > 0 && (
+                            <div style={{marginBottom:14}}>
+                                <div style={{fontSize:11,color:"#3d4f65",fontWeight:700,marginBottom:6}}>👥 عملاء ({results.persons.length})</div>
+                                {results.persons.map(p=>(
+                                    <div key={p.id} style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:10,padding:"10px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#c8d6e8"}}>{p.personName}</div>
+                                            <div style={{fontSize:11,color:"#7a8fa8"}}>{p.phone||"—"}</div>
+                                        </div>
+                                        <div style={{fontSize:13,fontWeight:700,color:getPersonBalance(p)>0?"#ef4444":"#10b981"}}>
+                                            {getPersonBalance(p)>0?"+":""}{formatNum(getPersonBalance(p))} ج
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {results.txns.length > 0 && (
+                            <div style={{marginBottom:14}}>
+                                <div style={{fontSize:11,color:"#3d4f65",fontWeight:700,marginBottom:6}}>📋 عمليات ({results.txns.length})</div>
+                                {results.txns.map(t=>(
+                                    <div key={t.id} style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:10,padding:"10px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#c8d6e8"}}>{typeLabel(t)} — {t.personName}</div>
+                                            <div style={{fontSize:11,color:"#7a8fa8"}}>{t.date} {t.time||""}</div>
+                                        </div>
+                                        <div style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>{formatNum(t.amount)} ج</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {results.sources.length > 0 && (
+                            <div>
+                                <div style={{fontSize:11,color:"#3d4f65",fontWeight:700,marginBottom:6}}>📱 خطوط وفيزا ({results.sources.length})</div>
+                                {results.sources.map(s=>(
+                                    <div key={s.id} style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:10,padding:"10px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#c8d6e8"}}>{s.name}</div>
+                                        <div style={{fontSize:12,color:"#7a8fa8"}}>{s.number||""} — {formatNum(s.balance||0)} ج</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {!q && (
+                            <div style={{textAlign:"center",color:"#3d4f65",padding:20,fontSize:13}}>ابدأ الكتابة للبحث في كل البيانات</div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  📊  DailyReport — تقرير يومي كامل قابل للطباعة
+        // ══════════════════════════════════════════════════════════════
+        function DailyReport({ transactions, financeLogs, capital, lines, visas, people, getPersonBalance, formatNum, commissionSettings, onClose }) {
+            const fawriRate  = commissionSettings?.fawriWithdrawRate  ?? 0.0057;
+            const fawriFixed = commissionSettings?.fawriWithdrawFixed ?? 15;
+            const bankRate   = commissionSettings?.bankWithdrawRate   ?? 0.002;
+            function pad(n){return String(n).padStart(2,"0");}
+            const todayStr = (()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;})();
+            const todayTxns  = transactions.filter(t=>t.date===todayStr);
+            const totalIn    = todayTxns.filter(t=>t.type==="transfer").reduce((s,t)=>s+t.amount,0);
+            const totalOut   = todayTxns.filter(t=>t.type==="receive").reduce((s,t)=>s+t.amount,0);
+            const bankComm   = todayTxns.filter(t=>t.type==="bank_withdraw").reduce((s,t)=>s+t.amount*bankRate,0);
+            const fawriComm  = todayTxns.filter(t=>t.type==="fawri_withdraw").reduce((s,t)=>s+(t.amount*fawriRate+fawriFixed),0);
+            const todayLogs  = financeLogs.filter(l=>l.date===todayStr);
+            const logInc     = todayLogs.filter(l=>l.type==="income").reduce((s,l)=>s+l.amount,0);
+            const logExp     = todayLogs.filter(l=>l.type==="expense").reduce((s,l)=>s+l.amount,0);
+            const netProfit  = Math.round((bankComm+fawriComm+logInc-logExp)*100)/100;
+            const debtors    = people.filter(p=>getPersonBalance(p)>0).sort((a,b)=>getPersonBalance(b)-getPersonBalance(a));
+            const totalDebt  = debtors.reduce((s,p)=>s+getPersonBalance(p),0);
+            const now        = new Date().toLocaleString("ar-EG");
+
+            function printReport() {
+                const el = document.getElementById("daily-report-print-area");
+                if (!el) return;
+                const orig = document.body.innerHTML;
+                document.body.innerHTML = el.innerHTML;
+                window.print();
+                document.body.innerHTML = orig;
+                window.location.reload();
+            }
+
+            const row = (label, val, color="#c8d6e8") => (
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1a2235"}}>
+                    <span style={{fontSize:13,color:"#7a8fa8"}}>{label}</span>
+                    <span style={{fontSize:14,fontWeight:700,color}}>{val}</span>
+                </div>
+            );
+
+            return (
+                <div className="glass-overlay" style={{alignItems:"center",justifyContent:"center",zIndex:400}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div style={{background:"#0a0c16",border:"1px solid #22d3ee30",borderRadius:18,width:"94%",maxWidth:420,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 40px rgba(0,0,0,0.8)"}}>
+                        <div style={{background:"linear-gradient(135deg,#0d1120,#111827)",borderRadius:"18px 18px 0 0",padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #1e3a5f"}}>
+                            <div style={{fontSize:15,fontWeight:700,color:"#22d3ee"}}>📊 التقرير اليومي</div>
+                            <button onClick={onClose} aria-label="إغلاق" style={{background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer"}}>✕</button>
+                        </div>
+
+                        <div id="daily-report-print-area" style={{padding:"16px 18px"}}>
+                            <div style={{textAlign:"center",marginBottom:14}}>
+                                <div style={{fontSize:13,color:"#7a8fa8"}}>{now}</div>
+                                <div style={{fontSize:18,fontWeight:900,color:"#c8d6e8",marginTop:4}}>تقرير يوم {todayStr}</div>
+                            </div>
+
+                            <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+                                <div style={{fontSize:12,color:"#3d4f65",fontWeight:700,marginBottom:8}}>💰 الملخص المالي</div>
+                                {row("رأس المال الحالي", formatNum(capital)+" ج", "#f59e0b")}
+                                {row("إجمالي التحويلات", formatNum(totalIn)+" ج", "#22d3ee")}
+                                {row("إجمالي الاستلام", formatNum(totalOut)+" ج", "#10b981")}
+                                {row("عمولات البنك", formatNum(Math.round(bankComm*100)/100)+" ج", "#3b82f6")}
+                                {row("عمولات فوري", formatNum(Math.round(fawriComm*100)/100)+" ج", "#a78bfa")}
+                                {row("صافي ربح اليوم", formatNum(netProfit)+" ج", netProfit>=0?"#10b981":"#ef4444")}
+                            </div>
+
+                            <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+                                <div style={{fontSize:12,color:"#3d4f65",fontWeight:700,marginBottom:8}}>📋 العمليات ({todayTxns.length})</div>
+                                {todayTxns.length===0 && <div style={{color:"#3d4f65",fontSize:12,textAlign:"center",padding:8}}>لا توجد عمليات اليوم</div>}
+                                {todayTxns.slice(0,10).map(t=>(
+                                    <div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a2235",fontSize:12}}>
+                                        <span style={{color:"#7a8fa8"}}>{t.time||""} — {t.personName}</span>
+                                        <span style={{color:"#22d3ee",fontWeight:700}}>{formatNum(t.amount)} ج</span>
+                                    </div>
+                                ))}
+                                {todayTxns.length>10 && <div style={{fontSize:11,color:"#3d4f65",marginTop:4,textAlign:"center"}}>+ {todayTxns.length-10} عمليات أخرى</div>}
+                            </div>
+
+                            <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+                                <div style={{fontSize:12,color:"#3d4f65",fontWeight:700,marginBottom:8}}>👥 الديون ({formatNum(totalDebt)} ج)</div>
+                                {debtors.length===0 && <div style={{color:"#10b981",fontSize:12,textAlign:"center",padding:4}}>✅ لا توجد ديون</div>}
+                                {debtors.slice(0,6).map(p=>(
+                                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #1a2235",fontSize:12}}>
+                                        <span style={{color:"#7a8fa8"}}>{p.personName}</span>
+                                        <span style={{color:"#ef4444",fontWeight:700}}>{formatNum(getPersonBalance(p))} ج</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div style={{padding:"0 18px 20px",display:"flex",gap:10}}>
+                            <button onClick={onClose} style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:12,color:"#94a3b8",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>إغلاق</button>
+                            <button onClick={printReport} style={{flex:2,background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:12,color:"#000",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>🖨️ طباعة التقرير</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+                function App() {
             const [userRole, setUserRole] = useState(null);
             const [firebaseUser, setFirebaseUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
@@ -1386,6 +1816,7 @@
             const [people, setPeople] = useState(() => loadFromLocalStorage('people', []));
             const [capital, setCapital] = useState(() => loadFromLocalStorage('capital', 0));
             const [financeLogs, setFinanceLogs] = useState(() => loadFromLocalStorage('financeLogs', []));
+            const [fawriBalance, setFawriBalance] = useState(() => loadFromLocalStorage('fawriBalance', 0));
             
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
             const firebaseLoaded = React.useRef(false);
@@ -1422,6 +1853,18 @@
             // ⭐ حقل Paste الذكي الجديد
             const [smartPaste, setSmartPaste] = useState("");
 
+            // ⭐ OCR Screenshot State
+            const [ocrLoading, setOcrLoading] = useState(false);
+            const [ocrResult, setOcrResult] = useState(null); // {amount, phone, type, raw}
+            const [ocrPreviewUrl, setOcrPreviewUrl] = useState(null);
+            const ocrInputRef = useRef(null);
+
+            // ⭐ Privacy Mask Mode — وضع الشارع
+            const [privacyMode, setPrivacyMode] = useState(() => loadFromLocalStorage('privacyMode', false));
+
+            // ⭐ OCR Confirmation Modal
+            const [ocrConfirm, setOcrConfirm] = useState(null); // {amount, phone, time, detectedType, rawText, file}
+
             // ⭐ منع الضغط المتكرر أثناء الحفظ — Transaction Safety
             const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1448,7 +1891,7 @@
             const [confirmDelete, setConfirmDelete] = useState(null);
             // نظام الحساب الجاري
             const [custModal, setCustModal] = useState(null); // null | "newCustomer" | "addMove"
-            const [custMoveForm, setCustMoveForm] = useState({ type: "debit", amount: "", note: "" });
+            const [custMoveForm, setCustMoveForm] = useState({ type: "debit", amount: "", note: "", isOld: false });
             const [custNewForm, setCustNewForm] = useState({ name: "" });
             const [viewerNote, setViewerNote] = useState(null); // {txnId, text}
 
@@ -1487,6 +1930,11 @@
 
             // ⭐ Accordion state — أقسام قابلة للطي في تاب الخطوط
             const [accordionOpen, setAccordionOpen] = useState({ lines: true, visas: true, instapays: true });
+
+            // ⭐ FEATURE STATES
+            const [showQuickAdd, setShowQuickAdd] = useState(false);
+            const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+            const [showDailyReport, setShowDailyReport] = useState(false);
 
             useEffect(() => { saveToLocalStorage('abuadiTarget', abuadiTarget); }, [abuadiTarget]);
             useEffect(() => { saveToLocalStorage('abuadiPayments', abuadiPayments); }, [abuadiPayments]);
@@ -1553,8 +2001,8 @@
                 const unsubscribe = auth.onAuthStateChanged((user) => {
                     if (user) {
                         const ADMIN_EMAIL     = "ziad@gmail.com";
-                        const ASSISTANT_EMAIL = "assistant@gmail.com";
-                        const VIEWER_EMAIL    = "omar@gmail.com";
+                        const ASSISTANT_EMAIL = "omar@gmail.com";
+                        const VIEWER_EMAIL    = "viewer@gmail.com";
                         const e = user.email;
                         const role = e === ADMIN_EMAIL ? "admin" : e === ASSISTANT_EMAIL ? "assistant" : e === VIEWER_EMAIL ? "viewer" : "viewer";
                         setFirebaseUser(user);
@@ -1740,6 +2188,43 @@
                 if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('capital').set(capital); } catch(e){} }
             }, [capital]);
 
+            useEffect(() => { saveToLocalStorage('fawriBalance', fawriBalance); }, [fawriBalance]);
+
+            useEffect(() => { saveToLocalStorage('privacyMode', privacyMode); }, [privacyMode]);
+
+            // ⭐ Web Share Target — استقبال الصور المشاركة من واتساب وغيره
+            useEffect(() => {
+                async function checkSharedFile() {
+                    // 1) Web Share Target API (Chrome Android)
+                    if ('launchQueue' in window) {
+                        window.launchQueue.setConsumer(async (launchParams) => {
+                            if (!launchParams.files || launchParams.files.length === 0) return;
+                            const fileHandle = launchParams.files[0];
+                            const file = await fileHandle.getFile();
+                            if (file.type.startsWith('image/')) {
+                                handleOcrImage(file, true);
+                            }
+                        });
+                    }
+                    // 2) Fallback: الصورة محفوظة في SW Cache من POST
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get('share') === '1') {
+                        window.history.replaceState({}, '', window.location.pathname);
+                        try {
+                            const cache = await caches.open('share-target-temp');
+                            const response = await cache.match('shared-image');
+                            if (response) {
+                                const blob = await response.blob();
+                                const file = new File([blob], 'shared.jpg', { type: blob.type || 'image/jpeg' });
+                                await cache.delete('shared-image');
+                                handleOcrImage(file, true);
+                            }
+                        } catch(e) { console.log('Share target cache error:', e); }
+                    }
+                }
+                checkSharedFile();
+            }, []);
+
             useEffect(() => { 
                 saveToLocalStorage('financeLogs', financeLogs);
                 if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
@@ -1785,7 +2270,7 @@
                 }
             }, [firebaseReady]);
 
-            // ⭐ Alert when line hits 80% (يستخدم الحدود الديناميكية)
+            // ⭐ Alert when line hits 80% — Transfer وReceive كل واحد على حدة
             useEffect(() => {
                 const warned = loadFromLocalStorage('warnedSources', []);
                 const newWarned = [...warned];
@@ -1793,13 +2278,26 @@
                 [...lines, ...visas].forEach(s => {
                     const monthlyLimit = s.id.startsWith('visa') ? visaMonthlyLimit : linesMonthlyLimit;
                     const stats = calcSourceStats(s, transactions);
-                    const usedMonth = stats.usedMonthTransfer + stats.usedMonthReceive;
-                    const pct = (usedMonth / monthlyLimit) * 100;
-                    if (pct >= 80 && !newWarned.includes(s.id)) {
-                        const msg = `⚠️ ${s.name} وصل ${Math.round(pct)}% من الحد الشهري`;
+
+                    // فحص حد السحب (Transfer) منفصل
+                    const pctTransfer = (stats.usedMonthTransfer / monthlyLimit) * 100;
+                    const transferKey = `${s.id}_transfer`;
+                    if (pctTransfer >= 80 && !newWarned.includes(transferKey)) {
+                        const msg = `⚠️ ${s.name} — السحب وصل ${Math.round(pctTransfer)}% من الحد الشهري`;
                         setTimeout(() => setToast({msg, type:"error"}), 100);
-                        setTimeout(() => setToast(null), 4000);
-                        newWarned.push(s.id);
+                        setTimeout(() => setToast(null), 4500);
+                        newWarned.push(transferKey);
+                        changed = true;
+                    }
+
+                    // فحص حد الاستلام (Receive) منفصل
+                    const pctReceive = (stats.usedMonthReceive / monthlyLimit) * 100;
+                    const receiveKey = `${s.id}_receive`;
+                    if (pctReceive >= 80 && !newWarned.includes(receiveKey)) {
+                        const msg = `⚠️ ${s.name} — الاستلام وصل ${Math.round(pctReceive)}% من الحد الشهري`;
+                        setTimeout(() => setToast({msg, type:"error"}), 2300);
+                        setTimeout(() => setToast(null), 6800);
+                        newWarned.push(receiveKey);
                         changed = true;
                     }
                 });
@@ -1817,15 +2315,15 @@
                     ...lines.map(l => {
                         const s = calcSourceStats(l, transactions);
                         // ⭐ FIX: usedToday = تحويل فقط، الحد اليومي لا يشمل الاستلام
-                        return {...l, type:"line", dailyLimit:vodDailyLimit, monthlyLimit:linesMonthlyLimit, usedToday:s.usedTodayTransfer, usedTodayReceive:s.usedTodayReceive, usedMonth:s.usedMonthTransfer+s.usedMonthReceive};
+                        return {...l, type:"line", dailyLimit:vodDailyLimit, monthlyLimit:linesMonthlyLimit, usedToday:s.usedTodayTransfer, usedTodayReceive:s.usedTodayReceive, usedMonth:s.usedMonthTransfer};
                     }),
                     ...visas.map(v => {
                         const s = calcSourceStats(v, transactions);
-                        return {...v, type:"visa", dailyLimit:visaDailyLimit, monthlyLimit:visaMonthlyLimit, usedToday:s.usedTodayTransfer, usedTodayReceive:s.usedTodayReceive, usedMonth:s.usedMonthTransfer+s.usedMonthReceive};
+                        return {...v, type:"visa", dailyLimit:visaDailyLimit, monthlyLimit:visaMonthlyLimit, usedToday:s.usedTodayTransfer, usedTodayReceive:s.usedTodayReceive, usedMonth:s.usedMonthTransfer};
                     }),
                     ...instaPays.map(ip => {
                         const s = calcSourceStats(ip, transactions);
-                        return {...ip, type:"instapay", dailyLimit:instapayDailyLimit, monthlyLimit:instapayMonthlyLimit, usedToday:s.usedTodayTransfer, usedTodayReceive:s.usedTodayReceive, usedMonth:s.usedMonthTransfer+s.usedMonthReceive};
+                        return {...ip, type:"instapay", dailyLimit:instapayDailyLimit, monthlyLimit:instapayMonthlyLimit, usedToday:s.usedTodayTransfer, usedTodayReceive:s.usedTodayReceive, usedMonth:s.usedMonthTransfer};
                     }),
                 ];
                 const avail = allSrcs.filter(s => s.available !== false);
@@ -1904,7 +2402,7 @@
                     const tMonth = (t.date || "").slice(0, 7);
                     const isToday = t.date === todayStr;
                     const isMonth = tMonth === monthStr;
-                    const isOutgoing = t.type === "transfer" || t.type === "bank_withdraw" || t.type === "fawri_withdraw";
+                    const isOutgoing = t.type === "transfer" || t.type === "bank_withdraw" || t.type === "fawri_withdraw" || t.type === "fawri_transfer";
                     // ⭐ مطابقة بـ sourceId أولاً (الأدق)، وإلا بـ رقم التليفون كـ fallback
                     const matchesOutgoing = t.sourceId === sid || (num && t.fromNumber === num);
                     const matchesIncoming = t.sourceId === sid || (num && t.toNumber === num);
@@ -1926,9 +2424,11 @@
                 ...lines.map(l => {
                     const stats = calcSourceStats(l, transactions);
                     return {...l, type:"line", dailyLimit:vodDailyLimit, monthlyLimit:linesMonthlyLimit,
-                        usedToday: stats.usedTodayTransfer,        // الحد اليومي يُطبَّق على التحويل فقط
-                        usedTodayReceive: stats.usedTodayReceive,  // الاستلام له حسابه المنفصل
-                        usedMonth: stats.usedMonthTransfer + stats.usedMonthReceive,
+                        usedToday: stats.usedTodayTransfer,
+                        usedTodayReceive: stats.usedTodayReceive,
+                        usedMonth: stats.usedMonthTransfer,
+                        usedMonthTransfer: stats.usedMonthTransfer,
+                        usedMonthReceive: stats.usedMonthReceive,
                     };
                 }),
                 ...visas.map(v => {
@@ -1936,7 +2436,9 @@
                     return {...v, type:"visa", dailyLimit:visaDailyLimit, monthlyLimit:visaMonthlyLimit,
                         usedToday: stats.usedTodayTransfer,
                         usedTodayReceive: stats.usedTodayReceive,
-                        usedMonth: stats.usedMonthTransfer + stats.usedMonthReceive,
+                        usedMonth: stats.usedMonthTransfer,
+                        usedMonthTransfer: stats.usedMonthTransfer,
+                        usedMonthReceive: stats.usedMonthReceive,
                     };
                 }),
                 ...instaPays.map(ip => {
@@ -1944,7 +2446,9 @@
                     return {...ip, type:"instapay", dailyLimit:instapayDailyLimit, monthlyLimit:instapayMonthlyLimit,
                         usedToday: stats.usedTodayTransfer,
                         usedTodayReceive: stats.usedTodayReceive,
-                        usedMonth: stats.usedMonthTransfer + stats.usedMonthReceive,
+                        usedMonth: stats.usedMonthTransfer,
+                        usedMonthTransfer: stats.usedMonthTransfer,
+                        usedMonthReceive: stats.usedMonthReceive,
                     };
                 }),
             ];
@@ -2151,8 +2655,14 @@
 - اترك الحقل فارغاً "" إذا مش موجود في الرسالة
 - لا تضف أي نص قبل أو بعد الـ JSON`;
 
-                    const aiRaw = await callGemini(systemP, `استخرج البيانات من الرسالة التالية:
-"${pasteText}"`);
+                    // ⭐ Timeout protection — 8 ثواني كحد أقصى
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("انتهى وقت الاتصال بـ AI")), 8000)
+                    );
+                    const aiRaw = await Promise.race([
+                        callGemini(systemP, `استخرج البيانات من الرسالة التالية:\n"${pasteText}"`),
+                        timeoutPromise
+                    ]);
 
                     // تنظيف الرد من أي markdown أو نص زيادة
                     const cleaned = aiRaw
@@ -2203,6 +2713,114 @@
                     setSmartPaste("");
                     showToast(`⚠️ تم استخراج جزئي — ${e.message?.slice(0,40) || "راجع البيانات"}`, "error");
                 }
+            }
+
+            // ⭐ OCR Screenshot Handler — يفتح Modal تأكيد بدل ما يملي الفورم مباشرة
+            async function handleOcrImage(file, fromShare = false) {
+                if (!file) return;
+                setOcrResult(null);
+                const previewUrl = URL.createObjectURL(file);
+                setOcrPreviewUrl(previewUrl);
+                setOcrLoading(true);
+
+                // لو من مشاركة خارجية، افتح المودال الرئيسي أولاً
+                if (fromShare && modal !== "addTxn") {
+                    setModal("addTxn");
+                    setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false });
+                    setSplitPlan(null); setSplitConfirmed(false);
+                    setOcrConfirm(null);
+                    setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null });
+                }
+
+                try {
+                    // ⭐ Lazy load Tesseract — يتحمّل بس لما المستخدم يحتاجه
+                    if (typeof Tesseract === "undefined") {
+                        await new Promise((resolve, reject) => {
+                            const s = document.createElement("script");
+                            s.src = "https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js";
+                            s.onload = resolve;
+                            s.onerror = reject;
+                            document.head.appendChild(s);
+                        });
+                    }
+                    const { data: { text } } = await Tesseract.recognize(file, "ara+eng", { logger: () => {} });
+
+                    // ══ استخراج رقم الهاتف ══
+                    const phoneMatch = text.match(/01[0-9]{9}/);
+                    const phone = phoneMatch ? phoneMatch[0] : "";
+
+                    // ══ استخراج الوقت ══
+                    const timeMatch = text.match(/(\d{1,2}):(\d{2})\s*(AM|PM|ص|م)?/i);
+                    let extractedTime = "12:00"; // صيغة HH:MM فقط لـ input type="time"
+                    if (timeMatch) {
+                        let h = parseInt(timeMatch[1]);
+                        const mins = timeMatch[2];
+                        const ampm = (timeMatch[3] || "").toLowerCase();
+                        if ((ampm === "pm" || ampm === "م") && h < 12) h += 12;
+                        if ((ampm === "am" || ampm === "ص") && h === 12) h = 0;
+                        // تجاهل الوقت لو كان مجرد رقم عشوائي مش منطقي
+                        if (h >= 0 && h <= 23) {
+                            extractedTime = `${String(h).padStart(2,"0")}:${mins}`;
+                        }
+                    }
+
+                    // ══ استخراج المبلغ ══
+                    const amountPatterns = [
+                        /(?:مبلغ|تحويل|استقبال|إيداع|تم تحويل|تم استقبال|قيمة)[^\d]*(\d[\d,\.]*)/i,
+                        /(\d[\d,\.]*)\s*(?:جنيه|ج\.م|ج\b|EGP|egp)/i,
+                        /(\d{2,6}(?:\.\d{1,2})?)\s*(?:ج|جنيه|EGP)/i,
+                    ];
+                    let amount = "";
+                    for (const pat of amountPatterns) {
+                        const m = text.match(pat);
+                        if (m) { amount = m[1].replace(/,/g, ""); break; }
+                    }
+                    if (!amount) {
+                        const nums = [...text.matchAll(/\b(\d{2,6}(?:\.\d{1,2})?)\b/g)]
+                            .map(m => parseFloat(m[1]))
+                            .filter(n => n >= 10 && n <= 200000);
+                        if (nums.length) amount = String(Math.max(...nums));
+                    }
+
+                    // ══ تحديد نوع العملية ══
+                    const isReceive = /استقبال|إيداع|تم إيداع|تم استقبال|received|deposit|أودع|حوّل لك|حول لك/.test(text);
+                    const isTransfer = /تم تحويل|سحب|خصم|transfer|sent|دفع|صرف/.test(text.toLowerCase());
+                    const detectedType = isReceive ? "receive" : isTransfer ? "transfer" : null;
+
+                    const result = { amount, phone, type: detectedType, raw: text.slice(0, 300) };
+                    setOcrResult(result);
+
+                    // ⭐ افتح Modal التأكيد بدل الملء المباشر
+                    setOcrConfirm({
+                        amount:       amount || "",
+                        phone:        phone  || "",
+                        time:         extractedTime,
+                        date:         today(),
+                        detectedType: detectedType,
+                        previewUrl:   previewUrl,
+                        rawText:      text.slice(0, 200),
+                    });
+
+                } catch (e) {
+                    showToast("❌ فشل OCR: " + (e.message || "خطأ غير معروف"), "error");
+                } finally {
+                    setOcrLoading(false);
+                }
+            }
+
+            // ⭐ تأكيد بيانات OCR وملء الفورم
+            function confirmOcrData() {
+                if (!ocrConfirm) return;
+                setForm(f => ({
+                    ...f,
+                    amount:   ocrConfirm.amount   || f.amount,
+                    toNumber: ocrConfirm.phone    || f.toNumber,
+                    time:     ocrConfirm.time     || f.time,
+                    date:     ocrConfirm.date     || f.date,
+                    ...(ocrConfirm.detectedType ? { type: ocrConfirm.detectedType } : {}),
+                }));
+                setOcrConfirm(null);
+                showToast("✅ تم نقل البيانات — راجع نوع العملية قبل الحفظ");
             }
 
             // ⭐ حساب العمولة بناءً على نوع العملية — ديناميكي من commissionSettings
@@ -2289,18 +2907,18 @@
                 if (form.sourceType === "line") {
                     db.ref(`lines/${form.sourceId}`).transaction((currentLine) => {
                         if (currentLine) {
-                            const amt = parseFloat(amount);
-                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw";
+                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer";
+                            // نستخدم totalAmount (شامل العمولة) لتطابق updateSource المحلية
                             const change = isOutgoing ? -totalAmount : amount;
                             currentLine.balance = (parseFloat(currentLine.balance) || 0) + change;
 
-                            // تحديث الاستهلاك اليومي والشهري
-                            if (form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw") {
-                                currentLine.usedTodayTransfer = (parseFloat(currentLine.usedTodayTransfer) || 0) + amt;
-                                currentLine.usedMonthTransfer = (parseFloat(currentLine.usedMonthTransfer) || 0) + amt;
+                            // تحديث الاستهلاك — totalAmount للصادر، amount للوارد
+                            if (form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer") {
+                                currentLine.usedTodayTransfer = (parseFloat(currentLine.usedTodayTransfer) || 0) + totalAmount;
+                                currentLine.usedMonthTransfer = (parseFloat(currentLine.usedMonthTransfer) || 0) + totalAmount;
                             } else if (form.type === "receive") {
-                                currentLine.usedTodayReceive = (parseFloat(currentLine.usedTodayReceive) || 0) + amt;
-                                currentLine.usedMonthReceive = (parseFloat(currentLine.usedMonthReceive) || 0) + amt;
+                                currentLine.usedTodayReceive = (parseFloat(currentLine.usedTodayReceive) || 0) + amount;
+                                currentLine.usedMonthReceive = (parseFloat(currentLine.usedMonthReceive) || 0) + amount;
                             }
                         }
                         return currentLine;
@@ -2308,7 +2926,7 @@
                 } else if (form.sourceType === "visa") {
                     db.ref(`visas/${form.sourceId}`).transaction((currentVisa) => {
                         if (currentVisa) {
-                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw";
+                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer";
                             const change = isOutgoing ? -totalAmount : amount;
                             currentVisa.balance = (parseFloat(currentVisa.balance) || 0) + change;
                         }
@@ -2320,7 +2938,7 @@
                 if (existingPerson) {
                     setPeople(prev => prev.map(p => {
                         if (p.id !== existingPerson.id) return p;
-                        const typeLabel = form.type === "transfer" ? "تحويل" : form.type === "receive" ? "استلام" : form.type === "bank_withdraw" ? "سحب بنك" : "سحب فوري";
+                        const typeLabel = form.type === "transfer" ? "تحويل" : form.type === "receive" ? "استلام" : form.type === "bank_withdraw" ? "سحب بنك" : form.type === "fawri_transfer" ? "تحويل إلى فوري" : "سحب فوري";
                         const newRecord = {
                             id: Date.now(),
                             type: form.type,
@@ -2336,7 +2954,13 @@
                     }));
                 }
 
-                const txnLabels = { transfer: "تحويل", receive: "استلام", bank_withdraw: "سحب بنك", fawri_withdraw: "سحب فوري" };
+                const txnLabels = { transfer: "تحويل", receive: "استلام", bank_withdraw: "سحب بنك", fawri_withdraw: "سحب فوري", fawri_transfer: "تحويل إلى فوري" };
+
+                // ⭐ تحويل مباشر لفوري — أضف المبلغ لرصيد فوري التراكمي
+                if (form.type === "fawri_transfer") {
+                    setFawriBalance(prev => Math.round((prev + parseFloat(amount)) * 100) / 100);
+                }
+
                 showToast(`تم ${txnLabels[form.type] || "العملية"} بنجاح ✓`);
 
                 setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
@@ -2436,7 +3060,7 @@
                     }));
                 }
 
-                showToast(`✅ تم تنفيذ التقسيم: ${splitPlan.steps.length} عمليات — إجمالي ${formatNum(splitPlan.totalCovered)} ج`);
+                showToast(`✅ تم تنفيذ التقسيم: ${splitPlan.steps.length} عمليات — إجمالي ${maskNum(splitPlan.totalCovered, privacyMode)} ج`);
                 setSplitPlan(null);
                 setSplitConfirmed(false);
                 setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
@@ -2446,7 +3070,7 @@
 
             function updateSource(sourceId, sourceType, amount, txnType) {
                 // ⭐ سحب بنك وسحب فوري = خروج (زي transfer)
-                const isOutgoing = txnType === "transfer" || txnType === "bank_withdraw" || txnType === "fawri_withdraw";
+                const isOutgoing = txnType === "transfer" || txnType === "bank_withdraw" || txnType === "fawri_withdraw" || txnType === "fawri_transfer";
                 const delta = isOutgoing ? -amount : amount;
                 const updater = prev => prev.map(item => {
                     if (item.id !== sourceId) return item;
@@ -2466,7 +3090,7 @@
 
             function deleteTransaction(txn) {
                 setTransactions(prev => prev.filter(t => t.id !== txn.id));
-                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw";
+                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer";
                 const effectiveAmount = txn.totalAmount || txn.amount; // الإجمالي شامل العمولة
                 const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
                 const reverter = prev => prev.map(item => {
@@ -2489,7 +3113,7 @@
 
             // ⭐ عكس العملية - بيرجع الأرقام كأن شيئاً لم يكن
             function reverseTransaction(txn) {
-                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw";
+                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer";
                 const effectiveAmount = txn.totalAmount || txn.amount;
                 const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
 
@@ -2562,6 +3186,7 @@
                     type: custMoveForm.type,        // "debit" حوّل مني | "credit" أعطاني
                     amount: amt,
                     note: custMoveForm.note.trim() || (custMoveForm.type === "debit" ? "تحويل كاش" : "سداد دفعة"),
+                    isOld: custMoveForm.isOld || false,
                     date: nowStr()
                 };
                 setPeople(prev => prev.map(p => {
@@ -2574,7 +3199,7 @@
                     }
                     return updated;
                 }));
-                setCustMoveForm({ type: "debit", amount: "", note: "" });
+                setCustMoveForm({ type: "debit", amount: "", note: "", isOld: false });
                 setCustModal(null);
                 showToast(custMoveForm.type === "debit" ? "✓ تم تسجيل التحويل" : "✓ تم تسجيل الدفعة");
             }
@@ -2667,7 +3292,7 @@
                 saveToLocalStorage('capital', amt);
                 setCapitalInput("");
                 setModal(null);
-                showToast(`✓ رأس المال أصبح ${formatNum(amt)} ج`);
+                showToast(`✓ رأس المال أصبح ${maskNum(amt, privacyMode)} ج`);
             }
 
             function saveDailySummary(isAutomatic = false) {
@@ -2797,8 +3422,23 @@
             }
 
             const selectedSource = form.sourceId ? sources.find(s=>s.id===form.sourceId) : null;
-            const alertSources = sources.filter(s=>(s.usedMonth/s.monthlyLimit)>=0.8);
+            const alertSources = sources.flatMap(s => {
+                const alerts = [];
+                if (s.monthlyLimit > 0) {
+                    const pctT = (s.usedMonth / s.monthlyLimit) * 100; // usedMonth = Transfer only now
+                    if (pctT >= 80) alerts.push({id: s.id+"_t", name: s.name, label: "سحب", pct: Math.round(pctT)});
+                    const pctR = (s.usedMonthReceive / s.monthlyLimit) * 100;
+                    if (pctR >= 80) alerts.push({id: s.id+"_r", name: s.name, label: "استلام", pct: Math.round(pctR)});
+                }
+                return alerts;
+            });
             const todayTxns = transactions.filter(t => t.date === today());
+
+            // ⭐ FEATURE: تنبيه 80% قبل ما الخط يخلص
+            const warningSources = sources.filter(s => {
+                const pct = s.dailyLimit > 0 ? (s.usedToday / s.dailyLimit) * 100 : 0;
+                return pct >= 80 && pct < 100;
+            });
             
             // حساب رصيد العميل الجاري
             const getPersonBalance = (person) => {
@@ -2810,6 +3450,16 @@
             const getPersonTotalDebit  = (person) => (person.moves||[]).filter(m=>m.type==="debit").reduce((s,m)=>s+(m.amount||0),0);
             const getPersonTotalCredit = (person) => (person.moves||[]).filter(m=>m.type==="credit").reduce((s,m)=>s+(m.amount||0),0);
             const totalDebt = people.reduce((s, p) => s + Math.max(0, getPersonBalance(p)), 0);
+
+            // ⭐ FEATURE: تذكيرات الديون القديمة — عملاء ما سددوش من أكتر من 3 أيام
+            const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+            const oldDebtors = people.filter(p => {
+                const bal = getPersonBalance(p);
+                if (bal <= 0) return false;
+                const lastDebit = (p.moves||[]).filter(m=>m.type==="debit").sort((a,b)=>new Date(b.date||0)-new Date(a.date||0))[0];
+                if (!lastDebit?.date) return true;
+                return new Date(lastDebit.date) < threeDaysAgo;
+            }).sort((a,b) => getPersonBalance(b) - getPersonBalance(a));
 
             const thisMonth = currentMonthStr();
             const monthlyLogs = financeLogs.filter(l => l.monthDate === thisMonth);
@@ -2900,12 +3550,119 @@
                         </div>
                         <div style={{display:"flex", gap:10, alignItems:"center"}}>
                             <div style={{fontSize:10,color:"#10b981"}}>{syncStatus}</div>
+                            {/* ⭐ زر وضع الشارع — Privacy Mask */}
+                            <button
+                                onClick={()=>setPrivacyMode(p=>!p)}
+                                title={privacyMode ? "إظهار الأرقام" : "إخفاء الأرقام — وضع الشارع"}
+                                style={{
+                                    background: privacyMode ? "#f59e0b20" : "rgba(255,255,255,0.05)",
+                                    border: `1px solid ${privacyMode ? "#f59e0b60" : "var(--border-dim)"}`,
+                                    borderRadius: 20,
+                                    padding: "6px 10px",
+                                    color: privacyMode ? "#f59e0b" : "#64748b",
+                                    fontSize: 16,
+                                    cursor: "pointer",
+                                    transition: "all 0.2s",
+                                    lineHeight: 1,
+                                }}
+                            >{privacyMode ? "🙈" : "👁️"}</button>
                             {alertSources.length>0 && <div style={{background:"#ef444420",border:"1px solid #ef4444",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#ef4444",animation:"blink 1s infinite"}}>⚠️ {alertSources.length}</div>}
                             <button onClick={logout} style={{background:"#ef444420", border:"1px solid #ef4444", borderRadius:20, padding:"6px 14px", color:"#ef4444", fontSize:12, cursor:"pointer", fontWeight:600}}>خروج</button>
                         </div>
                     </div>
 
                     {toast && <div className="toast-animate" style={{position:"fixed",top:68,left:"50%",transform:"translateX(-50%)",background:toast.type==="error"?"#ef4444":"#10b981",color:"#fff",padding:"10px 24px",borderRadius:30,fontSize:14,fontWeight:600,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.6)",whiteSpace:"nowrap"}}>{toast.msg}</div>}
+
+                    {/* ⭐ OCR Confirmation Modal */}
+                    {ocrConfirm && (
+                        <div className="glass-overlay" style={{alignItems:"center",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setOcrConfirm(null)}>
+                            <div style={{background:"var(--glass-bg)",backdropFilter:"var(--glass-blur)",WebkitBackdropFilter:"var(--glass-blur)",borderRadius:20,border:"1px solid #a78bfa40",padding:24,width:"92%",maxWidth:380,animation:"slideUp 0.25s cubic-bezier(0.22,0.61,0.36,1)",boxShadow:"0 -4px 40px rgba(0,0,0,0.7)",maxHeight:"90vh",overflowY:"auto"}}>
+                                {/* Header */}
+                                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+                                    <div style={{fontSize:28}}>📸</div>
+                                    <div>
+                                        <div style={{fontSize:15,fontWeight:900,color:"#a78bfa"}}>تأكيد بيانات الإسكرينة</div>
+                                        <div style={{fontSize:11,color:"#475569"}}>راجع البيانات وعدّل قبل الحفظ</div>
+                                    </div>
+                                    <button onClick={()=>setOcrConfirm(null)} style={{marginRight:"auto",background:"none",border:"none",color:"#64748b",fontSize:18,cursor:"pointer"}}>✕</button>
+                                </div>
+
+                                {/* Preview */}
+                                {ocrConfirm.previewUrl && (
+                                    <div style={{textAlign:"center",marginBottom:14}}>
+                                        <img src={ocrConfirm.previewUrl} alt="screenshot" style={{maxHeight:120,maxWidth:"100%",borderRadius:10,border:"1px solid #a78bfa30",objectFit:"contain"}}/>
+                                    </div>
+                                )}
+
+                                {/* نوع العملية — السؤال الأساسي */}
+                                <div style={{background:"#0d1120",border:"1px solid #a78bfa30",borderRadius:12,padding:14,marginBottom:14}}>
+                                    <div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:10}}>❓ هذه العملية إيداع أم تحويل؟</div>
+                                    <div style={{display:"flex",gap:8}}>
+                                        <button
+                                            onClick={()=>setOcrConfirm(c=>({...c,detectedType:"receive"}))}
+                                            style={{flex:1,background:ocrConfirm.detectedType==="receive"?"#10b981":"#0a1628",border:`2px solid ${ocrConfirm.detectedType==="receive"?"#10b981":"#1e3a5f"}`,borderRadius:10,padding:"10px 0",color:ocrConfirm.detectedType==="receive"?"#fff":"#64748b",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+                                            📥 استلام / إيداع
+                                        </button>
+                                        <button
+                                            onClick={()=>setOcrConfirm(c=>({...c,detectedType:"transfer"}))}
+                                            style={{flex:1,background:ocrConfirm.detectedType==="transfer"?"#f59e0b":"#0a1628",border:`2px solid ${ocrConfirm.detectedType==="transfer"?"#f59e0b":"#1e3a5f"}`,borderRadius:10,padding:"10px 0",color:ocrConfirm.detectedType==="transfer"?"#fff":"#64748b",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+                                            💸 تحويل / سحب
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* المبلغ */}
+                                <div style={{marginBottom:12}}>
+                                    <div style={{fontSize:11,color:"#64748b",marginBottom:5,fontWeight:600}}>💰 المبلغ (ج)</div>
+                                    <input
+                                        type="number"
+                                        value={ocrConfirm.amount}
+                                        onChange={e=>setOcrConfirm(c=>({...c,amount:e.target.value}))}
+                                        placeholder="أدخل المبلغ"
+                                        style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:"11px 14px",color:"#e2e8f0",fontSize:16,fontWeight:700,outline:"none",fontFamily:"'Tajawal',sans-serif",textAlign:"center"}}
+                                    />
+                                </div>
+
+                                {/* الوقت */}
+                                <div style={{marginBottom:12}}>
+                                    <div style={{fontSize:11,color:"#64748b",marginBottom:5,fontWeight:600}}>🕐 الوقت</div>
+                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                                        <input type="date" value={ocrConfirm.date} onChange={e=>setOcrConfirm(c=>({...c,date:e.target.value}))}
+                                            style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:10,color:"#e2e8f0",fontSize:13,outline:"none",fontFamily:"'Tajawal',sans-serif",width:"100%"}}/>
+                                        <input type="time" value={ocrConfirm.time} onChange={e=>setOcrConfirm(c=>({...c,time:e.target.value}))}
+                                            style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:10,padding:10,color:"#e2e8f0",fontSize:13,outline:"none",fontFamily:"'Tajawal',sans-serif",width:"100%"}}/>
+                                    </div>
+                                </div>
+
+                                {/* رقم الهاتف لو موجود */}
+                                {ocrConfirm.phone && (
+                                    <div style={{marginBottom:14,background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:10,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+                                        <span style={{fontSize:12,color:"#64748b"}}>📱 رقم مكتشف:</span>
+                                        <span style={{fontSize:13,fontWeight:700,color:"#22d3ee",direction:"ltr"}}>{ocrConfirm.phone}</span>
+                                    </div>
+                                )}
+
+                                {/* أزرار التأكيد */}
+                                <div style={{display:"flex",gap:10,marginTop:4}}>
+                                    <button onClick={()=>setOcrConfirm(null)}
+                                        style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid var(--border-dim)",borderRadius:12,padding:13,color:"#64748b",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                                        إلغاء
+                                    </button>
+                                    <button
+                                        onClick={confirmOcrData}
+                                        disabled={!ocrConfirm.amount || !ocrConfirm.detectedType}
+                                        style={{flex:2,background:!ocrConfirm.amount||!ocrConfirm.detectedType?"#1e293b":"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:12,padding:13,color:"#fff",fontSize:14,fontWeight:700,cursor:!ocrConfirm.amount||!ocrConfirm.detectedType?"not-allowed":"pointer",boxShadow:!ocrConfirm.amount||!ocrConfirm.detectedType?"none":"0 4px 14px #a78bfa40",transition:"all 0.2s"}}>
+                                        ✅ تأكيد ونقل للفورم
+                                    </button>
+                                </div>
+                                {(!ocrConfirm.amount || !ocrConfirm.detectedType) && (
+                                    <div style={{fontSize:10,color:"#475569",textAlign:"center",marginTop:8}}>
+                                        {!ocrConfirm.detectedType ? "⚠️ اختر نوع العملية أولاً" : "⚠️ أدخل المبلغ أولاً"}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Modal تأكيد الحذف */}
                     {confirmDelete && (
@@ -2947,9 +3704,9 @@
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
                                     {[
                                         {label:"عمليات اليوم",value:todayTxns.length,icon:"📊",color:"#22d3ee"},
-                                        {label:"رأس المال",value:formatNum(capital)+" ج",icon:"👑",color:"#f59e0b"},
-                                        {label:"الديون الباقية",value:formatNum(totalDebt)+" ج",icon:"💳",color:"#ef4444"},
-                                        {label:"صافي الشهر",value:formatNum(netMonthProfit)+" ج",icon:"📈",color:"#a78bfa"},
+                                        {label:"رأس المال",value:maskNum(capital, privacyMode)+" ج",icon:"👑",color:"#f59e0b"},
+                                        {label:"الديون الباقية",value:maskNum(totalDebt, privacyMode)+" ج",icon:"💳",color:"#ef4444"},
+                                        {label:"صافي الشهر",value:maskNum(netMonthProfit, privacyMode)+" ج",icon:"📈",color:"#a78bfa"},
                                     ].map((c,i)=>(
                                         <div key={i} style={{background:"var(--bg-card)",border:`1px solid ${c.color}25`,borderRadius:14,padding:"14px 16px"}}>
                                             <div style={{fontSize:22}}>{c.icon}</div>
@@ -2957,6 +3714,19 @@
                                             <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>{c.label}</div>
                                         </div>
                                     ))}
+                                </div>
+                                {/* رصيد فوري — بطاقة كاملة العرض */}
+                                <div style={{background:"var(--bg-card)",border:"1px solid #10b98125",borderRadius:14,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                        <div style={{fontSize:24}}>⚡</div>
+                                        <div>
+                                            <div style={{fontSize:11,color:"var(--text-dim)"}}>رصيد فوري التراكمي</div>
+                                            <div style={{fontSize:18,fontWeight:900,color:"#10b981",marginTop:2}}>{maskNum(fawriBalance, privacyMode)} ج</div>
+                                        </div>
+                                    </div>
+                                    {isAdmin && (
+                                        <button onClick={()=>{const v=prompt("تعديل رصيد فوري يدوياً:",fawriBalance);if(v!==null&&!isNaN(parseFloat(v)))setFawriBalance(parseFloat(v));}} style={{background:"#10b98115",border:"1px solid #10b98130",borderRadius:8,padding:"5px 12px",color:"#10b981",fontSize:11,cursor:"pointer",fontWeight:700}}>تعديل</button>
+                                    )}
                                 </div>
 
                                 {/* ⭐ ملخص اليوم */}
@@ -2968,25 +3738,72 @@
                                             <div style={{fontSize:10,color:"#64748b"}}>عملية</div>
                                         </div>
                                         <div style={{textAlign:"center"}}>
-                                            <div style={{fontSize:18,fontWeight:900,color:"#10b981"}}>{formatNum(todayTxns.filter(t=>t.type==="transfer").reduce((s,t)=>s+t.amount,0))}</div>
+                                            <div style={{fontSize:18,fontWeight:900,color:"#10b981"}}>{maskNum(todayTxns.filter(t=>t.type==="transfer").reduce((s,t)=>s+t.amount,0), privacyMode)}</div>
                                             <div style={{fontSize:10,color:"#64748b"}}>تحويل ج</div>
                                         </div>
                                         <div style={{textAlign:"center"}}>
-                                            <div style={{fontSize:18,fontWeight:900,color:"#f59e0b"}}>{formatNum(todayTxns.filter(t=>t.type==="receive").reduce((s,t)=>s+t.amount,0))}</div>
+                                            <div style={{fontSize:18,fontWeight:900,color:"#f59e0b"}}>{maskNum(todayTxns.filter(t=>t.type==="receive").reduce((s,t)=>s+t.amount,0), privacyMode)}</div>
                                             <div style={{fontSize:10,color:"#64748b"}}>استلام ج</div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {alertSources.length>0 && (
-                                    <div style={{background:"#ef444410",border:"1px solid #ef444440",borderRadius:14,padding:14,marginBottom:16}}>
-                                        <div style={{fontSize:13,fontWeight:700,color:"#ef4444",marginBottom:8}}>⚠️ خطوط قرب الانتهاء</div>
-                                        {alertSources.map(s=><div key={s.id} style={{fontSize:12,color:"#fca5a5",marginBottom:4}}>{s.name}: {Math.round((s.usedMonth/s.monthlyLimit)*100)}%</div>)}
+                                {/* ⭐ FEATURE: تنبيه 80% قبل ما الخط يخلص */}
+                                {warningSources.length>0 && (
+                                    <div style={{background:"#f59e0b10",border:"1px solid #f59e0b40",borderRadius:14,padding:12,marginBottom:12}} className="limit-warning">
+                                        <div style={{fontSize:12,fontWeight:700,color:"#f59e0b",marginBottom:6}}>⚠️ خطوط اقتربت من الحد (80%+)</div>
+                                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                                            {warningSources.map(s=>{
+                                                const pct = Math.round((s.usedToday/s.dailyLimit)*100);
+                                                return <div key={s.id} style={{background:"#f59e0b15",border:"1px solid #f59e0b30",borderRadius:8,padding:"4px 10px",fontSize:11,color:"#fbbf24"}}>{s.name}: {pct}%</div>;
+                                            })}
+                                        </div>
                                     </div>
                                 )}
 
+                                {alertSources.length>0 && (
+                                    <div style={{background:"#ef444410",border:"1px solid #ef444440",borderRadius:14,padding:14,marginBottom:16}} className="limit-critical">
+                                        <div style={{fontSize:13,fontWeight:700,color:"#ef4444",marginBottom:8}}>🚨 خطوط وصلت الحد</div>
+                                        {alertSources.map(s=><div key={s.id} style={{fontSize:12,color:"#fca5a5",marginBottom:4}}>{s.name} ({s.label}): {s.pct}%</div>)}
+                                    </div>
+                                )}
+
+                                {/* ⭐ FEATURE: تذكيرات الديون القديمة */}
+                                {oldDebtors.length>0 && (
+                                    <div style={{background:"#ef444408",border:"1px solid #ef444430",borderRadius:14,padding:12,marginBottom:12}}>
+                                        <div style={{fontSize:12,fontWeight:700,color:"#ef4444",marginBottom:8}}>🕐 ديون من أكتر من 3 أيام</div>
+                                        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                                            {oldDebtors.slice(0,4).map(p=>(
+                                                <div key={p.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:"1px solid #1a2235"}}>
+                                                    <span style={{color:"#c8d6e8"}}>{p.personName}</span>
+                                                    <span style={{color:"#ef4444",fontWeight:700}}>{formatNum(getPersonBalance(p))} ج</span>
+                                                </div>
+                                            ))}
+                                            {oldDebtors.length>4 && <div style={{fontSize:11,color:"#3d4f65",textAlign:"center"}}>+ {oldDebtors.length-4} عملاء آخرين</div>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* أزرار الإجراءات السريعة */}
+                                <div style={{display:"flex",gap:8,marginBottom:12}}>
+                                    {canAddTxn && (
+                                        <button onClick={()=>setShowQuickAdd(true)}
+                                            style={{flex:1,background:"#22d3ee15",border:"1px solid #22d3ee40",borderRadius:12,padding:"10px 8px",color:"#22d3ee",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>
+                                            ⚡ سريع
+                                        </button>
+                                    )}
+                                    <button onClick={()=>setShowGlobalSearch(true)}
+                                        style={{flex:1,background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:12,padding:"10px 8px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>
+                                        🔍 بحث
+                                    </button>
+                                    <button onClick={()=>setShowDailyReport(true)}
+                                        style={{flex:1,background:"#10b98115",border:"1px solid #10b98140",borderRadius:12,padding:"10px 8px",color:"#10b981",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>
+                                        📊 تقرير
+                                    </button>
+                                </div>
+
                                 {canAddTxn && (
-                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
+                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
                                 )}
 
                                 {/* ⭐ الرسوم البيانية التفاعلية */}
@@ -2996,16 +3813,55 @@
                                     formatNum={formatNum}
                                 />
 
+                                {/* ⭐ FEATURE: مقارنة شهرية */}
+                                {(() => {
+                                    function pad(n){return String(n).padStart(2,"0");}
+                                    const now = new Date();
+                                    const thisM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+                                    const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+                                    const prevM = `${prevDate.getFullYear()}-${pad(prevDate.getMonth()+1)}`;
+                                    const thisTxns = transactions.filter(t=>t.date&&t.date.startsWith(thisM));
+                                    const prevTxns = transactions.filter(t=>t.date&&t.date.startsWith(prevM));
+                                    const thisVol  = thisTxns.reduce((s,t)=>s+t.amount,0);
+                                    const prevVol  = prevTxns.reduce((s,t)=>s+t.amount,0);
+                                    const thisCount = thisTxns.length;
+                                    const prevCount = prevTxns.length;
+                                    if (prevVol === 0 && prevCount === 0) return null;
+                                    const volPct  = prevVol>0 ? Math.round(((thisVol-prevVol)/prevVol)*100) : 0;
+                                    const cntPct  = prevCount>0 ? Math.round(((thisCount-prevCount)/prevCount)*100) : 0;
+                                    const arrow = v => v>0?"↑":v<0?"↓":"→";
+                                    const color = v => v>0?"#10b981":v<0?"#ef4444":"#7a8fa8";
+                                    return (
+                                        <div style={{background:"#0d1120",border:"1px solid #a78bfa20",borderRadius:14,padding:"12px 14px",marginBottom:14}}>
+                                            <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:10}}>📈 مقارنة: هذا الشهر vs الماضي</div>
+                                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                                                {[
+                                                    {label:"حجم التداول",thisVal:formatNum(Math.round(thisVol))+" ج",prevVal:formatNum(Math.round(prevVol))+" ج",pct:volPct},
+                                                    {label:"عدد العمليات",thisVal:thisCount,prevVal:prevCount,pct:cntPct},
+                                                ].map((item,i)=>(
+                                                    <div key={i} style={{background:"#05070f",borderRadius:10,padding:"10px 12px"}}>
+                                                        <div style={{fontSize:10,color:"#3d4f65",marginBottom:4}}>{item.label}</div>
+                                                        <div style={{fontSize:14,fontWeight:700,color:"#c8d6e8"}}>{item.thisVal}</div>
+                                                        <div style={{fontSize:11,color:color(item.pct),marginTop:3}}>
+                                                            {arrow(item.pct)} {Math.abs(item.pct)}% عن الماضي ({item.prevVal})
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
                                 <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>آخر العمليات</div>
                                 {transactions.slice(0,5).map(t=>(
                                     <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                             <div>
                                                 <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>
-                                                    {t.type === "transfer" ? "💸" : t.type === "receive" ? "📥" : t.type === "bank_withdraw" ? "🏦" : "💳"} {t.personName}
-                                                    {(t.type === "bank_withdraw" || t.type === "fawri_withdraw") && (
-                                                        <span style={{fontSize:10,marginRight:6,background: t.type==="bank_withdraw"?"#3b82f620":"#a78bfa20",color: t.type==="bank_withdraw"?"#3b82f6":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
-                                                            {t.type === "bank_withdraw" ? "سحب بنك" : "سحب فوري"}
+                                                    {t.type === "transfer" ? "💸" : t.type === "receive" ? "📥" : t.type === "bank_withdraw" ? "🏦" : t.type === "fawri_transfer" ? "⚡" : "💳"} {t.personName}
+                                                    {(t.type === "bank_withdraw" || t.type === "fawri_withdraw" || t.type === "fawri_transfer") && (
+                                                        <span style={{fontSize:10,marginRight:6,background: t.type==="bank_withdraw"?"#3b82f620":t.type==="fawri_transfer"?"#10b98120":"#a78bfa20",color: t.type==="bank_withdraw"?"#3b82f6":t.type==="fawri_transfer"?"#10b981":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
+                                                            {t.type === "bank_withdraw" ? "سحب بنك" : t.type === "fawri_transfer" ? "⚡ تحويل إلى فوري" : "سحب فوري"}
                                                         </span>
                                                     )}
                                                 </div>
@@ -3029,7 +3885,7 @@
                                             )}
                                             </div>
                                         </div>
-                                        <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{formatNum(t.amount)} ج</div>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>{maskNum(t.amount, privacyMode)} ج</div>
                                         {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                                                 من: {t.fromNumber}
                                                 {(isViewer||isAdmin||isOmar) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
@@ -3101,7 +3957,7 @@
 
                                 {/* ══ منطق الفلترة المتقدم ══ */}
                                 {(()=>{
-                                    const isWithdraw = t => t.type==="transfer" || t.type==="bank_withdraw" || t.type==="fawri_withdraw";
+                                    const isWithdraw = t => t.type==="transfer" || t.type==="bank_withdraw" || t.type==="fawri_withdraw" || t.type==="fawri_transfer";
                                     const isDeposit  = t => t.type==="receive";
 
                                     const filtered = transactions.filter(t => {
@@ -3155,11 +4011,11 @@
                                                     <div style={{fontSize:11,color:"#3d4f65"}}>{filtered.length} عملية</div>
                                                 </div>
                                                 <div style={{textAlign:"left"}}>
-                                                    <div style={{fontSize:20,fontWeight:900,color:summaryColor}}>{formatNum(Math.round(summaryVal))} ج</div>
+                                                    <div style={{fontSize:20,fontWeight:900,color:summaryColor}}>{maskNum(Math.round(summaryVal), privacyMode)} ج</div>
                                                     {operationsTab==="all" && (
                                                         <div style={{fontSize:10,color:"#3d4f65",marginTop:2}}>
-                                                            سحب: <span style={{color:"#ef4444"}}>{formatNum(Math.round(withdrawAmt))}</span>
-                                                            {" · "}إيداع: <span style={{color:"#10b981"}}>{formatNum(Math.round(depositAmt))}</span>
+                                                            سحب: <span style={{color:"#ef4444"}}>{maskNum(Math.round(withdrawAmt), privacyMode)}</span>
+                                                            {" · "}إيداع: <span style={{color:"#10b981"}}>{maskNum(Math.round(depositAmt), privacyMode)}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -3168,7 +4024,7 @@
                                             {/* تصدير CSV */}
                                             {isAdmin && (
                                                 <button onClick={()=>{
-                                                    const txnTypeLabel = (t) => t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":"سحب فوري";
+                                                    const txnTypeLabel = (t) => t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"تحويل إلى فوري":"سحب فوري";
                                                     const rows = [["الاسم","النوع","المبلغ","العمولة","الإجمالي المخصوم","من","إلى","التاريخ","ملاحظات"],...filtered.map(t=>[t.personName,txnTypeLabel(t),t.amount,t.commission||0,t.totalAmount||t.amount,t.fromNumber||"",t.toNumber||"",t.dateTime||t.date,t.notes||""])];
                                                     const csv = rows.map(r=>r.join(",")).join("\n");
                                                     const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
@@ -3196,10 +4052,10 @@
                                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                                             <div>
                                                                 <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>
-                                                                    {t.type==="transfer"?"💸":t.type==="receive"?"📥":t.type==="bank_withdraw"?"🏦":"💳"} {t.personName}
-                                                                    {(t.type==="bank_withdraw"||t.type==="fawri_withdraw") && (
-                                                                        <span style={{fontSize:10,marginRight:6,background:t.type==="bank_withdraw"?"#3b82f620":"#a78bfa20",color:t.type==="bank_withdraw"?"#3b82f6":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
-                                                                            {t.type==="bank_withdraw"?"سحب بنك":"سحب فوري"}
+                                                                    {t.type==="transfer"?"💸":t.type==="receive"?"📥":t.type==="bank_withdraw"?"🏦":t.type==="fawri_transfer"?"⚡":"💳"} {t.personName}
+                                                                    {(t.type==="bank_withdraw"||t.type==="fawri_withdraw"||t.type==="fawri_transfer") && (
+                                                                        <span style={{fontSize:10,marginRight:6,background:t.type==="bank_withdraw"?"#3b82f620":t.type==="fawri_transfer"?"#10b98120":"#a78bfa20",color:t.type==="bank_withdraw"?"#3b82f6":t.type==="fawri_transfer"?"#10b981":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
+                                                                            {t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"⚡ تحويل إلى فوري":"سحب فوري"}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -3210,6 +4066,34 @@
                                                                     {canPrintTxn && (
                                                                         <button onClick={()=>setActiveReceipt(t)} title="طباعة الفاتورة"
                                                                             style={{background:"#0a1628",border:"1px solid #22d3ee30",borderRadius:8,padding:"4px 9px",color:"#22d3ee",cursor:"pointer",fontSize:13}}>🖨️</button>
+                                                                    )}
+                                                                    {/* ⭐ FEATURE: تكرار عملية */}
+                                                                    {canAddTxn && (
+                                                                        <button
+                                                                            title="تكرار العملية"
+                                                                            onClick={()=>{
+                                                                                setModal("addTxn");
+                                                                                setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false });
+                                                                                setSplitPlan(null); setSplitConfirmed(false);
+                                                                                setOcrResult(null); setOcrPreviewUrl(null);
+                                                                                setForm({
+                                                                                    type: t.type,
+                                                                                    date: today(),
+                                                                                    time: (()=>{const d=new Date();return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;})(),
+                                                                                    fromNumber: t.fromNumber||"",
+                                                                                    toNumber: t.toNumber||"",
+                                                                                    personName: t.personName||"",
+                                                                                    amount: String(t.amount||""),
+                                                                                    sourceId: t.sourceId||"",
+                                                                                    sourceType: t.sourceType||"line",
+                                                                                    notes: t.notes||"",
+                                                                                    image: null
+                                                                                });
+                                                                                showToast("✅ تم تحميل بيانات العملية — عدّل وأكد");
+                                                                            }}
+                                                                            style={{background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:8,padding:"4px 9px",color:"#a78bfa",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                                                                            🔁
+                                                                        </button>
                                                                     )}
                                                                     {canReverseTxn && (
                                                                         <button onClick={()=>setConfirmDelete({type:"reverse",data:t})}
@@ -3223,7 +4107,7 @@
                                                             )}
                                                         </div>
                                                         <div style={{fontSize:13,fontWeight:700,color:t.type==="receive"?"#10b981":"#22d3ee",marginBottom:8}}>
-                                                            {t.type==="receive"?"⬆️":"⬇️"} {formatNum(t.amount)} ج
+                                                            {t.type==="receive"?"⬆️":"⬇️"} {maskNum(t.amount, privacyMode)} ج
                                                         </div>
                                                         {t.type==="transfer" && <>
                                                             <div style={{fontSize:11,color:"#94a3b8",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
@@ -3285,7 +4169,7 @@
                                                 {/* الرصيد الحالي */}
                                                 <div style={{textAlign:"left",marginLeft:12}}>
                                                     <div style={{fontSize:22,fontWeight:900,color:balance>0?"#ef4444":balance<0?"#10b981":"#64748b"}}>
-                                                        {formatNum(Math.abs(balance))} ج
+                                                        {maskNum(Math.abs(balance), privacyMode)} ج
                                                     </div>
                                                     <div style={{fontSize:10,color:balance>0?"#ef4444":balance<0?"#10b981":"#64748b",textAlign:"center",fontWeight:700}}>
                                                         {balance>0?"عليه":"له"}{balance===0?" مش عليه حاجة":""}
@@ -3376,12 +4260,12 @@
                                                     <div style={{fontSize:9,color:"#94a3b8",marginTop:3}}>أعطاك</div>
                                                 </div>
                                                 <div style={{background: balance>0?"#ef444420":"#10b98120",borderRadius:10,padding:"10px 6px",textAlign:"center",border:`1px solid ${balance>0?"#ef444440":"#10b98140"}`}}>
-                                                    <div style={{fontSize:15,fontWeight:900,color:balance>0?"#ef4444":"#10b981"}}>{formatNum(Math.abs(balance))}</div>
+                                                    <div style={{fontSize:15,fontWeight:900,color:balance>0?"#ef4444":"#10b981"}}>{maskNum(Math.abs(balance), privacyMode)}</div>
                                                     <div style={{fontSize:9,color:"#94a3b8",marginTop:3}}>{balance>0?"عليه":"له"}</div>
                                                 </div>
                                             </div>
                                             <div style={{fontSize:11,color:"#475569",textAlign:"center"}}>
-                                                إجمالي حوّل ({formatNum(totalD)} ج) - إجمالي سدّد ({formatNum(totalC)} ج) = <b style={{color:balance>0?"#ef4444":"#10b981"}}>{formatNum(Math.abs(balance))} ج {balance>0?"عليه":"له"}</b>
+                                                إجمالي حوّل ({formatNum(totalD)} ج) - إجمالي سدّد ({formatNum(totalC)} ج) = <b style={{color:balance>0?"#ef4444":"#10b981"}}>{maskNum(Math.abs(balance), privacyMode)} ج {balance>0?"عليه":"له"}</b>
                                             </div>
                                         </div>
                                     );
@@ -3390,16 +4274,38 @@
                                 {/* أزرار إضافة حركة */}
                                 {canEditPeople && (
                                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-                                        <button onClick={()=>{setCustMoveForm({type:"debit",amount:"",note:""});setCustModal("addMove");}}
+                                        <button onClick={()=>{setCustMoveForm({type:"debit",amount:"",note:"",isOld:false});setCustModal("addMove");}}
                                             style={{background:"linear-gradient(135deg,#ef4444,#dc2626)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                                             ➕ حوّل مني
                                         </button>
-                                        <button onClick={()=>{setCustMoveForm({type:"credit",amount:"",note:""});setCustModal("addMove");}}
+                                        <button onClick={()=>{setCustMoveForm({type:"credit",amount:"",note:"",isOld:false});setCustModal("addMove");}}
                                             style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                                             💵 أعطاني / سدّد
                                         </button>
                                     </div>
                                 )}
+
+                                {/* ⭐ FEATURE: آخر عمليات التطبيق لهذا العميل */}
+                                {(() => {
+                                    const phone = selectedPerson.phone || "";
+                                    const name = selectedPerson.personName || "";
+                                    const personTxns = transactions.filter(t =>
+                                        (phone && (t.fromNumber===phone || t.toNumber===phone)) ||
+                                        (name && t.personName===name)
+                                    ).slice(0, 5);
+                                    if (personTxns.length === 0) return null;
+                                    return (
+                                        <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+                                            <div style={{fontSize:12,fontWeight:700,color:"#7a8fa8",marginBottom:8}}>📱 آخر عمليات فودافون كاش</div>
+                                            {personTxns.map(t=>(
+                                                <div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a2235",fontSize:12}}>
+                                                    <span style={{color:"#94a3b8"}}>{t.date} — {t.type==="transfer"?"💸 تحويل":t.type==="receive"?"📥 استلام":"💳"}</span>
+                                                    <span style={{color:"#22d3ee",fontWeight:700}}>{formatNum(t.amount)} ج</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* جدول الحركات */}
                                 <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:10}}>📋 كشف الحساب</div>
@@ -3408,47 +4314,122 @@
                                     <div style={{textAlign:"center",color:"#475569",padding:30,fontSize:13}}>لا توجد حركات بعد</div>
                                 )}
 
-                                {/* حساب الرصيد التراكمي لكل حركة */}
+                                {/* ⭐ كشف الحساب بالدورات — كل دورة منفصلة */}
                                 {(() => {
                                     const moves = [...(selectedPerson.moves||[])].sort((a,b)=>a.id-b.id);
+
+                                    // نقسّم الحركات لـ "دورات" — كل مرة يوصل الرصيد صفر تبدأ دورة جديدة
+                                    const sessions = [];
+                                    let session = [];
                                     let running = 0;
-                                    const rows = moves.map(m => {
-                                        if (m.type === "debit")  running += m.amount;
-                                        if (m.type === "credit") running -= m.amount;
-                                        return { ...m, running };
+                                    moves.forEach(m => {
+                                        running += m.type==="debit" ? m.amount : -m.amount;
+                                        session.push({ ...m, running: Math.round(running*100)/100 });
+                                        if (running <= 0) {
+                                            sessions.push([...session]);
+                                            session = [];
+                                            running = 0;
+                                        }
                                     });
-                                    return [...rows].reverse().map((m, idx) => (
-                                        <div key={m.id} style={{
-                                            background:"#0a1628",
-                                            border:`1px solid ${m.type==="debit"?"#ef444430":"#10b98130"}`,
-                                            borderRadius:12, padding:12, marginBottom:8
-                                        }}>
-                                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                                                <div style={{flex:1}}>
-                                                    <div style={{fontSize:12,fontWeight:700,color:"#e2e8f0"}}>{m.note}</div>
-                                                    <div style={{fontSize:10,color:"#475569",marginTop:2}}>{formatDateOnly(m.date)}</div>
-                                                </div>
-                                                <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                                                    {canEditPeople && <button onClick={()=>deleteCustomerMove(selectedPerson.id, m.id)}
-                                                        style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:13}}>🗑️</button>}
-                                                </div>
-                                            </div>
-                                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,fontSize:12}}>
-                                                <div style={{textAlign:"center"}}>
-                                                    <div style={{color:"#ef4444",fontWeight:700}}>{m.type==="debit"?`+ ${formatNum(m.amount)} ج`:"—"}</div>
-                                                    <div style={{color:"#475569",fontSize:9}}>حوّل منه</div>
-                                                </div>
-                                                <div style={{textAlign:"center"}}>
-                                                    <div style={{color:"#10b981",fontWeight:700}}>{m.type==="credit"?`- ${formatNum(m.amount)} ج`:"—"}</div>
-                                                    <div style={{color:"#475569",fontSize:9}}>أعطاك</div>
-                                                </div>
-                                                <div style={{textAlign:"center"}}>
-                                                    <div style={{color:m.running>0?"#f59e0b":m.running<0?"#10b981":"#64748b",fontWeight:800}}>{formatNum(Math.abs(m.running))} ج</div>
-                                                    <div style={{color:"#475569",fontSize:9}}>{m.running>0?"عليه":m.running<0?"له":"صفر"}</div>
-                                                </div>
-                                            </div>
+                                    // لو فيه حركات لسه مش مسوّاها (الدورة الحالية المفتوحة)
+                                    if (session.length > 0) sessions.push([...session]);
+
+                                    // عرض من الأحدث للأقدم
+                                    const reversedSessions = [...sessions].reverse();
+                                    const currentBalance = moves.reduce((s,m)=> s + (m.type==="debit"?m.amount:-m.amount), 0);
+
+                                    return (
+                                        <div>
+                                            {/* ⭐ بطاقة الرصيد — مع فصل القديم من الجديد */}
+                                            {(()=>{
+                                                const oldDebt  = moves.filter(m=>m.type==="debit" && m.isOld).reduce((s,m)=>s+m.amount,0);
+                                                const oldPaid  = moves.filter(m=>m.type==="credit" && m.isOld).reduce((s,m)=>s+m.amount,0);
+                                                const newDebt  = moves.filter(m=>m.type==="debit" && !m.isOld).reduce((s,m)=>s+m.amount,0);
+                                                const newPaid  = moves.filter(m=>m.type==="credit" && !m.isOld).reduce((s,m)=>s+m.amount,0);
+                                                // الطريقة: الكريدت بيسدد القديم الأول وبعدين الجديد
+                                                const totalCredit = moves.filter(m=>m.type==="credit").reduce((s,m)=>s+m.amount,0);
+                                                const remainOld = Math.max(0, Math.round((oldDebt - Math.min(totalCredit, oldDebt))*100)/100);
+                                                const remainNew = Math.max(0, Math.round((currentBalance - remainOld)*100)/100);
+                                                const hasOld = oldDebt > 0;
+                                                return (
+                                                    <div style={{
+                                                        background: currentBalance>0?"linear-gradient(135deg,#1a0a0a,#200d0d)":currentBalance<0?"linear-gradient(135deg,#0a1a10,#0d2014)":"#0d1120",
+                                                        border:`2px solid ${currentBalance>0?"#ef444460":currentBalance<0?"#10b98160":"#1e3a5f"}`,
+                                                        borderRadius:14, padding:"14px 16px", marginBottom:14, textAlign:"center"
+                                                    }}>
+                                                        <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>
+                                                            {currentBalance>0?"⚠️ إجمالي المديونية":currentBalance<0?"✅ له عندك":"✅ الحساب صافي"}
+                                                        </div>
+                                                        <div style={{fontSize:28,fontWeight:900,color:currentBalance>0?"#ef4444":currentBalance<0?"#10b981":"#64748b"}}>
+                                                            {maskNum(Math.abs(Math.round(currentBalance*100)/100), privacyMode)} ج
+                                                        </div>
+                                                        {/* فصل القديم من الجديد لو فيه ديون قديمة */}
+                                                        {hasOld && currentBalance > 0 && (
+                                                            <div style={{marginTop:10,background:"#0d1120",borderRadius:10,padding:"10px 12px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                                                                <div style={{background:"#f59e0b12",border:"1px solid #f59e0b40",borderRadius:8,padding:"8px 6px"}}>
+                                                                    <div style={{fontSize:10,color:"#f59e0b",fontWeight:700,marginBottom:2}}>📌 قديم</div>
+                                                                    <div style={{fontSize:16,fontWeight:900,color:"#f59e0b"}}>{maskNum(remainOld, privacyMode)} ج</div>
+                                                                </div>
+                                                                <div style={{background:"#ef444412",border:"1px solid #ef444440",borderRadius:8,padding:"8px 6px"}}>
+                                                                    <div style={{fontSize:10,color:"#ef4444",fontWeight:700,marginBottom:2}}>🆕 جديد</div>
+                                                                    <div style={{fontSize:16,fontWeight:900,color:"#ef4444"}}>{maskNum(remainNew, privacyMode)} ج</div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* الدورات */}
+                                            {reversedSessions.map((sess, sIdx) => {
+                                                const sessBalance = Math.round(sess.reduce((s,m)=>s+(m.type==="debit"?m.amount:-m.amount),0)*100)/100;
+                                                const isOpen = sIdx === 0 && sessBalance > 0;
+                                                const isClosed = sessBalance <= 0;
+                                                const realIdx = reversedSessions.length - 1 - sIdx;
+                                                return (
+                                                    <div key={sIdx} style={{marginBottom:16}}>
+                                                        {/* هيدر الدورة */}
+                                                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                                                            <div style={{fontSize:11,fontWeight:700,color: isOpen?"#f59e0b":isClosed?"#10b981":"#64748b"}}>
+                                                                {isOpen ? "🔴 الدورة الحالية (مفتوحة)" : isClosed ? `✅ دورة ${realIdx+1} — مسوّاها` : `📂 دورة ${realIdx+1}`}
+                                                            </div>
+                                                            <div style={{fontSize:11,color: sessBalance>0?"#ef4444":"#10b981",fontWeight:700}}>
+                                                                {sessBalance>0 ? `باقي ${formatNum(sessBalance)} ج` : "✓ صافي"}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* حركات الدورة */}
+                                                        {[...sess].reverse().map(m => (
+                                                            <div key={m.id} style={{
+                                                                background:"#0a1628",
+                                                                border:`1px solid ${m.type==="debit"?"#ef444425":"#10b98125"}`,
+                                                                borderRadius:10, padding:"10px 12px", marginBottom:6
+                                                            }}>
+                                                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                                                    <div style={{flex:1}}>
+                                                                        <div style={{fontSize:12,fontWeight:700,color:m.type==="debit"?"#fca5a5":"#6ee7b7"}}>
+                                                                            {m.type==="debit"?"💸 حوّل منه":"✅ سدّد"} — {maskNum(m.amount, privacyMode)} ج
+                                                                        </div>
+                                                                        <div style={{fontSize:10,color:"#475569",marginTop:1}}>{m.note} • {formatDateOnly(m.date)}</div>
+                                                                    </div>
+                                                                    <div style={{textAlign:"left",marginRight:8}}>
+                                                                        <div style={{fontSize:12,fontWeight:800,color:m.running>0?"#f59e0b":m.running<0?"#10b981":"#64748b"}}>
+                                                                            {maskNum(Math.abs(m.running), privacyMode)} ج
+                                                                        </div>
+                                                                        <div style={{fontSize:9,color:"#475569"}}>{m.running>0?"عليه":m.running<0?"له":"صفر"}</div>
+                                                                    </div>
+                                                                    {canEditPeople && (
+                                                                        <button onClick={()=>deleteCustomerMove(selectedPerson.id, m.id)}
+                                                                            style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:13}}>🗑️</button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                    ));
+                                    );
                                 })()}
                             </div>
                         )}
@@ -3457,6 +4438,33 @@
                         {/* LINES */}
                         {tab==="lines" && (
                             <div>
+                                {/* ⭐ FEATURE: مقارنة أداء الخطوط */}
+                                {(() => {
+                                    const lineStats = lines.map(l => {
+                                        const st = calcSourceStats(l, transactions);
+                                        const txnCount = transactions.filter(t=>t.sourceId===l.id).length;
+                                        return { ...l, usedMonth: st.usedMonthTransfer + st.usedMonthReceive, txnCount };
+                                    }).sort((a,b)=>b.usedMonth-a.usedMonth);
+                                    if (lineStats.length === 0) return null;
+                                    const maxUsed = Math.max(...lineStats.map(l=>l.usedMonth), 1);
+                                    return (
+                                        <div style={{background:"#0d1120",border:"1px solid #22d3ee20",borderRadius:14,padding:"12px 14px",marginBottom:14}}>
+                                            <div style={{fontSize:12,fontWeight:700,color:"#22d3ee",marginBottom:10}}>📊 أداء الخطوط هذا الشهر</div>
+                                            {lineStats.slice(0,6).map((l,i)=>(
+                                                <div key={l.id} style={{marginBottom:8}}>
+                                                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:11}}>
+                                                        <span style={{color:"#c8d6e8"}}>{i+1}. {l.name}</span>
+                                                        <span style={{color:"#7a8fa8"}}>{formatNum(l.usedMonth)} ج ({l.txnCount} عملية)</span>
+                                                    </div>
+                                                    <div className="vl-track">
+                                                        <div className="vl-fill" style={{width:`${(l.usedMonth/maxUsed)*100}%`,background:i===0?"linear-gradient(90deg,#22d3ee,#0891b2)":i===1?"linear-gradient(90deg,#a78bfa,#7c3aed)":"linear-gradient(90deg,#3b82f6,#1d4ed8)"}}/>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+
                                 {/* ===== قسم الخطوط ===== */}
                                 <div style={{marginBottom:20}}>
                                     <div className="accordion-header" onClick={()=>setAccordionOpen(s=>({...s,lines:!s.lines}))}>
@@ -3520,13 +4528,13 @@
                                                 </div>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                                     <span style={{fontSize:11,color:l.number?"#64748b":"#334155",cursor:l.number?"copy":"auto"}} onClick={()=>{if(l.number){navigator.clipboard.writeText(l.number);showToast("تم النسخ ✓");}}}>{l.number ? `${l.number} 📋` : "بلا رقم"}</span>
-                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
+                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {maskNum(balance, privacyMode)} ج</span>
                                                 </div>
                                                 {/* تحويل */}
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{formatNum(lStats.usedTodayTransfer)}</b> / {formatNum(vodDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{formatNum(lStats.usedMonthTransfer)}</b> / {formatNum(linesMonthlyLimit)}</span>
+                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{maskNum(lStats.usedTodayTransfer, privacyMode)}</b> / {formatNum(vodDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(lStats.usedMonthTransfer, privacyMode)}</b> / {formatNum(linesMonthlyLimit)}</span>
                                                     </div>
                                                     <ProgressBar used={lStats.usedTodayTransfer} limit={vodDailyLimit} color="#f59e0b" showPct={false}/>
                                                     <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthTransfer} limit={linesMonthlyLimit} color="#f59e0b" showPct={true}/></div>
@@ -3534,8 +4542,8 @@
                                                 {/* استلام */}
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{formatNum(lStats.usedTodayReceive)}</b> / {formatNum(vodDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{formatNum(lStats.usedMonthReceive)}</b> / {formatNum(linesMonthlyLimit)}</span>
+                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{maskNum(lStats.usedTodayReceive, privacyMode)}</b> / {formatNum(vodDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(lStats.usedMonthReceive, privacyMode)}</b> / {formatNum(linesMonthlyLimit)}</span>
                                                     </div>
                                                     <ProgressBar used={lStats.usedTodayReceive} limit={vodDailyLimit} color="#22d3ee" showPct={false}/>
                                                     <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthReceive} limit={linesMonthlyLimit} color="#22d3ee" showPct={true}/></div>
@@ -3607,20 +4615,20 @@
                                                 </div>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                                     <span style={{fontSize:11,color:v.number?"#64748b":"#334155",cursor:v.number?"copy":"auto"}} onClick={()=>{if(v.number){navigator.clipboard.writeText(v.number);showToast("تم النسخ ✓");}}}>{v.number ? `${v.number} 📋` : "بلا رقم"}</span>
-                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
+                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {maskNum(balance, privacyMode)} ج</span>
                                                 </div>
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{formatNum(vStats.usedTodayTransfer)}</b> / {formatNum(visaDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{formatNum(vStats.usedMonthTransfer)}</b> / {formatNum(visaMonthlyLimit)}</span>
+                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{maskNum(vStats.usedTodayTransfer, privacyMode)}</b> / {formatNum(visaDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(vStats.usedMonthTransfer, privacyMode)}</b> / {formatNum(visaMonthlyLimit)}</span>
                                                     </div>
                                                     <ProgressBar used={vStats.usedTodayTransfer} limit={visaDailyLimit} color="#f59e0b"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthTransfer} limit={visaMonthlyLimit} color="#f59e0b" showPct={true}/></div>
                                                 </div>
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{formatNum(vStats.usedTodayReceive)}</b> / {formatNum(visaDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{formatNum(vStats.usedMonthReceive)}</b> / {formatNum(visaMonthlyLimit)}</span>
+                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{maskNum(vStats.usedTodayReceive, privacyMode)}</b> / {formatNum(visaDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(vStats.usedMonthReceive, privacyMode)}</b> / {formatNum(visaMonthlyLimit)}</span>
                                                     </div>
                                                     <ProgressBar used={vStats.usedTodayReceive} limit={visaDailyLimit} color="#a78bfa"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthReceive} limit={visaMonthlyLimit} color="#a78bfa" showPct={true}/></div>
@@ -3698,20 +4706,20 @@
                                                 </div>
                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                                     <span style={{fontSize:11,color:ip.number?"#64748b":"#334155",cursor:ip.number?"copy":"auto"}} onClick={()=>{if(ip.number){navigator.clipboard.writeText(ip.number);showToast("تم النسخ ✓");}}}>{ip.number ? `${ip.number} 📋` : "بلا رقم"}</span>
-                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {formatNum(balance)} ج</span>
+                                                    <span style={{fontSize:13,fontWeight:700,color: balance >= 0 ? "#10b981" : "#ef4444"}}>💰 {maskNum(balance, privacyMode)} ج</span>
                                                 </div>
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{formatNum(ipStats.usedTodayTransfer)}</b> / {formatNum(instapayDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{formatNum(ipStats.usedMonthTransfer)}</b> / {formatNum(instapayMonthlyLimit)}</span>
+                                                        <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{maskNum(ipStats.usedTodayTransfer, privacyMode)}</b> / {formatNum(instapayDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(ipStats.usedMonthTransfer, privacyMode)}</b> / {formatNum(instapayMonthlyLimit)}</span>
                                                     </div>
                                                     <ProgressBar used={ipStats.usedTodayTransfer} limit={instapayDailyLimit} color="#f59e0b"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthTransfer} limit={instapayMonthlyLimit} color="#f59e0b" showPct={true}/></div>
                                                 </div>
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
-                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{formatNum(ipStats.usedTodayReceive)}</b> / {formatNum(instapayDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{formatNum(ipStats.usedMonthReceive)}</b> / {formatNum(instapayMonthlyLimit)}</span>
+                                                        <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{maskNum(ipStats.usedTodayReceive, privacyMode)}</b> / {formatNum(instapayDailyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(ipStats.usedMonthReceive, privacyMode)}</b> / {formatNum(instapayMonthlyLimit)}</span>
                                                     </div>
                                                     <ProgressBar used={ipStats.usedTodayReceive} limit={instapayDailyLimit} color="#10b981"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthReceive} limit={instapayMonthlyLimit} color="#10b981" showPct={true}/></div>
@@ -3756,11 +4764,11 @@
 
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
                                     <div style={{background:"#10b9810a",border:"1px solid #10b98120",borderRadius:12,padding:12,textAlign:"center"}}>
-                                        <div style={{fontSize:16,fontWeight:700,color:"#10b981"}}>{formatNum(monthIncome)} ج</div>
+                                        <div style={{fontSize:16,fontWeight:700,color:"#10b981"}}>{maskNum(monthIncome, privacyMode)} ج</div>
                                         <div style={{fontSize:10,color:"#475569"}}>المكاسب</div>
                                     </div>
                                     <div style={{background:"#ef44440a",border:"1px solid #ef444420",borderRadius:12,padding:12,textAlign:"center"}}>
-                                        <div style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>{formatNum(monthExpense)} ج</div>
+                                        <div style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>{maskNum(monthExpense, privacyMode)} ج</div>
                                         <div style={{fontSize:10,color:"#475569"}}>المصاريف</div>
                                     </div>
                                 </div>
@@ -3899,7 +4907,7 @@
 
                     {/* MODAL: Add Transaction */}
                     {modal==="addTxn" && (
-                        <Modal title="إضافة عملية جديدة" onClose={() => { setModal(null); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); }}>
+                        <Modal title="إضافة عملية جديدة" onClose={() => { setModal(null); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); }}>
                             {/* 1. حقل اللصق الذكي (Smart Paste) في بداية الفورم */}
                             <div style={{ marginBottom: 20, background: "#162545", padding: 15, borderRadius: 12, border: "1px dashed #1e3a5f" }}>
                                 <label style={{ display: "block", fontSize: 13, color: "#22d3ee", marginBottom: 8, fontWeight: "bold" }}>
@@ -3943,6 +4951,87 @@
                                 </div>
                             </div>
 
+                            {/* ✨ OCR Screenshot Section */}
+                            <div style={{marginBottom:20, background:"#0d1a2e", padding:15, borderRadius:12, border:"1px dashed #a78bfa50"}}>
+                                <div style={{fontSize:13, color:"#a78bfa", marginBottom:10, fontWeight:"bold"}}>
+                                    ✨ إدخال ذكي عبر إسكرين شوت
+                                </div>
+
+                                {/* زر الرفع */}
+                                <div
+                                    onClick={()=>ocrInputRef.current?.click()}
+                                    style={{
+                                        border:"2px dashed #a78bfa40",
+                                        borderRadius:10,
+                                        padding:"14px 10px",
+                                        textAlign:"center",
+                                        cursor:"pointer",
+                                        background: ocrLoading ? "#1a1040" : "#0a0c18",
+                                        transition:"all 0.2s",
+                                        marginBottom: ocrResult ? 10 : 0,
+                                    }}
+                                >
+                                    {ocrLoading ? (
+                                        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,color:"#a78bfa",padding:"4px 0"}}>
+                                            <div className="loading-spinner" style={{borderTopColor:"#a78bfa",width:26,height:26}}/>
+                                            <span style={{fontSize:13,fontWeight:700}}>⏳ جاري قراءة الإسكرينة...</span>
+                                            <span style={{fontSize:10,color:"#475569"}}>قد يستغرق 5-15 ثانية حسب حجم الصورة</span>
+                                        </div>
+                                    ) : ocrPreviewUrl ? (
+                                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                            <img src={ocrPreviewUrl} alt="screenshot" style={{width:48,height:48,objectFit:"cover",borderRadius:8,border:"1px solid #a78bfa40"}}/>
+                                            <div style={{textAlign:"right",flex:1}}>
+                                                <div style={{fontSize:12,color:"#a78bfa",fontWeight:700}}>✓ تم رفع الصورة</div>
+                                                <div style={{fontSize:11,color:"#64748b"}}>اضغط لتغيير الصورة</div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div style={{fontSize:24,marginBottom:4}}>📸</div>
+                                            <div style={{fontSize:12,color:"#7a8fa8"}}>اضغط لرفع إسكرين شوت العملية</div>
+                                            <div style={{fontSize:10,color:"#3d4f65",marginTop:3}}>يدعم صور فودافون كاش وإنستا باي</div>
+                                        </div>
+                                    )}
+                                </div>
+                                <input
+                                    ref={ocrInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    style={{display:"none"}}
+                                    onChange={e=>{ if(e.target.files[0]) handleOcrImage(e.target.files[0]); }}
+                                />
+
+                                {/* نتيجة الـ OCR */}
+                                {ocrResult && !ocrLoading && (
+                                    <div style={{background:"#0a1628",border:"1px solid #a78bfa30",borderRadius:10,padding:12,fontSize:12}}>
+                                        <div style={{color:"#a78bfa",fontWeight:700,marginBottom:8}}>📋 البيانات المستخرجة:</div>
+                                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                                            <div style={{background:"#111827",borderRadius:8,padding:"8px 10px"}}>
+                                                <div style={{color:"#64748b",fontSize:10,marginBottom:2}}>💰 المبلغ</div>
+                                                <div style={{color: ocrResult.amount ? "#10b981" : "#ef4444",fontWeight:700}}>
+                                                    {ocrResult.amount ? ocrResult.amount + " ج" : "لم يُكتشف"}
+                                                </div>
+                                            </div>
+                                            <div style={{background:"#111827",borderRadius:8,padding:"8px 10px"}}>
+                                                <div style={{color:"#64748b",fontSize:10,marginBottom:2}}>📱 الهاتف</div>
+                                                <div style={{color: ocrResult.phone ? "#22d3ee" : "#ef4444",fontWeight:700,direction:"ltr"}}>
+                                                    {ocrResult.phone || "لم يُكتشف"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style={{background:"#111827",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                                            <div style={{color:"#64748b",fontSize:10,marginBottom:2}}>🔄 نوع العملية المكتشف</div>
+                                            <div style={{color: ocrResult.type==="receive" ? "#10b981" : ocrResult.type==="transfer" ? "#f59e0b" : "#64748b",fontWeight:700}}>
+                                                {ocrResult.type==="receive" ? "📥 استلام (إيداع)" : ocrResult.type==="transfer" ? "💸 تحويل (سحب)" : "⚠️ غير محدد — اختر يدوياً"}
+                                            </div>
+                                        </div>
+                                        <div style={{fontSize:10,color:"#475569",background:"#0d1120",borderRadius:6,padding:"6px 8px"}}>
+                                            ⚠️ راجع نوع العملية في الأسفل قبل الحفظ
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* 2. باقي حقول الفورم */}
                             <Field label="نوع العملية">
                                 <select
@@ -3954,6 +5043,7 @@
                                     <option value="receive">📥 استلام (إيداع في المحفظة)</option>
                                     <option value="bank_withdraw">🏦 سحب بنك (عمولة {(bankWithdrawRate*100).toFixed(2)}%)</option>
                                     <option value="fawri_withdraw">💳 سحب فوري ({(fawriWithdrawRate*100).toFixed(2)}% + {fawriWithdrawFixed} ج)</option>
+                                    <option value="fawri_transfer">⚡ تحويل مباشر إلى فوري</option>
                                 </select>
                             </Field>
 
@@ -3992,6 +5082,25 @@
                                 />
                             </Field>
 
+                            {/* ⭐ FEATURE: حاسبة العمولة المدمجة */}
+                            {(() => {
+                                const amt = parseFloat(form.amount) || 0;
+                                if (!amt || amt <= 0) return null;
+                                const fRate  = commissionSettings?.fawriWithdrawRate  ?? 0.0057;
+                                const fFixed = commissionSettings?.fawriWithdrawFixed ?? 15;
+                                const bRate  = commissionSettings?.bankWithdrawRate   ?? 0.002;
+                                let commLabel = null, commVal = 0;
+                                if (form.type === "fawri_withdraw") { commLabel = "عمولة سحب فوري"; commVal = Math.round((amt * fRate + fFixed) * 100) / 100; }
+                                else if (form.type === "bank_withdraw") { commLabel = "عمولة سحب بنك"; commVal = Math.round(amt * bRate * 100) / 100; }
+                                if (!commLabel) return null;
+                                return (
+                                    <div style={{background:"#10b98110",border:"1px solid #10b98130",borderRadius:10,padding:"8px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <span style={{fontSize:12,color:"#10b981"}}>{commLabel}</span>
+                                        <span style={{fontSize:14,fontWeight:700,color:"#10b981"}}>{commVal} ج</span>
+                                    </div>
+                                );
+                            })()}
+
                             {/* ✂️ Smart Multi-Line Split Panel */}
                             {splitPlan && (form.type === "transfer" || form.type === "receive") && (() => {
                                 const accent = splitPlan.isComplete ? "#10b981" : "#f59e0b";
@@ -4018,13 +5127,13 @@
                                                 </div>
                                                 <div style={{fontSize:10,color:"#475569",marginTop:2}}>
                                                     {splitPlan.isComplete
-                                                        ? `المبلغ ${formatNum(splitPlan.needed)} ج سيتم توزيعه على ${splitPlan.steps.length} خط`
-                                                        : `يمكن تغطية ${formatNum(splitPlan.totalCovered)} ج فقط من أصل ${formatNum(splitPlan.needed)} ج`}
+                                                        ? `المبلغ ${maskNum(splitPlan.needed, privacyMode)} ج سيتم توزيعه على ${splitPlan.steps.length} خط`
+                                                        : `يمكن تغطية ${maskNum(splitPlan.totalCovered, privacyMode)} ج فقط من أصل ${maskNum(splitPlan.needed, privacyMode)} ج`}
                                                 </div>
                                             </div>
                                             {!splitPlan.isComplete && (
                                                 <div style={{marginRight:"auto",fontSize:10,background:"#ef444420",border:"1px solid #ef444440",borderRadius:20,padding:"3px 10px",color:"#ef4444",fontWeight:700}}>
-                                                    متبقي: {formatNum(splitPlan.remaining)} ج
+                                                    متبقي: {maskNum(splitPlan.remaining, privacyMode)} ج
                                                 </div>
                                             )}
                                         </div>
@@ -4049,11 +5158,11 @@
                                                     <div style={{flex:1}}>
                                                         <div style={{fontSize:12,fontWeight:700,color:"#c8d6e8"}}>{step.sourceName}</div>
                                                         <div style={{fontSize:10,color:"#475569"}}>
-                                                            رصيد متاح: {formatNum(step.balance)} ج • سعة: {formatNum(step.capacity)} ج
+                                                            رصيد متاح: {maskNum(step.balance, privacyMode)} ج • سعة: {maskNum(step.capacity, privacyMode)} ج
                                                         </div>
                                                     </div>
                                                     <div style={{textAlign:"left",flexShrink:0}}>
-                                                        <div style={{fontSize:15,fontWeight:900,color:stepColors[i % stepColors.length]}}>{formatNum(step.amount)} ج</div>
+                                                        <div style={{fontSize:15,fontWeight:900,color:stepColors[i % stepColors.length]}}>{maskNum(step.amount, privacyMode)} ج</div>
                                                         <div style={{fontSize:9,color:"#3d4f65",textAlign:"center"}}>
                                                             {Math.round(step.amount / splitPlan.needed * 100)}%
                                                         </div>
@@ -4072,7 +5181,7 @@
                                                 📊 {splitPlan.steps.length} خطوط × إجمالي
                                             </div>
                                             <div style={{fontSize:16,fontWeight:900,color:accent}}>
-                                                {formatNum(splitPlan.totalCovered)} ج
+                                                {maskNum(splitPlan.totalCovered, privacyMode)} ج
                                             </div>
                                         </div>
 
@@ -4139,7 +5248,7 @@
                                                 borderRadius:10,padding:"10px 14px",
                                                 fontSize:11,color:"#ef4444",lineHeight:1.7
                                             }}>
-                                                ⚠️ الرصيد الإجمالي للخطوط المتاحة ({formatNum(splitPlan.totalCovered)} ج) أقل من المبلغ المطلوب ({formatNum(splitPlan.needed)} ج). يمكنك تنفيذ التقسيم الجزئي أو تعديل المبلغ.
+                                                ⚠️ الرصيد الإجمالي للخطوط المتاحة ({maskNum(splitPlan.totalCovered, privacyMode)} ج) أقل من المبلغ المطلوب ({maskNum(splitPlan.needed, privacyMode)} ج). يمكنك تنفيذ التقسيم الجزئي أو تعديل المبلغ.
                                                 <div style={{marginTop:8,display:"flex",gap:8}}>
                                                     <button
                                                         onClick={() => { setSplitConfirmed(true); }}
@@ -4148,7 +5257,7 @@
                                                             borderRadius:8,padding:"8px 0",color:"#f59e0b",
                                                             fontSize:12,fontWeight:700,cursor:"pointer"
                                                         }}>
-                                                        ⚡ تنفيذ الجزئي ({formatNum(splitPlan.totalCovered)} ج)
+                                                        ⚡ تنفيذ الجزئي ({maskNum(splitPlan.totalCovered, privacyMode)} ج)
                                                     </button>
                                                     <button
                                                         onClick={() => setSplitPlan(null)}
@@ -4182,10 +5291,11 @@
                                     details = `${formatNum(Math.round(deduction * 100) / 100)} ج`;
                                 } else if (selectedSrc.type === "visa") {
                                     // فيزا فوري: 0.57% + 15 ج ثابتة
-                                    deduction = (amt * 0.0057) + 15;
+                                    const __cs = (() => { try { const s = localStorage.getItem("commissionSettings"); return s ? JSON.parse(s) : null; } catch(e) { return null; } })();
+                                    deduction = (amt * (__cs?.fawriWithdrawRate ?? 0.0057)) + (__cs?.fawriWithdrawFixed ?? 15);
                                     label = "💳 عمولة فيزا فوري (0.57% + 15 ج)";
                                     colorAccent = "#a78bfa";
-                                    details = `${formatNum(Math.round(amt * 0.0057 * 100) / 100)} ج + 15 ج ثابتة`;
+                                    details = `${formatNum(Math.round(amt * (__cs?.fawriWithdrawRate ?? 0.0057) * 100) / 100)} ج + ${(__cs?.fawriWithdrawFixed ?? 15)} ج ثابتة`;
                                 } else {
                                     return null;
                                 }
@@ -4214,7 +5324,7 @@
                                         <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, textAlign: "center"}}>
                                             <div>
                                                 <div style={{fontSize: 11, color: "#64748b", marginBottom: 4}}>المبلغ الأصلي</div>
-                                                <div style={{fontSize: 15, fontWeight: 700, color: "#e2e8f0"}}>{formatNum(amt)} ج</div>
+                                                <div style={{fontSize: 15, fontWeight: 700, color: "#e2e8f0"}}>{maskNum(amt, privacyMode)} ج</div>
                                             </div>
                                             <div>
                                                 <div style={{fontSize: 11, color: "#64748b", marginBottom: 4}}>الخصم</div>
@@ -4390,6 +5500,123 @@
                                 </select>
                             </Field>
 
+                            {/* ⭐ Smart Line Suggestion — اقتراح ذكي بناءً على نوع العملية */}
+                            {(form.type === "transfer" || form.type === "fawri_transfer" || form.type === "receive") && (() => {
+                                const amt = parseFloat(form.amount) || 0;
+                                const avail = sources.filter(s => s.available !== false && s.type === "line");
+                                if (avail.length === 0) return null;
+
+                                if (form.type === "transfer" || form.type === "fawri_transfer") {
+                                    // ترتيب: أعلى رصيد كاش + أبعد عن الحد اليومي
+                                    const ranked = [...avail]
+                                        .filter(s => (s.balance || 0) > 0)
+                                        .sort((a, b) => {
+                                            const aScore = (a.balance || 0) - (a.usedToday || 0) * 0.5;
+                                            const bScore = (b.balance || 0) - (b.usedToday || 0) * 0.5;
+                                            return bScore - aScore;
+                                        })
+                                        .slice(0, 3);
+                                    if (ranked.length === 0) return null;
+                                    return (
+                                        <div style={{background:"linear-gradient(135deg,#0a1a10,#0d1120)",border:"1px solid #10b98135",borderRadius:12,padding:12,marginBottom:14}}>
+                                            <div style={{fontSize:12,fontWeight:700,color:"#10b981",marginBottom:8}}>
+                                                💡 أنسب الخطوط للسحب — ترتيب بالرصيد الكاش
+                                            </div>
+                                            {ranked.map((s, i) => {
+                                                const dailyPct = s.dailyLimit > 0 ? Math.round((s.usedToday||0)/s.dailyLimit*100) : 0;
+                                                const enoughBalance = (s.balance||0) >= amt && amt > 0;
+                                                return (
+                                                    <div key={s.id}
+                                                        onClick={()=>setForm(f=>({...f,sourceId:s.id,sourceType:"line"}))}
+                                                        style={{
+                                                            display:"flex",alignItems:"center",gap:8,
+                                                            background: form.sourceId===s.id ? "#10b98120" : "rgba(255,255,255,0.02)",
+                                                            border:`1px solid ${form.sourceId===s.id?"#10b98150":"#1e3a5f"}`,
+                                                            borderRadius:8,padding:"7px 10px",marginBottom:5,
+                                                            cursor:"pointer",transition:"all 0.15s"
+                                                        }}>
+                                                        <div style={{width:20,height:20,borderRadius:"50%",background:i===0?"#10b981":"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:"#fff",flexShrink:0}}>{i+1}</div>
+                                                        <div style={{flex:1}}>
+                                                            <div style={{fontSize:12,fontWeight:700,color:"#c8d6e8"}}>{s.name}</div>
+                                                            <div style={{fontSize:10,color:"#475569"}}>
+                                                                اليومي: {dailyPct}% • {enoughBalance && amt>0 ? <span style={{color:"#10b981"}}>رصيد كافٍ ✓</span> : <span style={{color:"#64748b"}}>رصيد: {formatNum(s.balance||0)} ج</span>}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{fontSize:13,fontWeight:900,color:"#10b981"}}>{formatNum(s.balance||0)} ج</div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                } else {
+                                    // receive — ترتيب بـ usedMonthReceive تصاعدياً (أقل استهلاكاً = أفضل)
+                                    const ranked = [...avail]
+                                        .sort((a, b) => {
+                                            const aUsed = a.usedMonthReceive || 0;
+                                            const bUsed = b.usedMonthReceive || 0;
+                                            return aUsed - bUsed; // الأقل استهلاكاً أولاً
+                                        })
+                                        .slice(0, 3);
+                                    return (
+                                        <div style={{background:"linear-gradient(135deg,#0a1020,#0d1120)",border:"1px solid #22d3ee35",borderRadius:12,padding:12,marginBottom:14}}>
+                                            <div style={{fontSize:12,fontWeight:700,color:"#22d3ee",marginBottom:8}}>
+                                                💡 أنسب الخطوط للاستلام — الأقل استهلاكاً للحد الشهري
+                                            </div>
+                                            {ranked.map((s, i) => {
+                                                const limit = s.monthlyLimit || 200000;
+                                                const used = s.usedMonthReceive || 0;
+                                                const left = limit - used;
+                                                const pct = Math.round(used / limit * 100);
+                                                const willExceed = amt > 0 && (used + amt) > limit;
+                                                return (
+                                                    <div key={s.id}
+                                                        onClick={()=>setForm(f=>({...f,sourceId:s.id,sourceType:"line"}))}
+                                                        style={{
+                                                            display:"flex",alignItems:"center",gap:8,
+                                                            background: form.sourceId===s.id ? "#22d3ee15" : "rgba(255,255,255,0.02)",
+                                                            border:`1px solid ${form.sourceId===s.id?"#22d3ee50":willExceed?"#ef444430":"#1e3a5f"}`,
+                                                            borderRadius:8,padding:"7px 10px",marginBottom:5,
+                                                            cursor:"pointer",transition:"all 0.15s",
+                                                            opacity: willExceed ? 0.65 : 1
+                                                        }}>
+                                                        <div style={{width:20,height:20,borderRadius:"50%",background:i===0?"#22d3ee":"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:"#0a0c16",flexShrink:0}}>{i+1}</div>
+                                                        <div style={{flex:1}}>
+                                                            <div style={{fontSize:12,fontWeight:700,color:"#c8d6e8"}}>{s.name}</div>
+                                                            <div style={{fontSize:10,color:"#475569",marginTop:1}}>
+                                                                استُهلك: {formatNum(used)} ج ({pct}%) •{" "}
+                                                                <span style={{color: left < 20000 ? "#ef4444" : left < 50000 ? "#f59e0b" : "#10b981", fontWeight:700}}>
+                                                                    متبقي: {formatNum(left)} ج
+                                                                </span>
+                                                            </div>
+                                                            {willExceed && <div style={{fontSize:9,color:"#ef4444",marginTop:1}}>⚠️ المبلغ يتجاوز المتبقي</div>}
+                                                        </div>
+                                                        <div style={{textAlign:"left"}}>
+                                                            <div style={{fontSize:11,color: pct>=80?"#ef4444":pct>=60?"#f59e0b":"#10b981",fontWeight:900}}>{pct}%</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                }
+                            })()}
+
+                            {/* ⭐ تحويل إلى فوري — معلومات إضافية */}
+                            {form.type === "fawri_transfer" && (
+                                <div style={{background:"linear-gradient(135deg,#0f0a1e,#0d1120)",border:"1px solid #a78bfa40",borderRadius:12,padding:12,marginBottom:14}}>
+                                    <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:6}}>⚡ تحويل مباشر إلى فوري</div>
+                                    <div style={{fontSize:11,color:"#64748b",lineHeight:1.7}}>
+                                        • سيُخصم المبلغ من رصيد الكاش للخط المختار<br/>
+                                        • سيُضاف تلقائياً لرصيد فوري التراكمي<br/>
+                                        • يُحتسب ضمن استهلاك الخط الشهري الصادر
+                                    </div>
+                                    <div style={{marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#a78bfa10",borderRadius:8,padding:"6px 10px"}}>
+                                        <span style={{fontSize:11,color:"#7a8fa8"}}>رصيد فوري الحالي</span>
+                                        <span style={{fontSize:14,fontWeight:900,color:"#a78bfa"}}>{formatNum(fawriBalance)} ج</span>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* زر الحفظ — يُخفى إذا كان المستخدم في وضع التقسيم المؤكد */}
                             {!splitConfirmed && (
                                 <button
@@ -4472,6 +5699,38 @@
                                 <Input value={custMoveForm.note} onChange={v=>setCustMoveForm(f=>({...f,note:v}))}
                                     placeholder={custMoveForm.type==="debit"?"تحويل كاش":"سداد دفعة"}/>
                             </Field>
+
+                            {/* ⭐ تاج "قديم" — للديون المتراكمة من قبل */}
+                            {custMoveForm.type === "debit" && (
+                                <div
+                                    onClick={()=>setCustMoveForm(f=>({...f, isOld: !f.isOld}))}
+                                    style={{
+                                        display:"flex", alignItems:"center", gap:10,
+                                        background: custMoveForm.isOld ? "#f59e0b15" : "#0d1120",
+                                        border: `1px solid ${custMoveForm.isOld ? "#f59e0b50" : "#1e3a5f"}`,
+                                        borderRadius:10, padding:"12px 14px", marginBottom:14,
+                                        cursor:"pointer", transition:"all 0.2s"
+                                    }}>
+                                    <div style={{
+                                        width:20, height:20, borderRadius:5,
+                                        background: custMoveForm.isOld ? "#f59e0b" : "transparent",
+                                        border: `2px solid ${custMoveForm.isOld ? "#f59e0b" : "#334155"}`,
+                                        display:"flex", alignItems:"center", justifyContent:"center",
+                                        flexShrink:0, transition:"all 0.2s"
+                                    }}>
+                                        {custMoveForm.isOld && <span style={{color:"#000",fontSize:13,fontWeight:900}}>✓</span>}
+                                    </div>
+                                    <div>
+                                        <div style={{fontSize:13,fontWeight:700,color: custMoveForm.isOld ? "#f59e0b" : "#94a3b8"}}>
+                                            📌 دين قديم (من دورة سابقة)
+                                        </div>
+                                        <div style={{fontSize:11,color:"#475569",marginTop:2}}>
+                                            هيظهر جنبه علامة "قديم" في الكشف عشان عمر يعرف
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* معاينة */}
                             {custMoveForm.amount && parseFloat(custMoveForm.amount) > 0 && (
                                 <div style={{background:"#0f1e3d",borderRadius:10,padding:12,marginBottom:14,textAlign:"center"}}>
@@ -4590,6 +5849,49 @@
                             instaPays={instaPays}
                             formatNum={formatNum}
                             onClose={()=>setActiveReceipt(null)}
+                        />
+                    )}
+
+                    {/* ⭐ FEATURE MODALS */}
+                    {showQuickAdd && canAddTxn && (
+                        <QuickAddModal
+                            sources={sources}
+                            commissionSettings={commissionSettings}
+                            showToast={showToast}
+                            onClose={()=>setShowQuickAdd(false)}
+                            onSave={(txnData)=>{
+                                const newTxn = { ...txnData, id: "txn-"+Date.now() };
+                                const updated = [newTxn, ...transactions];
+                                setTransactions(updated);
+                                saveToLocalStorage("transactions", updated);
+                                try { db.ref("transactions").set(updated); } catch(e){}
+                                showToast("✅ تم حفظ العملية السريعة");
+                            }}
+                        />
+                    )}
+                    {showGlobalSearch && (
+                        <GlobalSearch
+                            transactions={transactions}
+                            people={people}
+                            lines={lines}
+                            visas={visas}
+                            formatNum={formatNum}
+                            getPersonBalance={getPersonBalance}
+                            onClose={()=>setShowGlobalSearch(false)}
+                        />
+                    )}
+                    {showDailyReport && (
+                        <DailyReport
+                            transactions={transactions}
+                            financeLogs={financeLogs}
+                            capital={capital}
+                            lines={lines}
+                            visas={visas}
+                            people={people}
+                            getPersonBalance={getPersonBalance}
+                            formatNum={formatNum}
+                            commissionSettings={commissionSettings}
+                            onClose={()=>setShowDailyReport(false)}
                         />
                     )}
 
@@ -4800,7 +6102,7 @@
                 setAmountInput("");
                 setPendingAudio(null);
                 setRecordingState("idle");
-                showToast(`✓ تم تسجيل دفعة ${formatNum(amt)} ج`);
+                showToast(`✓ تم تسجيل دفعة ${maskNum(amt, privacyMode)} ج`);
             }
 
             function deletePayment(id) {
@@ -5509,10 +6811,24 @@
             const bankWithdrawRate   = commissionSettings?.bankWithdrawRate   ?? 0.002;
             const [status, setStatus] = useState({ msg: "", type: "" });
             const [loading, setLoading] = useState(false);
-            const [confirmModal, setConfirmModal] = useState(null); // { type, data, filename }
-            const [encModal, setEncModal] = useState(null); // { mode: "export"|"import", data }
+            const [confirmModal, setConfirmModal] = useState(null);
+            const [encModal, setEncModal] = useState(null);
             const [pwInput, setPwInput] = useState("");
             const [showPw, setShowPw] = useState(false);
+
+            // ⭐ Light Mode Toggle — يحفظ في localStorage
+            const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute("data-theme") === "light");
+            function toggleTheme() {
+                const next = !isLight;
+                setIsLight(next);
+                if (next) {
+                    document.documentElement.setAttribute("data-theme", "light");
+                    try { localStorage.setItem("hawker_theme", "light"); } catch(e) {}
+                } else {
+                    document.documentElement.removeAttribute("data-theme");
+                    try { localStorage.setItem("hawker_theme", "dark"); } catch(e) {}
+                }
+            }
             const restoreFileRef = React.useRef();
             const encFileRef = React.useRef();
 
@@ -5759,6 +7075,35 @@
                                 آخر نسخة: {lastBackup}
                             </div>
                         )}
+                    </div>
+
+                    {/* ⭐ Light Mode Toggle */}
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:14,padding:"14px 18px",marginBottom:14}}>
+                        <div>
+                            <div style={{fontSize:14,fontWeight:700,color:"var(--text-bright)"}}>
+                                {isLight ? "☀️ الوضع المضيء" : "🌙 الوضع المظلم"}
+                            </div>
+                            <div style={{fontSize:11,color:"var(--text-mid)",marginTop:2}}>
+                                {isLight ? "اضغط للتبديل للوضع الداكن" : "اضغط للتبديل للوضع المضيء"}
+                            </div>
+                        </div>
+                        <button
+                            onClick={toggleTheme}
+                            aria-label={isLight ? "تفعيل الوضع الداكن" : "تفعيل الوضع المضيء"}
+                            style={{
+                                width:52, height:28, borderRadius:99,
+                                background: isLight ? "linear-gradient(135deg,#f59e0b,#eab308)" : "#1e3a5f",
+                                border:"none", cursor:"pointer", position:"relative",
+                                transition:"background 0.3s ease"
+                            }}>
+                            <div style={{
+                                position:"absolute", top:4, left: isLight ? 28 : 4,
+                                width:20, height:20, borderRadius:99,
+                                background:"#fff",
+                                transition:"left 0.3s ease",
+                                boxShadow:"0 2px 6px rgba(0,0,0,0.3)"
+                            }}/>
+                        </button>
                     </div>
 
                     {/* Status Message */}
@@ -6176,7 +7521,7 @@
                     <div className="glass-modal">
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
                             <div style={{fontSize:17,fontWeight:700,color:"var(--text-bright)"}}>{title}</div>
-                            <button onClick={onClose} style={{background:"rgba(255,255,255,0.06)",border:"1px solid var(--border-dim)",borderRadius:8,width:32,height:32,color:"var(--text-mid)",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+                            <button onClick={onClose} aria-label="إغلاق" style={{background:"rgba(255,255,255,0.06)",border:"1px solid var(--border-dim)",borderRadius:8,width:32,height:32,color:"var(--text-mid)",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
                         </div>
                         {children}
                     </div>
@@ -6288,7 +7633,7 @@
 
                 // آخر 15 عملية
                 const txnSummary = last15.map(t => {
-                    const typeLabel = t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":"سحب فوري";
+                    const typeLabel = t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"تحويل إلى فوري":"سحب فوري";
                     return `[${t.date} ${t.time||""}] ${typeLabel} — ${t.personName} — ${formatNum(t.amount)}ج`;
                 }).join("\n");
 
@@ -6385,7 +7730,18 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                 "ملخص عمليات اليوم؟",
             ];
 
-            const hasKey = true; // Claude مدمج — لا يحتاج API Key
+            const [orKey, setOrKey] = useState(() => getOpenRouterKey());
+            const [showKeyInput, setShowKeyInput] = useState(false);
+            const [keyDraft, setKeyDraft] = useState("");
+            const hasKey = !!orKey;
+
+            function saveKey() {
+                setOpenRouterKey(keyDraft);
+                setOrKey(keyDraft.trim());
+                setShowKeyInput(false);
+                setKeyDraft("");
+                showToast("✅ تم حفظ الـ API Key", "success");
+            }
 
             return (
                 <div style={{paddingBottom:24}}>
@@ -6411,12 +7767,46 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                         </div>
                     </div>
 
-                    {!hasKey && (
-                        <div style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:14,padding:14,marginBottom:16,fontSize:13,color:"#ef4444",lineHeight:1.7}}>
-                            <b>⚙️ خطوة واحدة للتفعيل:</b><br/>
-                            افتح الـ HTML بأي محرر نصوص → ابحث عن <code style={{background:"#1e293b",padding:"1px 6px",borderRadius:4,color:"#22d3ee"}}>GEMINI_API_KEY</code> → ضع مفتاحك من <b>aistudio.google.com</b>
-                        </div>
-                    )}
+                    {/* Key Input Section */}
+                    <div style={{marginBottom:14}}>
+                        {!hasKey && (
+                            <div style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:14,padding:14,marginBottom:10,fontSize:13,color:"#ef4444",lineHeight:1.7}}>
+                                <b>⚙️ مفتاح OpenRouter مش موجود</b><br/>
+                                اضغط "إضافة API Key" تحت وأضف مفتاحك من{" "}
+                                <a href="https://openrouter.ai/keys" target="_blank" style={{color:"#22d3ee"}}>openrouter.ai</a>
+                            </div>
+                        )}
+                        <button onClick={()=>{setShowKeyInput(v=>!v); setKeyDraft(orKey);}} aria-label="إدارة مفتاح OpenRouter API"
+                            style={{width:"100%",background:"#0d1120",border:"1px solid #a78bfa25",borderRadius:12,padding:"10px 14px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",textAlign:"right"}}>
+                            {hasKey ? "🔑 تعديل API Key" : "➕ إضافة API Key"}
+                        </button>
+                        {showKeyInput && (
+                            <div style={{marginTop:8,background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:14}}>
+                                <div style={{fontSize:11,color:"#3d4f65",marginBottom:8}}>أضف مفتاح OpenRouter (sk-or-v1-...)</div>
+                                <div style={{display:"flex",gap:8}}>
+                                    <input
+                                        type="password"
+                                        value={keyDraft}
+                                        onChange={e=>setKeyDraft(e.target.value)}
+                                        onKeyPress={e=>e.key==="Enter"&&saveKey()}
+                                        placeholder="sk-or-v1-..."
+                                        aria-label="مفتاح OpenRouter API"
+                                        style={{flex:1,background:"#05070f",border:"1px solid #1e3a5f",borderRadius:8,padding:"10px 12px",color:"#c8d6e8",fontSize:12,outline:"none",fontFamily:"'Tajawal',sans-serif",direction:"ltr"}}
+                                    />
+                                    <button onClick={saveKey}
+                                        style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:8,padding:"10px 16px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                                        حفظ
+                                    </button>
+                                </div>
+                                {hasKey && (
+                                    <button onClick={()=>{setOpenRouterKey(""); setOrKey(""); setShowKeyInput(false); showToast("تم حذف الـ Key","error");}}
+                                        style={{marginTop:8,width:"100%",background:"#ef444410",border:"1px solid #ef444430",borderRadius:8,padding:"8px",color:"#ef4444",fontSize:11,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                        🗑️ حذف الـ Key
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     {/* Quick Suggestions */}
                     <div style={{marginBottom:14}}>
@@ -6548,8 +7938,99 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
+
+    <!-- ══ Service Worker Registration ══ -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        // نسجّل Service Worker لو موجود (Netlify/GitHub Pages)
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('✅ SW registered:', reg.scope))
+            .catch(() => {
+                // لو sw.js مش موجود، نعمل inline SW بـ blob
+                const swCode = `
+const CACHE = 'hawker-v1';
+const ASSETS = ['./'];
+self.addEventListener('install', e => {
+    e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+    self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+    e.waitUntil(caches.keys().then(keys =>
+        Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ));
+    self.clients.claim();
+});
+self.addEventListener('fetch', e => {
+    if (e.request.method !== 'GET') return;
+    e.respondWith(
+        fetch(e.request)
+            .then(res => {
+                const clone = res.clone();
+                caches.open(CACHE).then(c => c.put(e.request, clone));
+                return res;
+            })
+            .catch(() => caches.match(e.request))
+    );
+});`;
+                const blob = new Blob([swCode], {type:'application/javascript'});
+                navigator.serviceWorker.register(URL.createObjectURL(blob))
+                    .then(r => console.log('✅ Inline SW registered'))
+                    .catch(e => console.log('SW unavailable (file://)', e.message));
+            });
+    }
+
+    // ══ Install Prompt (Android/Desktop Chrome) ══
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const btn = document.getElementById('pwa-install-btn');
+        if (btn) {
+            btn.style.display = 'flex';
+            btn.onclick = () => {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(choice => {
+                    if (choice.outcome === 'accepted') btn.style.display = 'none';
+                    deferredPrompt = null;
+                });
+            };
+        }
+    });
+    window.addEventListener('appinstalled', () => {
+        const btn = document.getElementById('pwa-install-btn');
+        if (btn) btn.style.display = 'none';
+        console.log('✅ PWA installed');
+    });
+    </script>
+
+    <!-- ══ Install Button (يظهر تلقائياً لو الجهاز يدعم الـ Install) ══ -->
+    <div id="pwa-install-btn" style="
+        display: none;
+        position: fixed;
+        bottom: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        background: linear-gradient(135deg,#e40000,#a00000);
+        color: #fff;
+        border: none;
+        border-radius: 30px;
+        padding: 12px 24px;
+        font-family: 'Tajawal', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 20px rgba(228,0,0,0.5);
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        direction: rtl;
+    ">
+        <span style="font-size:18px">📲</span>
+        <span>ثبّت التطبيق على جهازك</span>
+    </div>
 </body>
 </html>
 
