@@ -642,13 +642,45 @@
             return `${dayName} ${parts[2]}/${parts[1]}/${parts[0]}`;
         }
 
-        // ⭐ دالة ذكية لاستخراج البيانات من الرسالة
+        // ⭐ دالة حساب آمنة — بدون eval أو Function() — تحل العمليات الحسابية فقط
         const evaluateExpression = (input) => {
             try {
-                const sanitized = input.replace(/[^0-9+\-*/.]/g, '');
+                const sanitized = String(input).trim().replace(/[^0-9+\-*/.() ]/g, '');
                 if (!sanitized) return "";
-                const result = Function(`"use strict"; return (${sanitized})`)();
-                return isNaN(result) ? input : String(result);
+                // محلل حسابي آمن بدون eval
+                const tokens = sanitized.match(/(\d+\.?\d*)|([+\-*/()])/g);
+                if (!tokens) return input;
+                // تقييم آمن: نسمح فقط بالأرقام والعمليات الأساسية
+                let result = 0;
+                let current = 0;
+                let operator = '+';
+                const stack = [];
+                for (const tok of tokens) {
+                    if (tok === '(') {
+                        stack.push({ result, operator });
+                        result = 0; operator = '+';
+                    } else if (tok === ')') {
+                        const num = result;
+                        const frame = stack.pop();
+                        if (!frame) return input;
+                        result = frame.result;
+                        operator = frame.operator;
+                        if (operator === '+') result += num;
+                        else if (operator === '-') result -= num;
+                        else if (operator === '*') result *= num;
+                        else if (operator === '/') result = num !== 0 ? result / num : result;
+                    } else if (['+','-','*','/'].includes(tok)) {
+                        operator = tok;
+                    } else {
+                        const num = parseFloat(tok);
+                        if (isNaN(num)) return input;
+                        if (operator === '+') result += num;
+                        else if (operator === '-') result -= num;
+                        else if (operator === '*') result *= num;
+                        else if (operator === '/') result = num !== 0 ? result / num : result;
+                    }
+                }
+                return isNaN(result) || !isFinite(result) ? input : String(Math.round(result * 100) / 100);
             } catch (e) {
                 return input;
             }
@@ -666,9 +698,9 @@
             // 1. استخراج المبلغ الذكي
             const amountMatch = text.match(/(?:مبلغ|قيمة)\s*(\d+(?:\.\d+)?)/) || text.match(/(\d{2,}(?:\.\d{1,2})?)\s*(?:جنيه|EGP)/) || text.match(/(\d{2,}(?:\.\d{1,2})?)/);
             if (amountMatch) result.amount = amountMatch[1];
-            // 2. استخراج رقم تليفون العميل
-            const phoneMatch = text.match(/(01[0-9]{9})/);
-            if (phoneMatch) result.personNumber = phoneMatch[1];
+            // 2. استخراج رقم تليفون العميل — يقبل الأرقام مع مسافات أو شرطات أو بدونها
+            const phoneMatch = text.match(/01[0-9][\s\-]?[0-9]{4}[\s\-]?[0-9]{4}/) || text.match(/(01[0-9]{9})/);
+            if (phoneMatch) result.personNumber = phoneMatch[0].replace(/[\s\-]/g, '');
             // 3. تحديد نوع العملية أوتوماتيك
             if (text.includes("تم استلام") || text.includes("إيداع") || text.includes("حوّل لك") || text.includes("تم استقبال")) {
                 result.type = "receive";
@@ -852,7 +884,7 @@
         }
 
         // ── المكون الرئيسي: DashboardCharts ──────────────────────────
-        function DashboardCharts({ transactions, financeLogs, formatNum }) {
+        function DashboardCharts({ transactions, financeLogs, formatNum, commissionSettings }) {
             const [tooltip, setTooltip] = React.useState(null);
             const [mounted, setMounted] = React.useState(false);
             React.useEffect(() => { const t = setTimeout(() => setMounted(true), 80); return () => clearTimeout(t); }, []);
@@ -889,13 +921,11 @@
             // الرسم الثاني: صافي الأرباح (financeLogs) لكل يوم
             const profitData = last7.map(day => {
                 const dayLogs = financeLogs.filter(l => l.date === day.dateStr || (l.monthDate && l.date === day.dateStr));
-                // أرباح من العمليات: عمولات السحب (bank: 1%, fawri: 0.57%+15)
                 const dayTxns   = transactions.filter(t => t.date === day.dateStr);
-                // ⭐ نسب العمولات من الـ Settings (قابلة للتعديل) مع fallback للقيم الافتراضية
-                const _commSettings = (() => { try { const s = localStorage.getItem("commissionSettings"); return s ? JSON.parse(s) : null; } catch(e) { return null; } })();
-                const _bankRate  = _commSettings?.bankWithdrawRate  ?? 0.002;
-                const _fawriRate = _commSettings?.fawriWithdrawRate ?? 0.0057;
-                const _fawriFixed = _commSettings?.fawriWithdrawFixed ?? 15;
+                // ⭐ FIX: نستخدم commissionSettings من الـ state مباشرة (متزامن مع Firebase) بدل localStorage
+                const _bankRate  = commissionSettings?.bankWithdrawRate  ?? 0.002;
+                const _fawriRate = commissionSettings?.fawriWithdrawRate ?? 0.0057;
+                const _fawriFixed = commissionSettings?.fawriWithdrawFixed ?? 15;
                 const bankComm  = dayTxns.filter(t => t.type === "bank_withdraw").reduce((s, t) => s + (t.amount || 0) * _bankRate, 0);
                 const fawriComm = dayTxns.filter(t => t.type === "fawri_withdraw").reduce((s, t) => s + (t.amount || 0) * _fawriRate + _fawriFixed, 0);
                 // دخل من finance logs يومي
@@ -1842,6 +1872,7 @@
                 time: "12:00",
                 fromNumber: "", 
                 toNumber: "", 
+                toInternalId: "",
                 personName: "", 
                 amount: "", 
                 sourceId: "", 
@@ -2402,7 +2433,7 @@
                     const tMonth = (t.date || "").slice(0, 7);
                     const isToday = t.date === todayStr;
                     const isMonth = tMonth === monthStr;
-                    const isOutgoing = t.type === "transfer" || t.type === "bank_withdraw" || t.type === "fawri_withdraw" || t.type === "fawri_transfer";
+                    const isOutgoing = t.type === "transfer" || t.type === "bank_withdraw" || t.type === "fawri_withdraw" || t.type === "fawri_transfer" || t.type === "internal_transfer";
                     // ⭐ مطابقة بـ sourceId أولاً (الأدق)، وإلا بـ رقم التليفون كـ fallback
                     const matchesOutgoing = t.sourceId === sid || (num && t.fromNumber === num);
                     const matchesIncoming = t.sourceId === sid || (num && t.toNumber === num);
@@ -2729,7 +2760,7 @@
                     setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false });
                     setSplitPlan(null); setSplitConfirmed(false);
                     setOcrConfirm(null);
-                    setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null });
+                    setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null });
                 }
 
                 try {
@@ -2844,9 +2875,14 @@
                 if (isSubmitting) return;
 
                 const amount = parseFloat(form.amount);
-                if (!form.date || !form.time || !form.personName || !amount || !form.sourceId) { 
+                if (!form.date || !form.time || !amount || !form.sourceId) { 
                     showToast("أكمل كل البيانات","error"); 
                     return; 
+                }
+                // ⭐ للتحويل الداخلي، اسم العميل غير مطلوب — يُملأ تلقائياً من اسم الخط المستقبِل
+                if (form.type !== "internal_transfer" && !form.personName) {
+                    showToast("أكمل كل البيانات","error");
+                    return;
                 }
 
                 if (form.type === "transfer" && (!form.fromNumber || !form.toNumber)) {
@@ -2854,12 +2890,23 @@
                     return;
                 }
 
+                // ⭐ التحويل الداخلي — تحقق من الخط المستقبِل
+                if (form.type === "internal_transfer") {
+                    if (!form.toInternalId) { showToast("اختر الخط / الفيزا المستقبِل", "error"); return; }
+                    if (form.toInternalId === form.sourceId) { showToast("الخط المرسِل والمستقبِل نفس الخط!", "error"); return; }
+                }
+
                 // ⭐ تفعيل حالة الحفظ الآمن
                 setIsSubmitting(true);
 
                 // ⭐ Haptic feedback — iOS
                 if (navigator.vibrate) navigator.vibrate(15);
-                const personName = form.personName.trim();
+                // ⭐ للتحويل الداخلي: اسم العميل = اسم الخط المستقبِل تلقائياً
+                let personName = form.personName.trim();
+                if (form.type === "internal_transfer" && !personName && form.toInternalId) {
+                    const destSrcName = [...lines, ...visas, ...instaPays].find(s => s.id === form.toInternalId);
+                    personName = destSrcName ? `تحويل داخلي → ${destSrcName.name}` : "تحويل داخلي";
+                }
                 const fullDateTime = `${form.date} ${form.time}`;
 
                 // ⭐ حساب العمولة للأنواع الجديدة
@@ -2873,6 +2920,12 @@
                         ? `عمولة بنك ${(bankWithdrawRate*100).toFixed(2)}%: ${commission} ج`
                         : `عمولة فوري (${(fawriWithdrawRate*100).toFixed(2)}%+${fawriWithdrawFixed}ج): ${commission} ج`;
                     autoNotes = `[${commLabel} | الإجمالي المسحوب: ${totalAmount} ج]${autoNotes ? " " + autoNotes : ""}`;
+                }
+                // ⭐ ملاحظات التحويل الداخلي التلقائية
+                if (form.type === "internal_transfer" && form.toInternalId) {
+                    const srcName = sources.find(s => s.id === form.sourceId)?.name || form.sourceId;
+                    const destName = [...lines, ...visas, ...instaPays].find(s => s.id === form.toInternalId)?.name || form.toInternalId;
+                    autoNotes = `[تحويل داخلي: ${srcName} ← ${destName}]${autoNotes ? " " + autoNotes : ""}`;
                 }
                 
                 // ⭐ التقاط رقم الخط/الفيزا المختار تلقائياً لضمان المطابقة في calcSourceStats
@@ -2888,6 +2941,7 @@
                     dateTime: fullDateTime,
                     fromNumber: autoFromNumber,
                     toNumber: autoToNumber,
+                    toInternalId: form.type === "internal_transfer" ? (form.toInternalId || null) : undefined,
                     personName: personName,
                     amount: amount,
                     commission: commission,
@@ -2907,13 +2961,13 @@
                 if (form.sourceType === "line") {
                     db.ref(`lines/${form.sourceId}`).transaction((currentLine) => {
                         if (currentLine) {
-                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer";
+                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer";
                             // نستخدم totalAmount (شامل العمولة) لتطابق updateSource المحلية
                             const change = isOutgoing ? -totalAmount : amount;
                             currentLine.balance = (parseFloat(currentLine.balance) || 0) + change;
 
                             // تحديث الاستهلاك — totalAmount للصادر، amount للوارد
-                            if (form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer") {
+                            if (form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer") {
                                 currentLine.usedTodayTransfer = (parseFloat(currentLine.usedTodayTransfer) || 0) + totalAmount;
                                 currentLine.usedMonthTransfer = (parseFloat(currentLine.usedMonthTransfer) || 0) + totalAmount;
                             } else if (form.type === "receive") {
@@ -2926,7 +2980,7 @@
                 } else if (form.sourceType === "visa") {
                     db.ref(`visas/${form.sourceId}`).transaction((currentVisa) => {
                         if (currentVisa) {
-                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer";
+                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer";
                             const change = isOutgoing ? -totalAmount : amount;
                             currentVisa.balance = (parseFloat(currentVisa.balance) || 0) + change;
                         }
@@ -2954,16 +3008,43 @@
                     }));
                 }
 
-                const txnLabels = { transfer: "تحويل", receive: "استلام", bank_withdraw: "سحب بنك", fawri_withdraw: "سحب فوري", fawri_transfer: "تحويل إلى فوري" };
+                const txnLabels = { transfer: "تحويل", receive: "استلام", bank_withdraw: "سحب بنك", fawri_withdraw: "سحب فوري", fawri_transfer: "تحويل إلى فوري", internal_transfer: "تحويل داخلي" };
 
                 // ⭐ تحويل مباشر لفوري — أضف المبلغ لرصيد فوري التراكمي
                 if (form.type === "fawri_transfer") {
                     setFawriBalance(prev => Math.round((prev + parseFloat(amount)) * 100) / 100);
                 }
 
+                // ⭐ تحويل داخلي — أضف المبلغ للخط المستقبِل وسجّل عملية استلام مقابلة
+                if (form.type === "internal_transfer" && form.toInternalId) {
+                    const destSrc = [...lines, ...visas, ...instaPays].find(s => s.id === form.toInternalId);
+                    if (destSrc) {
+                        const destType = destSrc.id.startsWith('visa') ? 'visa' : destSrc.id.startsWith('instapay') ? 'instapay' : 'line';
+                        // أضف المبلغ للمستقبِل مباشرةً
+                        const destUpdater = prev => prev.map(item => item.id !== form.toInternalId ? item : {
+                            ...item,
+                            balance: (item.balance || 0) + amount,
+                            usedTodayReceive: (item.usedTodayReceive || 0) + amount,
+                            usedMonthReceive: (item.usedMonthReceive || 0) + amount,
+                        });
+                        if (destType === 'line') setLines(destUpdater);
+                        else if (destType === 'visa') setVisas(destUpdater);
+                        else setInstaPays(destUpdater);
+                        // حدّث Firebase للمستقبِل
+                        const destRef = destType === 'line' ? 'lines' : destType === 'visa' ? 'visas' : 'instaPays';
+                        db.ref(`${destRef}/${form.toInternalId}`).transaction(curr => {
+                            if (!curr) return curr;
+                            curr.balance = (parseFloat(curr.balance) || 0) + amount;
+                            curr.usedTodayReceive = (parseFloat(curr.usedTodayReceive) || 0) + amount;
+                            curr.usedMonthReceive = (parseFloat(curr.usedMonthReceive) || 0) + amount;
+                            return curr;
+                        });
+                    }
+                }
+
                 showToast(`تم ${txnLabels[form.type] || "العملية"} بنجاح ✓`);
 
-                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
+                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", toInternalId: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
                 setModal(null);
 
                 // ⭐ إنهاء حالة الحفظ الآمن
@@ -3063,14 +3144,14 @@
                 showToast(`✅ تم تنفيذ التقسيم: ${splitPlan.steps.length} عمليات — إجمالي ${maskNum(splitPlan.totalCovered, privacyMode)} ج`);
                 setSplitPlan(null);
                 setSplitConfirmed(false);
-                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
+                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", toInternalId: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
                 setModal(null);
                 setIsSubmitting(false);
             }
 
             function updateSource(sourceId, sourceType, amount, txnType) {
-                // ⭐ سحب بنك وسحب فوري = خروج (زي transfer)
-                const isOutgoing = txnType === "transfer" || txnType === "bank_withdraw" || txnType === "fawri_withdraw" || txnType === "fawri_transfer";
+                // ⭐ سحب بنك وسحب فوري والتحويل الداخلي = خروج (زي transfer)
+                const isOutgoing = txnType === "transfer" || txnType === "bank_withdraw" || txnType === "fawri_withdraw" || txnType === "fawri_transfer" || txnType === "internal_transfer";
                 const delta = isOutgoing ? -amount : amount;
                 const updater = prev => prev.map(item => {
                     if (item.id !== sourceId) return item;
@@ -3090,7 +3171,7 @@
 
             function deleteTransaction(txn) {
                 setTransactions(prev => prev.filter(t => t.id !== txn.id));
-                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer";
+                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer" || txn.type === "internal_transfer";
                 const effectiveAmount = txn.totalAmount || txn.amount; // الإجمالي شامل العمولة
                 const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
                 const reverter = prev => prev.map(item => {
@@ -3113,7 +3194,7 @@
 
             // ⭐ عكس العملية - بيرجع الأرقام كأن شيئاً لم يكن
             function reverseTransaction(txn) {
-                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer";
+                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer" || txn.type === "internal_transfer";
                 const effectiveAmount = txn.totalAmount || txn.amount;
                 const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
 
@@ -3135,6 +3216,19 @@
                 if (txn.sourceType === "line") setLines(reverter);
                 else if (txn.sourceType === "visa") setVisas(reverter);
                 else if (txn.sourceType === "instapay") setInstaPays(reverter);
+
+                // ⭐ تحويل داخلي — اعكس المبلغ عن الخط المستقبِل كمان
+                if (txn.type === "internal_transfer" && txn.toInternalId) {
+                    const destReverter = prev => prev.map(item => item.id !== txn.toInternalId ? item : {
+                        ...item,
+                        balance: (item.balance || 0) - effectiveAmount,
+                        usedTodayReceive: Math.max(0, (item.usedTodayReceive||0) - effectiveAmount),
+                        usedMonthReceive: Math.max(0, (item.usedMonthReceive||0) - effectiveAmount),
+                    });
+                    setLines(destReverter);
+                    setVisas(destReverter);
+                    setInstaPays(destReverter);
+                }
 
                 // نعكس سجل الشخص لو موجود
                 setPeople(prev => prev.map(p => {
@@ -3266,13 +3360,12 @@
                 const rawInput = capitalInput.trim();
                 // لو بدأ بعملية حسابية زي +500 أو -200، طبّقها على رأس المال الحالي
                 if (/^[+\-*/]/.test(rawInput)) {
-                    try {
-                        const sanitized = rawInput.replace(/[^0-9+\-*/.]/g, '');
-                        amt = Function(`"use strict"; return (${capital}${sanitized})`)();
-                    } catch(e) { amt = NaN; }
-                } else {
                     const sanitized = rawInput.replace(/[^0-9+\-*/.]/g, '');
-                    try { amt = sanitized ? Function(`"use strict"; return (${sanitized})`)() : NaN; } catch(e) { amt = NaN; }
+                    const result = evaluateExpression(String(capital) + sanitized);
+                    amt = parseFloat(result);
+                } else {
+                    const result = evaluateExpression(rawInput);
+                    amt = parseFloat(result);
                 }
                 if (isNaN(amt) || amt < 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
                 amt = Math.round(amt * 100) / 100;
@@ -3803,7 +3896,7 @@
                                 </div>
 
                                 {canAddTxn && (
-                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
+                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
                                 )}
 
                                 {/* ⭐ الرسوم البيانية التفاعلية */}
@@ -3811,6 +3904,7 @@
                                     transactions={transactions}
                                     financeLogs={financeLogs}
                                     formatNum={formatNum}
+                                    commissionSettings={commissionSettings}
                                 />
 
                                 {/* ⭐ FEATURE: مقارنة شهرية */}
@@ -3858,10 +3952,10 @@
                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                             <div>
                                                 <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>
-                                                    {t.type === "transfer" ? "💸" : t.type === "receive" ? "📥" : t.type === "bank_withdraw" ? "🏦" : t.type === "fawri_transfer" ? "⚡" : "💳"} {t.personName}
-                                                    {(t.type === "bank_withdraw" || t.type === "fawri_withdraw" || t.type === "fawri_transfer") && (
-                                                        <span style={{fontSize:10,marginRight:6,background: t.type==="bank_withdraw"?"#3b82f620":t.type==="fawri_transfer"?"#10b98120":"#a78bfa20",color: t.type==="bank_withdraw"?"#3b82f6":t.type==="fawri_transfer"?"#10b981":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
-                                                            {t.type === "bank_withdraw" ? "سحب بنك" : t.type === "fawri_transfer" ? "⚡ تحويل إلى فوري" : "سحب فوري"}
+                                                    {t.type === "transfer" ? "💸" : t.type === "receive" ? "📥" : t.type === "bank_withdraw" ? "🏦" : t.type === "fawri_transfer" ? "⚡" : t.type === "internal_transfer" ? "🔄" : "💳"} {t.personName}
+                                                    {(t.type === "bank_withdraw" || t.type === "fawri_withdraw" || t.type === "fawri_transfer" || t.type === "internal_transfer") && (
+                                                        <span style={{fontSize:10,marginRight:6,background: t.type==="bank_withdraw"?"#3b82f620":t.type==="fawri_transfer"?"#10b98120":t.type==="internal_transfer"?"#22d3ee20":"#a78bfa20",color: t.type==="bank_withdraw"?"#3b82f6":t.type==="fawri_transfer"?"#10b981":t.type==="internal_transfer"?"#22d3ee":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
+                                                            {t.type === "bank_withdraw" ? "سحب بنك" : t.type === "fawri_transfer" ? "⚡ تحويل إلى فوري" : t.type === "internal_transfer" ? "🔄 تحويل داخلي" : "سحب فوري"}
                                                         </span>
                                                     )}
                                                 </div>
@@ -3957,7 +4051,7 @@
 
                                 {/* ══ منطق الفلترة المتقدم ══ */}
                                 {(()=>{
-                                    const isWithdraw = t => t.type==="transfer" || t.type==="bank_withdraw" || t.type==="fawri_withdraw" || t.type==="fawri_transfer";
+                                    const isWithdraw = t => t.type==="transfer" || t.type==="bank_withdraw" || t.type==="fawri_withdraw" || t.type==="fawri_transfer" || t.type==="internal_transfer";
                                     const isDeposit  = t => t.type==="receive";
 
                                     const filtered = transactions.filter(t => {
@@ -4024,7 +4118,7 @@
                                             {/* تصدير CSV */}
                                             {isAdmin && (
                                                 <button onClick={()=>{
-                                                    const txnTypeLabel = (t) => t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"تحويل إلى فوري":"سحب فوري";
+                                                    const txnTypeLabel = (t) => t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"تحويل إلى فوري":t.type==="internal_transfer"?"تحويل داخلي":"سحب فوري";
                                                     const rows = [["الاسم","النوع","المبلغ","العمولة","الإجمالي المخصوم","من","إلى","التاريخ","ملاحظات"],...filtered.map(t=>[t.personName,txnTypeLabel(t),t.amount,t.commission||0,t.totalAmount||t.amount,t.fromNumber||"",t.toNumber||"",t.dateTime||t.date,t.notes||""])];
                                                     const csv = rows.map(r=>r.join(",")).join("\n");
                                                     const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
@@ -4052,10 +4146,10 @@
                                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                                             <div>
                                                                 <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>
-                                                                    {t.type==="transfer"?"💸":t.type==="receive"?"📥":t.type==="bank_withdraw"?"🏦":t.type==="fawri_transfer"?"⚡":"💳"} {t.personName}
-                                                                    {(t.type==="bank_withdraw"||t.type==="fawri_withdraw"||t.type==="fawri_transfer") && (
-                                                                        <span style={{fontSize:10,marginRight:6,background:t.type==="bank_withdraw"?"#3b82f620":t.type==="fawri_transfer"?"#10b98120":"#a78bfa20",color:t.type==="bank_withdraw"?"#3b82f6":t.type==="fawri_transfer"?"#10b981":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
-                                                                            {t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"⚡ تحويل إلى فوري":"سحب فوري"}
+                                                                    {t.type==="transfer"?"💸":t.type==="receive"?"📥":t.type==="bank_withdraw"?"🏦":t.type==="fawri_transfer"?"⚡":t.type==="internal_transfer"?"🔄":"💳"} {t.personName}
+                                                                    {(t.type==="bank_withdraw"||t.type==="fawri_withdraw"||t.type==="fawri_transfer"||t.type==="internal_transfer") && (
+                                                                        <span style={{fontSize:10,marginRight:6,background:t.type==="bank_withdraw"?"#3b82f620":t.type==="fawri_transfer"?"#10b98120":t.type==="internal_transfer"?"#22d3ee20":"#a78bfa20",color:t.type==="bank_withdraw"?"#3b82f6":t.type==="fawri_transfer"?"#10b981":t.type==="internal_transfer"?"#22d3ee":"#a78bfa",borderRadius:6,padding:"2px 6px",fontWeight:600}}>
+                                                                            {t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"⚡ تحويل إلى فوري":t.type==="internal_transfer"?"🔄 تحويل داخلي":"سحب فوري"}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -5041,6 +5135,7 @@
                                 >
                                     <option value="transfer">💸 تحويل (سحب من المحفظة)</option>
                                     <option value="receive">📥 استلام (إيداع في المحفظة)</option>
+                                    <option value="internal_transfer">🔄 تحويل داخلي (من خط لخط)</option>
                                     <option value="bank_withdraw">🏦 سحب بنك (عمولة {(bankWithdrawRate*100).toFixed(2)}%)</option>
                                     <option value="fawri_withdraw">💳 سحب فوري ({(fawriWithdrawRate*100).toFixed(2)}% + {fawriWithdrawFixed} ج)</option>
                                     <option value="fawri_transfer">⚡ تحويل مباشر إلى فوري</option>
@@ -5400,6 +5495,60 @@
                                     <Field label="من رقم المحفظة"><Input value={form.fromNumber} onChange={v => setForm({...form, fromNumber: v})} placeholder="01xxxxxxxxx"/></Field>
                                     <Field label="إلى رقم المحفظة"><Input value={form.toNumber} onChange={v => setForm({...form, toNumber: v})} placeholder="01xxxxxxxxx"/></Field>
                                 </div>
+                            )}
+
+                            {/* ⭐ التحويل الداخلي — اختر الخط المستقبِل */}
+                            {form.type === "internal_transfer" && (
+                                <Field label="🔄 الخط / الفيزا المستقبِل (وجهة التحويل)">
+                                    <select
+                                        value={form.toInternalId || ""}
+                                        onChange={e => setForm({...form, toInternalId: e.target.value})}
+                                        style={{
+                                            width: "100%",
+                                            background: "#0f1e3d",
+                                            border: "1px solid #22d3ee60",
+                                            borderRadius: 10,
+                                            padding: 11,
+                                            color: "#e2e8f0",
+                                            boxShadow: "0 0 0 2px #22d3ee15"
+                                        }}
+                                    >
+                                        <option value="">-- اختر الخط / الفيزا المستقبل --</option>
+                                        <optgroup label="📱 الخطوط">
+                                            {lines.filter(l => l.id !== form.sourceId).map(l => (
+                                                <option key={l.id} value={l.id}>{l.name} (رصيده: {formatNum(l.balance || 0)} ج)</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="💳 فيزا فوري">
+                                            {visas.filter(v => v.id !== form.sourceId).map(v => (
+                                                <option key={v.id} value={v.id}>{v.name} (رصيده: {formatNum(v.balance || 0)} ج)</option>
+                                            ))}
+                                        </optgroup>
+                                        {instaPays.length > 0 && (
+                                            <optgroup label="⚡ إنستا باي">
+                                                {instaPays.filter(ip => ip.id !== form.sourceId).map(ip => (
+                                                    <option key={ip.id} value={ip.id}>{ip.name} (رصيده: {formatNum(ip.balance || 0)} ج)</option>
+                                                ))}
+                                            </optgroup>
+                                        )}
+                                    </select>
+                                    {form.toInternalId && (() => {
+                                        const dest = [...lines,...visas,...instaPays].find(s=>s.id===form.toInternalId);
+                                        const src  = sources.find(s=>s.id===form.sourceId);
+                                        const amt  = parseFloat(form.amount)||0;
+                                        if (!dest || !src || !amt) return null;
+                                        return (
+                                            <div style={{marginTop:8,background:"#22d3ee10",border:"1px solid #22d3ee30",borderRadius:10,padding:"8px 12px",fontSize:12}}>
+                                                <div style={{color:"#22d3ee",fontWeight:700,marginBottom:4}}>🔄 ملخص التحويل الداخلي</div>
+                                                <div style={{display:"flex",justifyContent:"space-between"}}>
+                                                    <span style={{color:"#7a8fa8"}}>من: <b style={{color:"#e2e8f0"}}>{src.name}</b></span>
+                                                    <span style={{color:"#7a8fa8"}}>إلى: <b style={{color:"#e2e8f0"}}>{dest.name}</b></span>
+                                                </div>
+                                                <div style={{textAlign:"center",marginTop:4,color:"#10b981",fontWeight:700,fontSize:14}}>{formatNum(amt)} ج ← {formatNum((dest.balance||0)+amt)} ج</div>
+                                            </div>
+                                        );
+                                    })()}
+                                </Field>
                             )}
 
                             <Field label="اختر الخط أو الفيزا">
@@ -7633,7 +7782,7 @@
 
                 // آخر 15 عملية
                 const txnSummary = last15.map(t => {
-                    const typeLabel = t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"تحويل إلى فوري":"سحب فوري";
+                    const typeLabel = t.type==="transfer"?"تحويل":t.type==="receive"?"استلام":t.type==="bank_withdraw"?"سحب بنك":t.type==="fawri_transfer"?"تحويل إلى فوري":t.type==="internal_transfer"?"تحويل داخلي":"سحب فوري";
                     return `[${t.date} ${t.time||""}] ${typeLabel} — ${t.personName} — ${formatNum(t.amount)}ج`;
                 }).join("\n");
 
@@ -7951,7 +8100,13 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                 // لو sw.js مش موجود، نعمل inline SW بـ blob
                 const swCode = `
 const CACHE = 'hawker-v1';
-const ASSETS = ['./'];
+const ASSETS = [
+    './',
+    'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap',
+    'https://unpkg.com/react@18/umd/react.production.min.js',
+    'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
+    'https://unpkg.com/@babel/standalone/babel.min.js'
+];
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
     self.skipWaiting();
