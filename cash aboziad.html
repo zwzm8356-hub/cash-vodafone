@@ -1223,7 +1223,7 @@
                                 {/* ===== الفوتر ===== */}
                                 <div style={{textAlign:"center",fontSize:10,color:"#555",marginTop:4}}>
                                     <div>شكراً لتعاملك معنا! 🙏</div>
-                                    <div style={{marginTop:2,fontWeight:700}}>— الحوكر v6 —</div>
+                                    <div style={{marginTop:2,fontWeight:700}}>— الحوكر v7 —</div>
                                     <div style={{fontSize:8,marginTop:3,color:"#999"}}>أبو زياد للكاش • خدمة على مدار الساعة</div>
                                 </div>
 
@@ -2026,6 +2026,9 @@
             const touchEndX = useRef(0);
             const capitalWriting = useRef(false); // ⭐ منع الـ listener من يـoverwrite التعديل المحلي
             const abuAdiWriting  = useRef(false); // ⭐ إصلاح 1 — منع الـ loop اللانهائي في أبو عدي
+            const transactionsFromFirebase = useRef(false); // ⭐ إصلاح — منع الكتابة على Firebase قبل تحميله
+            const linesFromFirebase = useRef(false);       // ⭐ نفس الحماية للخطوط
+            const visasFromFirebase = useRef(false);       // ⭐ نفس الحماية للفيزا
 
             // ⭐ Firebase Auth Listener
             useEffect(() => {
@@ -2055,6 +2058,7 @@
                     db.ref('lines').on('value', (snapshot) => {
                         const data = snapshot.val();
                         firebaseLoaded.current = true;
+                        linesFromFirebase.current = true; // ⭐ إصلاح
                         setFirebaseReady(true);
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
@@ -2065,6 +2069,7 @@
                     db.ref('visas').on('value', (snapshot) => {
                         const data = snapshot.val();
                         firebaseLoaded.current = true;
+                        visasFromFirebase.current = true; // ⭐ إصلاح
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
                             setVisas(arr);
@@ -2074,7 +2079,13 @@
                     db.ref('transactions').on('value', (snapshot) => {
                         const data = snapshot.val();
                         firebaseLoaded.current = true;
-                        if (data) setTimeout(() => setTransactions(Array.isArray(data) ? data : Object.values(data)), 0);
+                        transactionsFromFirebase.current = true; // ⭐ إصلاح — سجّل أن Firebase حمّل
+                        if (data) {
+                            const arr = Array.isArray(data)
+                                ? data.filter(Boolean)
+                                : Object.values(data).filter(Boolean);
+                            if (arr.length > 0) setTimeout(() => setTransactions(arr), 0);
+                        }
                     });
 
                     db.ref('instaPays').on('value', (snapshot) => {
@@ -2184,12 +2195,12 @@
             // ⭐ Auto-save to localStorage AND Firebase — محمي من الكتابة قبل اكتمال تحميل Firebase
             useEffect(() => { 
                 saveToLocalStorage('lines', lines);
-                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('lines').set(lines); } catch(e){} }
+                if (isAdmin && auth.currentUser && firebaseReady && linesFromFirebase.current) { try { db.ref('lines').set(lines); } catch(e){} }
             }, [lines]);
 
             useEffect(() => { 
                 saveToLocalStorage('visas', visas);
-                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('visas').set(visas); } catch(e){} }
+                if (isAdmin && auth.currentUser && firebaseReady && visasFromFirebase.current) { try { db.ref('visas').set(visas); } catch(e){} }
             }, [visas]);
 
             useEffect(() => { 
@@ -2199,7 +2210,12 @@
 
             useEffect(() => { 
                 saveToLocalStorage('transactions', transactions);
-                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('transactions').set(transactions); } catch(e){} }
+                // ⭐ إصلاح — لا تكتب على Firebase إلا لو:
+                // 1) Firebase حمّل بياناته الأصلية (transactionsFromFirebase.current)
+                // 2) وفيه عمليات فعلية أو Firebase خالي
+                if (isAdmin && auth.currentUser && firebaseReady && transactionsFromFirebase.current) {
+                    try { db.ref('transactions').set(transactions); } catch(e){}
+                }
             }, [transactions]);
 
             useEffect(() => { 
