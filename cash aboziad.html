@@ -498,7 +498,7 @@
 
         // Firebase configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyDui8QbprvL2AAh5DGIlwEjrqF4TsOr1wc",
+            apiKey: "AIzaSyDui8QbprvL2AAh5DGIlwEjrqF4TsOr1wE",
             authDomain: "cash-vod.firebaseapp.com",
             databaseURL: "https://cash-vod-default-rtdb.firebaseio.com",
             projectId: "cash-vod",
@@ -2129,7 +2129,8 @@
             const touchEndX = useRef(0);
             const capitalWriting = useRef(false);
             const abuAdiWriting  = useRef(false);
-            const abuAdiLoaded   = useRef(false); // ⭐ حماية: منع الكتابة قبل ما Firebase يحمّل أبو عدي
+            const abuAdiLoaded   = useRef(false); // 🛡️ لا نكتب على Firebase إلا بعد ما البيانات اتجابت منه
+            const customersLoaded = useRef(false); // 🛡️ حماية العملاء من الكتابة قبل التحميل
             const startupLock = useRef(true); // ⭐ منع الكتابة على Firebase قبل ما يحمّل
 
             // ⭐ رفع القفل بعد 8 ثواني كحد أقصى (Firebase المفروض يحمّل قبلها)
@@ -2185,31 +2186,40 @@
                         }
                     });
 
-                    // ⭐ transactions: real-time listener — الأدمن وعمر يشوفوا بعض فورياً بدون رفريش
+                    // ✅ transactions: real-time listener — أي تغيير يظهر فوراً عند كل الأجهزة
                     db.ref('transactions').on('value', (snapshot) => {
                         const data = snapshot.val();
                         firebaseLoaded.current = true;
                         transactionsFromFirebase.current = true;
                         setFirebaseReady(true);
                         if (data) {
-                            const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                            // Firebase بيحفظ كـ object {id: txn} — نحوّله لـ array مرتب بالأحدث أولاً
+                            const arr = (Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean))
+                                .sort((a, b) => (b.id || 0) - (a.id || 0));
                             if (arr.length > 0) {
                                 setTransactions(prev => {
-                                    // مقارنة ذكية — منع loop لو البيانات جاية منّا
-                                    if (prev.length === arr.length && prev.every((t,i) => t.id === arr[i]?.id)) return prev;
+                                    // منع loop: لو نفس البيانات ماتحدّثش
+                                    if (prev.length === arr.length && prev[0]?.id === arr[0]?.id && prev[prev.length-1]?.id === arr[arr.length-1]?.id) return prev;
                                     return arr;
                                 });
-                                saveToLocalStorage('transactions', arr);
+                                try { localStorage.setItem('transactions', JSON.stringify(arr)); } catch(e){}
                             }
                         } else {
-                            // Firebase فاضي — نرجع من localStorage ونرفع
+                            // Firebase فاضي — ارفع من localStorage
                             try {
                                 const local = localStorage.getItem('transactions');
                                 if (local) {
                                     const arr = JSON.parse(local).filter(Boolean);
                                     if (arr.length > 0) {
                                         setTransactions(arr);
-                                        setTimeout(() => { try { db.ref('transactions').set(arr); } catch(e){} }, 2000);
+                                        // ارفع كل عملية بـ ID منفصل
+                                        setTimeout(() => {
+                                            try {
+                                                const obj = {};
+                                                arr.forEach(t => { obj[String(t.id)] = t; });
+                                                db.ref('transactions').set(obj);
+                                            } catch(e) {}
+                                        }, 2000);
                                     }
                                 }
                             } catch(e) {}
@@ -2250,12 +2260,44 @@
                         }
                     });
 
+                    // ✅ customers real-time listener — الفرع الوحيد للعملاء
                     db.ref('customers').on('value', (snapshot) => {
                         const data = snapshot.val();
                         firebaseLoaded.current = true;
+                        customersLoaded.current = true; // 🛡️ رُخصة الكتابة
                         if (data) {
-                            const arr = Array.isArray(data) ? data : Object.values(data);
-                            setTimeout(() => setPeople(arr), 0);
+                            const arr = (Array.isArray(data) ? data : Object.values(data))
+                                .filter(p => p && p.id && p.personName); // فلتر صارم
+                            if (arr.length > 0) {
+                                setPeople(arr);
+                                try { localStorage.setItem('people', JSON.stringify(arr)); } catch(e){}
+                            }
+                            // لو Firebase عنده بيانات ناقصة، نرجع للـ localStorage
+                            else {
+                                try {
+                                    const local = localStorage.getItem('people');
+                                    if (local) {
+                                        const localArr = JSON.parse(local).filter(p => p && p.id && p.personName);
+                                        if (localArr.length > 0) setPeople(localArr);
+                                    }
+                                } catch(e) {}
+                            }
+                        } else {
+                            // Firebase فاضي تماماً — ارجع من localStorage واحفظهم
+                            try {
+                                const local = localStorage.getItem('people');
+                                if (local) {
+                                    const arr = JSON.parse(local).filter(p => p && p.id && p.personName);
+                                    if (arr.length > 0) {
+                                        setPeople(arr);
+                                        setTimeout(() => {
+                                            try {
+                                                arr.forEach(p => db.ref('customers').child(String(p.id)).set(p));
+                                            } catch(e) {}
+                                        }, 1500);
+                                    }
+                                }
+                            } catch(e) {}
                         }
                     });
 
@@ -2271,19 +2313,29 @@
                         if (data) setTimeout(() => setFinanceLogs(Array.isArray(data) ? data : Object.values(data)), 0);
                     });
 
-                    // ⭐ Real-time listener لأبو عدي — يزامن بين الأدمن والمساعد والمشاهد فورياً
+                    // ✅ Real-time listener لأبو عدي
                     db.ref('abuAdi').on('value', (snapshot) => {
-                        if (abuAdiWriting.current) return; // تجاهل التحديث أثناء الكتابة المحلية
+                        if (abuAdiWriting.current) return;
                         const data = snapshot.val();
-                        abuAdiLoaded.current = true; // ⭐ تم تحميل أبو عدي من Firebase
+                        abuAdiLoaded.current = true; // 🛡️ Firebase رد — دلوقتي نقدر نكتب
                         if (data) {
-                            if (data.target !== undefined) setAbuadiTarget(data.target);
-                            if (data.date !== undefined) setAbuadiDate(data.date);
+                            if (data.target   !== undefined) setAbuadiTarget(data.target);
+                            if (data.date     !== undefined) setAbuadiDate(data.date);
                             if (data.payments !== undefined) {
                                 const arr = Array.isArray(data.payments)
                                     ? data.payments.filter(Boolean)
                                     : Object.values(data.payments).filter(Boolean);
                                 setAbuadiPayments(arr);
+                            }
+                        } else {
+                            // Firebase فاضي — ارجع من localStorage واحفظ على Firebase
+                            const savedTarget   = loadFromLocalStorage('abuadiTarget', 0);
+                            const savedPayments = loadFromLocalStorage('abuadiPayments', []);
+                            const savedDate     = loadFromLocalStorage('abuadiDate', today());
+                            if (savedTarget > 0 || savedPayments.length > 0) {
+                                setAbuadiTarget(savedTarget);
+                                setAbuadiPayments(savedPayments);
+                                setAbuadiDate(savedDate);
                             }
                         }
                     });
@@ -2369,23 +2421,32 @@
             }, [instaPays]);
 
             useEffect(() => { 
-                saveToLocalStorage('transactions', transactions);
-                // ⭐ الأدمن وعمر (assistant) يكتبوا transactions على Firebase — real-time sync
+                // حفظ localStorage مع حماية من QuotaExceeded
+                try { localStorage.setItem('transactions', JSON.stringify(transactions)); } catch(e){}
+                // ✅ الأدمن وعمر يكتبوا — كل عملية بـ ID منفصل (يمنع Race Condition وفشل الرفع)
                 if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && transactionsFromFirebase.current && !startupLock.current) {
                     setSyncStatus("syncing");
-                    try { db.ref('transactions').set(transactions).then(()=>setSyncStatus("ready")).catch(()=>setSyncStatus("error")); } catch(e){ setSyncStatus("error"); }
+                    try {
+                        const obj = {};
+                        transactions.forEach(t => { if (t && t.id) obj[String(t.id)] = t; });
+                        db.ref('transactions').set(obj)
+                            .then(() => setSyncStatus("ready"))
+                            .catch(() => setSyncStatus("error"));
+                    } catch(e) { setSyncStatus("error"); }
                 }
             }, [transactions]);
 
             useEffect(() => { 
-                saveToLocalStorage('people', people);
-                // الأدمن والمساعد يقدرون يحدثون العملاء في Firebase
-                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
+                // حفظ localStorage
+                try { localStorage.setItem('people', JSON.stringify(people)); } catch(e){}
+                // 🛡️ 3 شروط حماية: Firebase حمّل العملاء + مفيش startup + مفيش مصفوفة فاضية
+                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady 
+                    && customersLoaded.current && people.length > 0) {
                     try {
                         people.forEach(p => {
-                            db.ref('customers').child(String(p.id)).set(p);
+                            if (p && p.id) db.ref('customers').child(String(p.id)).set(p);
                         });
-                    } catch(e){}
+                    } catch(e) {}
                 }
             }, [people]);
 
@@ -2463,19 +2524,18 @@
                 if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
             }, [financeLogs]);
 
-            // ⭐ Real-time sync لأبو عدي — الأدمن والمساعد يكتبون، الكل يقرأ
-            // 🛡️ startupLock + abuAdiLoaded يمنعوا المسح عند الرفريش
+            // ✅ sync أبو عدي — بس بعد ما abuAdiLoaded (يمنع المسح عند الرفريش)
             useEffect(() => {
-                saveToLocalStorage('abuadiTarget', abuadiTarget);
-                saveToLocalStorage('abuadiPayments', abuadiPayments);
-                saveToLocalStorage('abuadiDate', abuadiDate);
-                // ⭐ لا تكتب على Firebase إلا بعد ما البيانات اتحملت منه فعلاً
-                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && abuAdiLoaded.current && !startupLock.current) {
+                try { localStorage.setItem('abuadiTarget',   JSON.stringify(abuadiTarget));   } catch(e){}
+                try { localStorage.setItem('abuadiPayments', JSON.stringify(abuadiPayments)); } catch(e){}
+                try { localStorage.setItem('abuadiDate',     JSON.stringify(abuadiDate));     } catch(e){}
+                // 🛡️ الشرط ده هو الضمان الوحيد ضد المسح — لا تحذفه
+                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && abuAdiLoaded.current) {
                     try {
                         abuAdiWriting.current = true;
                         db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate })
-                            .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1000); });
-                    } catch(e){ abuAdiWriting.current = false; }
+                            .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1500); });
+                    } catch(e) { abuAdiWriting.current = false; }
                 }
             }, [abuadiTarget, abuadiPayments, abuadiDate]);
 
@@ -3158,6 +3218,8 @@
                 };
 
                 setTransactions(prev => [newTxn, ...prev]);
+                // ✅ حفظ العملية الجديدة بـ ID مباشرة في Firebase — فوري وبدون race condition
+                try { db.ref('transactions').child(String(newTxn.id)).set(newTxn); } catch(e){}
                 updateSource(form.sourceId, form.sourceType, totalAmount, form.type);
 
                 // ⭐ تحديث رصيد الخط أو الفيزا في Firebase بأمان عبر .transaction()
@@ -3197,18 +3259,18 @@
                     setPeople(prev => prev.map(p => {
                         if (p.id !== existingPerson.id) return p;
                         const typeLabel = form.type === "transfer" ? "تحويل" : form.type === "receive" ? "استلام" : form.type === "bank_withdraw" ? "سحب بنك" : form.type === "fawri_transfer" ? "تحويل إلى فوري" : "سحب فوري";
-                        const newRecord = {
+                        const newMove = {
                             id: Date.now(),
-                            type: form.type,
+                            type: form.type === "receive" ? "credit" : "debit",
                             amount: amount,
+                            note: typeLabel + (form.notes ? ` — ${form.notes}` : ""),
                             date: fullDateTime,
-                            description: form.type === "transfer" ? `تحويل: ${form.fromNumber} → ${form.toNumber}` : typeLabel
+                            isOld: false
                         };
-                        return {
-                            ...p,
-                            records: [...(p.records || []), newRecord],
-                            lastUpdated: nowStr()
-                        };
+                        const updated = { ...p, moves: [...(p.moves||[]), newMove], lastUpdated: nowStr() };
+                        // ✅ حفظ مباشر في Firebase بعد الإضافة
+                        try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
+                        return updated;
                     }));
                 }
 
@@ -3347,19 +3409,23 @@
                     }
                 });
 
-                // تحديث سجل العميل
+                // تحديث سجل العميل — موحّد على moves
                 const existingPerson = people.find(p => p.personName.toLowerCase() === personName.toLowerCase());
                 if (existingPerson) {
                     setPeople(prev => prev.map(p => {
                         if (p.id !== existingPerson.id) return p;
-                        const newRecords = newTxns.map(txn => ({
+                        const newMoves = newTxns.map(txn => ({
                             id: txn.id,
-                            type: txn.type,
+                            type: txn.type === "receive" ? "credit" : "debit",
                             amount: txn.amount,
+                            note: `تقسيم ذكي: ${txn.amount} ج من ${sources.find(s=>s.id===txn.sourceId)?.name || txn.sourceId}`,
                             date: fullDateTime,
-                            description: `تقسيم ذكي: ${txn.amount} ج من ${sources.find(s=>s.id===txn.sourceId)?.name || txn.sourceId}`
+                            isOld: false
                         }));
-                        return { ...p, records: [...(p.records || []), ...newRecords], lastUpdated: nowStr() };
+                        const updated = { ...p, moves: [...(p.moves||[]), ...newMoves], lastUpdated: nowStr() };
+                        // ✅ حفظ مباشر في Firebase
+                        try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
+                        return updated;
                     }));
                 }
 
@@ -3393,8 +3459,10 @@
 
             function deleteTransaction(txn) {
                 setTransactions(prev => prev.filter(t => t.id !== txn.id));
+                // ✅ حذف مباشر بـ ID من Firebase — بدون رفع الـ array كامل
+                try { db.ref('transactions').child(String(txn.id)).remove(); } catch(e){}
                 const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer" || txn.type === "internal_transfer";
-                const effectiveAmount = txn.totalAmount || txn.amount; // الإجمالي شامل العمولة
+                const effectiveAmount = txn.totalAmount || txn.amount;
                 const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
                 const reverter = prev => prev.map(item => {
                     if (item.id !== txn.sourceId) return item;
@@ -3412,23 +3480,19 @@
                 else if (txn.sourceType === "instapay") setInstaPays(reverter);
                 setConfirmDelete(null);
                 showToast("تم حذف العملية ✓");
-                // ⭐ سجل الحذف
                 if (isAssistant || isOmar) {
                     addAuditEntry("🗑️ حذف عملية", `${txn.personName} | ${maskNum(txn.amount, privacyMode)} ج | ${txn.date}`);
                     try { db.ref('assistant_log').push({ action:"delete_transaction", user:userRole, personName:txn.personName, amount:txn.amount, date:txn.date, ts:nowStr() }); } catch(e) {}
                 }
             }
 
-            // ⭐ عكس العملية - بيرجع الأرقام كأن شيئاً لم يكن
             function reverseTransaction(txn) {
                 const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer" || txn.type === "internal_transfer";
                 const effectiveAmount = txn.totalAmount || txn.amount;
                 const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
-
-                // نحذف العملية من القائمة
                 setTransactions(prev => prev.filter(t => t.id !== txn.id));
-
-                // نعكس أرقام الخط/الفيزا/انستاباي
+                // ✅ حذف مباشر بـ ID من Firebase
+                try { db.ref('transactions').child(String(txn.id)).remove(); } catch(e){}
                 const reverter = prev => prev.map(item => {
                     if (item.id !== txn.sourceId) return item;
                     return {
@@ -3443,8 +3507,6 @@
                 if (txn.sourceType === "line") setLines(reverter);
                 else if (txn.sourceType === "visa") setVisas(reverter);
                 else if (txn.sourceType === "instapay") setInstaPays(reverter);
-
-                // ⭐ تحويل داخلي — اعكس المبلغ عن الخط المستقبِل كمان
                 if (txn.type === "internal_transfer" && txn.toInternalId) {
                     const destReverter = prev => prev.map(item => item.id !== txn.toInternalId ? item : {
                         ...item,
@@ -3452,27 +3514,24 @@
                         usedTodayReceive: Math.max(0, (item.usedTodayReceive||0) - effectiveAmount),
                         usedMonthReceive: Math.max(0, (item.usedMonthReceive||0) - effectiveAmount),
                     });
-                    setLines(destReverter);
-                    setVisas(destReverter);
-                    setInstaPays(destReverter);
+                    setLines(destReverter); setVisas(destReverter); setInstaPays(destReverter);
                 }
-
-                // نعكس سجل الشخص لو موجود
                 setPeople(prev => prev.map(p => {
                     if (p.personName.toLowerCase() !== txn.personName?.toLowerCase()) return p;
-                    return {
+                    const updated = {
                         ...p,
-                        records: (p.records || []).filter(r => !(
-                            Math.abs(r.amount) === txn.amount &&
-                            r.date === (txn.dateTime || txn.date)
+                        moves: (p.moves || []).filter(m => !(
+                            Math.abs(m.amount) === txn.amount &&
+                            (m.date || "").startsWith((txn.dateTime || txn.date || "").slice(0, 10))
                         )),
                         lastUpdated: nowStr()
                     };
+                    // ✅ حفظ مباشر في Firebase
+                    try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
+                    return updated;
                 }));
-
                 setConfirmDelete(null);
                 showToast("↩️ تم عكس العملية وإرجاع الأرقام ✓");
-                // ⭐ سجل العكس
                 if (isAssistant || isOmar) {
                     addAuditEntry("↩️ عكس عملية", `${txn.personName} | ${maskNum(txn.amount, privacyMode)} ج | ${txn.date}`);
                     try { db.ref('assistant_log').push({ action:"reverse_transaction", user:userRole, personName:txn.personName, amount:txn.amount, date:txn.date, ts:nowStr() }); } catch(e) {}
@@ -3508,6 +3567,8 @@
                 if(form.sourceType==="line")setLines(applier); else if(form.sourceType==="visa")setVisas(applier); else setInstaPays(applier);
                 const updatedTxn={...oldTxn,type:form.type,date:form.date,time:form.time,fromNumber:form.fromNumber,toNumber:form.toNumber,personName:form.personName,amount,commission,totalAmount,sourceId:form.sourceId,sourceType:form.sourceType,notes:form.notes,image:form.image,dateTime:`${form.date} ${form.time}`,editedAt:nowStr()};
                 setTransactions(prev=>prev.map(t=>t.id===editTxnId?updatedTxn:t));
+                // ✅ تحديث العملية بـ ID مباشرة في Firebase
+                try { db.ref('transactions').child(String(editTxnId)).set(updatedTxn); } catch(e){}
                 addAuditEntry("تعديل عملية",`${oldTxn.personName} ${oldTxn.amount}ج→${amount}ج`);
                 setModal(null); setEditTxnId(null);
                 showToast("✅ تم تعديل العملية");
@@ -3577,10 +3638,8 @@
                     lastUpdated: nowStr()
                 };
                 setPeople(prev => [newCust, ...prev]);
-                // حفظ مباشر في Firebase تحت customers
-                if ((isAdmin || isAssistant) && auth.currentUser) {
-                    try { db.ref('customers').child(String(newCust.id)).set(newCust); } catch(e){}
-                }
+                // ✅ حفظ مباشر وفوري في Firebase — مش بنعتمد على الـ useEffect هنا
+                try { db.ref('customers').child(String(newCust.id)).set(newCust); } catch(e){}
                 setCustNewForm({ name: "" });
                 setCustModal(null);
                 showToast(`تم إضافة ${name} ✓`);
@@ -3591,20 +3650,18 @@
                 if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
                 const move = {
                     id: Date.now(),
-                    type: custMoveForm.type,        // "debit" حوّل مني | "credit" أعطاني
+                    type: custMoveForm.type,
                     amount: amt,
                     note: custMoveForm.note.trim() || (custMoveForm.type === "debit" ? "تحويل كاش" : "سداد دفعة"),
                     isOld: custMoveForm.isOld || false,
                     date: nowStr()
                 };
+                // ✅ نبني الـ updated خارج setPeople عشان نحفظه على Firebase بشكل مضمون
                 setPeople(prev => prev.map(p => {
                     if (p.id !== customerId) return p;
-                    const updatedMoves = [...(p.moves||[]), move];
-                    const updated = { ...p, moves: updatedMoves, lastUpdated: nowStr() };
-                    // حفظ مباشر في Firebase
-                    if ((isAdmin || isAssistant) && auth.currentUser) {
-                        try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
-                    }
+                    const updated = { ...p, moves: [...(p.moves||[]), move], lastUpdated: nowStr() };
+                    // حفظ مباشر وفوري — مش بنعتمد على الـ useEffect
+                    try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
                     return updated;
                 }));
                 setCustMoveForm({ type: "debit", amount: "", note: "", isOld: false });
@@ -3616,9 +3673,8 @@
                 setPeople(prev => prev.map(p => {
                     if (p.id !== customerId) return p;
                     const updated = { ...p, moves: (p.moves||[]).filter(m => m.id !== moveId), lastUpdated: nowStr() };
-                    if ((isAdmin || isAssistant) && auth.currentUser) {
-                        try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
-                    }
+                    // ✅ حفظ مباشر وفوري
+                    try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
                     return updated;
                 }));
                 showToast("تم حذف الحركة ✓");
@@ -3909,7 +3965,7 @@
             const canDeleteTxn   = isAdmin;
             const canReverseTxn  = isAdmin;
             const canPrintTxn    = isAdmin || isOmar;  // عمر يطبع الفواتير
-            const canAddTxn      = isAdmin || isAssistant || isOmar;  // ⭐ عمر يضيف عمليات
+            const canAddTxn      = isAdmin || isAssistant || isOmar;
 
             // لوحة التحكم: عمر يرى كل شيء بالكامل
             const canViewDashboard = true;
@@ -4748,7 +4804,12 @@
                                                         style={{flex:1,background:"#10b98120",border:"1px solid #10b98140",borderRadius:8,padding:"7px 0",color:"#10b981",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                                                         💵 سدّد
                                                     </button>
-                                                    <button onClick={()=>{setPeople(prev=>prev.map(p=>p.id!==person.id?p:{...p,isVip:!p.isVip}));showToast(person.isVip?"تم إلغاء VIP":"⭐ VIP");}}
+                                                    <button onClick={()=>{
+                                                        const updated = {...person, isVip: !person.isVip, lastUpdated: nowStr()};
+                                                        setPeople(prev=>prev.map(p=>p.id!==person.id?p:updated));
+                                                        try { db.ref('customers').child(String(person.id)).set(updated); } catch(e){}
+                                                        showToast(person.isVip?"تم إلغاء VIP":"⭐ VIP");
+                                                    }}
                                                         style={{background:person.isVip?"#f59e0b20":"#1e293b",border:`1px solid ${person.isVip?"#f59e0b40":"#334155"}`,borderRadius:8,padding:"7px 10px",color:person.isVip?"#f59e0b":"#64748b",fontSize:13,cursor:"pointer"}}>⭐</button>
                                                     <button onClick={()=>setSelectedPersonId(person.id)}
                                                         style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"7px 12px",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>
@@ -6338,7 +6399,8 @@
                             <button onClick={()=>{
                                 const updatedTxns = transactions.map(t=>t.id===viewerNote.txnId?{...t,notes:viewerNote.text}:t);
                                 setTransactions(updatedTxns);
-                                try { db.ref('transactions').set(updatedTxns); } catch(e){}
+                                // ✅ تحديث الملاحظة بـ ID مباشرة
+                                try { db.ref('transactions').child(String(viewerNote.txnId)).update({notes: viewerNote.text}); } catch(e){}
                                 setViewerNote(null);
                                 showToast("تم حفظ الملاحظة ✓");
                             }} style={{width:"100%",background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:14,color:"#0a0f1e",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
