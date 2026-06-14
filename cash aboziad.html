@@ -2129,6 +2129,7 @@
             const touchEndX = useRef(0);
             const capitalWriting = useRef(false);
             const abuAdiWriting  = useRef(false);
+            const abuAdiLoaded   = useRef(false); // ⭐ حماية: منع الكتابة قبل ما Firebase يحمّل أبو عدي
             const startupLock = useRef(true); // ⭐ منع الكتابة على Firebase قبل ما يحمّل
 
             // ⭐ رفع القفل بعد 8 ثواني كحد أقصى (Firebase المفروض يحمّل قبلها)
@@ -2184,8 +2185,8 @@
                         }
                     });
 
-                    // ⭐ transactions: نقرأ مرة واحدة بس عند التشغيل — مش listener مستمر
-                    db.ref('transactions').once('value', (snapshot) => {
+                    // ⭐ transactions: real-time listener — الأدمن وعمر يشوفوا بعض فورياً بدون رفريش
+                    db.ref('transactions').on('value', (snapshot) => {
                         const data = snapshot.val();
                         firebaseLoaded.current = true;
                         transactionsFromFirebase.current = true;
@@ -2193,27 +2194,26 @@
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
                             if (arr.length > 0) {
-                                setTransactions(arr);
-                                saveToLocalStorage('transactions', arr); // ⭐ حفظ فوري في localStorage
+                                setTransactions(prev => {
+                                    // مقارنة ذكية — منع loop لو البيانات جاية منّا
+                                    if (prev.length === arr.length && prev.every((t,i) => t.id === arr[i]?.id)) return prev;
+                                    return arr;
+                                });
+                                saveToLocalStorage('transactions', arr);
                             }
-                        }
-                        // لو Firebase فاضي — نحاول نرجع من localStorage
-                        else {
+                        } else {
+                            // Firebase فاضي — نرجع من localStorage ونرفع
                             try {
                                 const local = localStorage.getItem('transactions');
                                 if (local) {
                                     const arr = JSON.parse(local).filter(Boolean);
                                     if (arr.length > 0) {
                                         setTransactions(arr);
-                                        // ارفع على Firebase بعد ثانيتين
-                                        setTimeout(() => {
-                                            try { db.ref('transactions').set(arr); } catch(e) {}
-                                        }, 2000);
+                                        setTimeout(() => { try { db.ref('transactions').set(arr); } catch(e){} }, 2000);
                                     }
                                 }
                             } catch(e) {}
                         }
-                        // ⭐ ارفع القفل بعد ما Firebase خلص يحمّل
                         setTimeout(() => { startupLock.current = false; }, 500);
                     });
 
@@ -2273,8 +2273,9 @@
 
                     // ⭐ Real-time listener لأبو عدي — يزامن بين الأدمن والمساعد والمشاهد فورياً
                     db.ref('abuAdi').on('value', (snapshot) => {
-                        if (abuAdiWriting.current) return; // ⭐ إصلاح 1 — تجاهل التحديث أثناء الكتابة المحلية
+                        if (abuAdiWriting.current) return; // تجاهل التحديث أثناء الكتابة المحلية
                         const data = snapshot.val();
+                        abuAdiLoaded.current = true; // ⭐ تم تحميل أبو عدي من Firebase
                         if (data) {
                             if (data.target !== undefined) setAbuadiTarget(data.target);
                             if (data.date !== undefined) setAbuadiDate(data.date);
@@ -2369,7 +2370,8 @@
 
             useEffect(() => { 
                 saveToLocalStorage('transactions', transactions);
-                if (isAdmin && auth.currentUser && firebaseReady && transactionsFromFirebase.current && !startupLock.current) {
+                // ⭐ الأدمن وعمر (assistant) يكتبوا transactions على Firebase — real-time sync
+                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && transactionsFromFirebase.current && !startupLock.current) {
                     setSyncStatus("syncing");
                     try { db.ref('transactions').set(transactions).then(()=>setSyncStatus("ready")).catch(()=>setSyncStatus("error")); } catch(e){ setSyncStatus("error"); }
                 }
@@ -2462,13 +2464,15 @@
             }, [financeLogs]);
 
             // ⭐ Real-time sync لأبو عدي — الأدمن والمساعد يكتبون، الكل يقرأ
+            // 🛡️ startupLock + abuAdiLoaded يمنعوا المسح عند الرفريش
             useEffect(() => {
                 saveToLocalStorage('abuadiTarget', abuadiTarget);
                 saveToLocalStorage('abuadiPayments', abuadiPayments);
                 saveToLocalStorage('abuadiDate', abuadiDate);
-                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
+                // ⭐ لا تكتب على Firebase إلا بعد ما البيانات اتحملت منه فعلاً
+                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && abuAdiLoaded.current && !startupLock.current) {
                     try {
-                        abuAdiWriting.current = true; // ⭐ إصلاح 1 — رفع الراية قبل الكتابة
+                        abuAdiWriting.current = true;
                         db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate })
                             .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1000); });
                     } catch(e){ abuAdiWriting.current = false; }
@@ -3905,7 +3909,7 @@
             const canDeleteTxn   = isAdmin;
             const canReverseTxn  = isAdmin;
             const canPrintTxn    = isAdmin || isOmar;  // عمر يطبع الفواتير
-            const canAddTxn      = isAdmin;  // إضافة عمليات: أدمن فقط
+            const canAddTxn      = isAdmin || isAssistant || isOmar;  // ⭐ عمر يضيف عمليات
 
             // لوحة التحكم: عمر يرى كل شيء بالكامل
             const canViewDashboard = true;
