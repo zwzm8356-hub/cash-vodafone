@@ -2421,10 +2421,8 @@
             }, [instaPays]);
 
             useEffect(() => { 
-                // حفظ localStorage مع حماية من QuotaExceeded
                 try { localStorage.setItem('transactions', JSON.stringify(transactions)); } catch(e){}
-                // ✅ الأدمن وعمر يكتبوا — كل عملية بـ ID منفصل (يمنع Race Condition وفشل الرفع)
-                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && transactionsFromFirebase.current && !startupLock.current) {
+                if (auth.currentUser && firebaseReady && transactionsFromFirebase.current && !startupLock.current) {
                     setSyncStatus("syncing");
                     try {
                         const obj = {};
@@ -2437,11 +2435,8 @@
             }, [transactions]);
 
             useEffect(() => { 
-                // حفظ localStorage
                 try { localStorage.setItem('people', JSON.stringify(people)); } catch(e){}
-                // 🛡️ 3 شروط حماية: Firebase حمّل العملاء + مفيش startup + مفيش مصفوفة فاضية
-                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady 
-                    && customersLoaded.current && people.length > 0) {
+                if (auth.currentUser && firebaseReady && customersLoaded.current && people.length > 0) {
                     try {
                         people.forEach(p => {
                             if (p && p.id) db.ref('customers').child(String(p.id)).set(p);
@@ -2529,8 +2524,8 @@
                 try { localStorage.setItem('abuadiTarget',   JSON.stringify(abuadiTarget));   } catch(e){}
                 try { localStorage.setItem('abuadiPayments', JSON.stringify(abuadiPayments)); } catch(e){}
                 try { localStorage.setItem('abuadiDate',     JSON.stringify(abuadiDate));     } catch(e){}
-                // 🛡️ الشرط ده هو الضمان الوحيد ضد المسح — لا تحذفه
-                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && abuAdiLoaded.current) {
+                // 🛡️ نكتب على Firebase لو في user متسجل + Firebase حمّل البيانات فعلاً
+                if (auth.currentUser && firebaseReady && abuAdiLoaded.current) {
                     try {
                         abuAdiWriting.current = true;
                         db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate })
@@ -6831,7 +6826,6 @@
             function addPayment() {
                 const amt = parseFloat(amountInput);
                 if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح","error"); return; }
-                // ⭐ Haptic feedback — iOS
                 if (navigator.vibrate) navigator.vibrate(15);
                 const newP = {
                     id: Date.now(),
@@ -6840,7 +6834,16 @@
                     label: nowMsStr(),
                     audio: pendingAudio || null,
                 };
-                setPayments(prev => [newP, ...prev]);
+                const updatedPayments = [newP, ...payments];
+                setPayments(updatedPayments);
+                // ✅ كتابة مباشرة على Firebase فوراً
+                if (auth && auth.currentUser && db) {
+                    try {
+                        abuAdiWriting.current = true;
+                        db.ref('abuAdi').set({ target, payments: updatedPayments, date: abuadiDate })
+                            .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1500); });
+                    } catch(e) { abuAdiWriting.current = false; }
+                }
                 setAmountInput("");
                 setPendingAudio(null);
                 setRecordingState("idle");
@@ -6848,7 +6851,16 @@
             }
 
             function deletePayment(id) {
-                setPayments(prev => prev.filter(p => p.id !== id));
+                const updatedPayments = payments.filter(p => p.id !== id);
+                setPayments(updatedPayments);
+                // ✅ كتابة مباشرة على Firebase فوراً
+                if (auth && auth.currentUser && db) {
+                    try {
+                        abuAdiWriting.current = true;
+                        db.ref('abuAdi').set({ target, payments: updatedPayments, date: abuadiDate })
+                            .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1500); });
+                    } catch(e) { abuAdiWriting.current = false; }
+                }
                 showToast("تم حذف الدفعة ✓");
             }
 
@@ -6856,7 +6868,16 @@
                 if (!editModal) return;
                 const newAmt = parseFloat(editModal.newAmount);
                 if (!newAmt || newAmt <= 0) { showToast("أدخل مبلغ صحيح","error"); return; }
-                setPayments(prev => prev.map(p => p.id === editModal.payment.id ? {...p, amount: newAmt} : p));
+                const updatedPayments = payments.map(p => p.id === editModal.payment.id ? {...p, amount: newAmt} : p);
+                setPayments(updatedPayments);
+                // ✅ كتابة مباشرة على Firebase فوراً
+                if (auth && auth.currentUser && db) {
+                    try {
+                        abuAdiWriting.current = true;
+                        db.ref('abuAdi').set({ target, payments: updatedPayments, date: abuadiDate })
+                            .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1500); });
+                    } catch(e) { abuAdiWriting.current = false; }
+                }
                 setEditModal(null);
                 showToast("تم التعديل ✓");
             }
@@ -6944,7 +6965,18 @@
                                         onClick={()=>{
                                             const v=parseFloat(targetInput);
                                             if(!v||v<=0){showToast("أدخل مبلغ صحيح","error");return;}
-                                            setTarget(v); if(setAbuadiDate) setAbuadiDate(new Date().toISOString().slice(0,10)); showToast("✓ تم تحديد المبلغ المستهدف");
+                                            const newDate = new Date().toISOString().slice(0,10);
+                                            setTarget(v);
+                                            if(setAbuadiDate) setAbuadiDate(newDate);
+                                            // ✅ كتابة مباشرة على Firebase
+                                            if(auth && auth.currentUser && db) {
+                                                try {
+                                                    abuAdiWriting.current = true;
+                                                    db.ref('abuAdi').set({ target: v, payments, date: newDate })
+                                                        .finally(()=>{ setTimeout(()=>{ abuAdiWriting.current = false; }, 1500); });
+                                                } catch(e){ abuAdiWriting.current = false; }
+                                            }
+                                            showToast("✓ تم تحديد المبلغ المستهدف");
                                         }}
                                         style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"10px 18px",color:"#0a0f1e",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}
                                     >تحديد</button>
