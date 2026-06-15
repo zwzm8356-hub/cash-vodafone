@@ -3277,11 +3277,6 @@
                     });
                 });
 
-                // ⭐ Firebase-First: نحفظ كل عملية بـ ID مستقل — سريع بدون جلب كل البيانات
-                if (auth.currentUser && firebaseReady) {
-                    try {
-                        await Promise.all(newTxns.map(txn => db.ref('transactions/' + txn.id).set(txn)));
-                        // ✅ Firebase نجح — الآن نحدّث الـ State
                 // ⭐ Local-First: نحفظ فوراً محلياً
                 setTransactions(prev => {
                     const newIds = new Set(newTxns.map(t => t.id));
