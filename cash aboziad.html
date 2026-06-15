@@ -3110,31 +3110,30 @@
                     image: null
                 };
 
-                // ⭐ Firebase-First: نحفظ في Firebase أولاً ونستنى التأكيد قبل تحديث الـ State
+                // ⭐ Local-First: نحفظ فوراً محلياً علشان الهاتف ما يتأخرش
+                setTransactions(prev => {
+                    const updated = [newTxn, ...prev.filter(t => t.id !== newTxn.id)];
+                    saveToLocalStorage('transactions', updated);
+                    return updated;
+                });
+
+                // ⭐ Firebase في الخلفية مع Retry — بدون await حتى لا يعيق الـ UI
                 if (auth.currentUser && firebaseReady) {
-                    try {
-                        // نجلب الـ transactions الحالية من Firebase ونضيف الجديدة
-                        const snap = await db.ref('transactions').once('value');
-                        const existing = snap.val();
-                        let arr = [];
-                        if (existing) {
-                            arr = Array.isArray(existing) ? existing.filter(Boolean) : Object.values(existing).filter(Boolean);
-                        }
-                        const merged = [newTxn, ...arr];
-                        await db.ref('transactions').set(merged);
-                        // ✅ Firebase نجح — الآن نحدّث الـ State المحلي
-                        setTransactions(merged);
-                        saveToLocalStorage('transactions', merged);
-                    } catch (firebaseErr) {
-                        // ❌ Firebase فشل — نوقف العملية ونحذّر المستخدم
-                        showToast("❌ فشل الحفظ في السيرفر — لا تعمل Refresh! حاول مرة ثانية", "error");
-                        setIsSubmitting(false);
-                        return;
-                    }
-                } else {
-                    // لا يوجد اتصال بـ Firebase — نحفظ محلياً مع تحذير
-                    setTransactions(prev => [newTxn, ...prev]);
-                    showToast("⚠️ حُفظ محلياً فقط — لا يوجد اتصال بالسيرفر", "error");
+                    const saveToFirebase = (attempt = 1) => {
+                        db.ref('transactions/' + newTxn.id).set(newTxn)
+                            .then(() => {
+                                if (attempt > 1) showToast("✅ تم مزامنة العملية مع السيرفر");
+                            })
+                            .catch(err => {
+                                if (attempt < 3) {
+                                    // إعادة المحاولة بعد 3 ثواني
+                                    setTimeout(() => saveToFirebase(attempt + 1), 3000);
+                                } else {
+                                    showToast("⚠️ العملية حُفظت محلياً — اضغط 🔄 لمزامنة السيرفر", "error");
+                                }
+                            });
+                    };
+                    saveToFirebase();
                 }
 
                 updateSource(form.sourceId, form.sourceType, totalAmount, form.type);
@@ -3278,28 +3277,31 @@
                     });
                 });
 
-                // ⭐ Firebase-First: نحفظ كل العمليات في Firebase أولاً قبل تحديث الـ State
+                // ⭐ Firebase-First: نحفظ كل عملية بـ ID مستقل — سريع بدون جلب كل البيانات
                 if (auth.currentUser && firebaseReady) {
                     try {
-                        const snap = await db.ref('transactions').once('value');
-                        const existing = snap.val();
-                        let arr = [];
-                        if (existing) {
-                            arr = Array.isArray(existing) ? existing.filter(Boolean) : Object.values(existing).filter(Boolean);
-                        }
-                        const merged = [...newTxns, ...arr];
-                        await db.ref('transactions').set(merged);
+                        await Promise.all(newTxns.map(txn => db.ref('transactions/' + txn.id).set(txn)));
                         // ✅ Firebase نجح — الآن نحدّث الـ State
-                        setTransactions(merged);
-                        saveToLocalStorage('transactions', merged);
-                    } catch (firebaseErr) {
-                        showToast("❌ فشل الحفظ في السيرفر — لا تعمل Refresh! حاول مرة ثانية", "error");
-                        setIsSubmitting(false);
-                        return;
-                    }
-                } else {
-                    setTransactions(prev => [...newTxns, ...prev]);
-                    showToast("⚠️ حُفظ محلياً فقط — لا يوجد اتصال بالسيرفر", "error");
+                // ⭐ Local-First: نحفظ فوراً محلياً
+                setTransactions(prev => {
+                    const newIds = new Set(newTxns.map(t => t.id));
+                    const updated = [...newTxns, ...prev.filter(t => !newIds.has(t.id))];
+                    saveToLocalStorage('transactions', updated);
+                    return updated;
+                });
+
+                // ⭐ Firebase في الخلفية — كل عملية بـ ID مستقل مع Retry
+                if (auth.currentUser && firebaseReady) {
+                    newTxns.forEach(txn => {
+                        const saveOne = (attempt = 1) => {
+                            db.ref('transactions/' + txn.id).set(txn)
+                                .catch(err => {
+                                    if (attempt < 3) setTimeout(() => saveOne(attempt + 1), 3000);
+                                    else showToast("⚠️ بعض العمليات لم تُزامَن — اضغط 🔄", "error");
+                                });
+                        };
+                        saveOne();
+                    });
                 }
 
                 // تحديث كل مصدر بالأمان عبر Firebase transaction
