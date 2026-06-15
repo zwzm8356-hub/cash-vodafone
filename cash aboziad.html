@@ -1866,6 +1866,95 @@
             const [fawriBalance, setFawriBalance] = useState(() => loadFromLocalStorage('fawriBalance', 0));
             
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
+            const [isRefreshing, setIsRefreshing] = useState(false);
+
+            // ⭐ forceRefresh — يجلب كل البيانات من Firebase من جديد ويتجاهل الكاش
+            async function forceRefresh() {
+                if (isRefreshing || !auth.currentUser) return;
+                setIsRefreshing(true);
+                setSyncStatus("⏳ جاري التحديث...");
+                try {
+                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings'];
+                    const snapshots = await Promise.all(keys.map(k => db.ref(k).once('value')));
+                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap] = snapshots;
+
+                    // transactions
+                    const txnData = txnSnap.val();
+                    if (txnData) {
+                        const arr = Array.isArray(txnData) ? txnData.filter(Boolean) : Object.values(txnData).filter(Boolean);
+                        setTransactions(arr);
+                        saveToLocalStorage('transactions', arr);
+                    }
+                    // lines
+                    const linesData = linesSnap.val();
+                    if (linesData) {
+                        const arr = Array.isArray(linesData) ? linesData.filter(Boolean) : Object.values(linesData).filter(Boolean);
+                        setLines(arr);
+                        saveToLocalStorage('lines', arr);
+                    }
+                    // visas
+                    const visasData = visasSnap.val();
+                    if (visasData) {
+                        const arr = Array.isArray(visasData) ? visasData.filter(Boolean) : Object.values(visasData).filter(Boolean);
+                        setVisas(arr);
+                        saveToLocalStorage('visas', arr);
+                    }
+                    // instaPays
+                    const instaData = instaSnap.val();
+                    if (instaData) {
+                        const arr = Array.isArray(instaData) ? instaData.filter(Boolean) : Object.values(instaData).filter(Boolean);
+                        setInstaPays(arr);
+                        saveToLocalStorage('instaPays', arr);
+                    } else { setInstaPays([]); }
+                    // customers
+                    const custData = custSnap.val();
+                    if (custData) {
+                        const arr = Array.isArray(custData) ? custData : Object.values(custData);
+                        setPeople(arr);
+                        saveToLocalStorage('people', arr);
+                    }
+                    // capital
+                    const capData = capSnap.val();
+                    if (capData !== null) {
+                        setCapital(capData);
+                        saveToLocalStorage('capital', capData);
+                    }
+                    // financeLogs
+                    const logsData = logsSnap.val();
+                    if (logsData) {
+                        const arr = Array.isArray(logsData) ? logsData : Object.values(logsData);
+                        setFinanceLogs(arr);
+                        saveToLocalStorage('financeLogs', arr);
+                    }
+                    // settings
+                    const s = settSnap.val();
+                    if (s) {
+                        if (s.vodDailyLimit    !== undefined) setVodDailyLimit(s.vodDailyLimit);
+                        if (s.linesMonthlyLimit !== undefined) setLinesMonthlyLimit(s.linesMonthlyLimit);
+                        if (s.visaDailyLimit    !== undefined) setVisaDailyLimit(s.visaDailyLimit);
+                        if (s.visaMonthlyLimit  !== undefined) setVisaMonthlyLimit(s.visaMonthlyLimit);
+                        if (s.instapayDailyLimit !== undefined) setInstapayDailyLimit(s.instapayDailyLimit);
+                        if (s.instapayMonthlyLimit !== undefined) setInstapayMonthlyLimit(s.instapayMonthlyLimit);
+                        if (s.fawriWithdrawRate !== undefined || s.fawriWithdrawFixed !== undefined || s.bankWithdrawRate !== undefined) {
+                            setCommissionSettings(prev => ({
+                                fawriWithdrawRate:  s.fawriWithdrawRate  ?? prev.fawriWithdrawRate,
+                                fawriWithdrawFixed: s.fawriWithdrawFixed ?? prev.fawriWithdrawFixed,
+                                bankWithdrawRate:   s.bankWithdrawRate   ?? prev.bankWithdrawRate,
+                            }));
+                        }
+                    }
+                    setDashboardLoading(false);
+                    setSyncStatus("✓ محدّث الآن");
+                    showToast("🔄 تم تحديث جميع البيانات من Firebase");
+                    setTimeout(() => setSyncStatus("✓ جاهز"), 4000);
+                } catch(err) {
+                    setSyncStatus("✗ فشل التحديث");
+                    showToast("❌ فشل التحديث: " + err.message, "error");
+                    setTimeout(() => setSyncStatus("✓ جاهز"), 4000);
+                } finally {
+                    setIsRefreshing(false);
+                }
+            }
             const firebaseLoaded = React.useRef(false);
             const [firebaseReady, setFirebaseReady] = useState(false);
             // ⭐ FIX: Loading indicator للـ Dashboard — يمنع عرض صفر قبل Firebase
@@ -2938,7 +3027,7 @@
                 return { commission: 0, total: amount };
             }
 
-            function addTransaction() {
+            async function addTransaction() {
                 // ⭐ منع الضغط المتكرر — Race Condition Protection
                 if (isSubmitting) return;
 
@@ -3021,7 +3110,33 @@
                     image: null
                 };
 
-                setTransactions(prev => [newTxn, ...prev]);
+                // ⭐ Firebase-First: نحفظ في Firebase أولاً ونستنى التأكيد قبل تحديث الـ State
+                if (auth.currentUser && firebaseReady) {
+                    try {
+                        // نجلب الـ transactions الحالية من Firebase ونضيف الجديدة
+                        const snap = await db.ref('transactions').once('value');
+                        const existing = snap.val();
+                        let arr = [];
+                        if (existing) {
+                            arr = Array.isArray(existing) ? existing.filter(Boolean) : Object.values(existing).filter(Boolean);
+                        }
+                        const merged = [newTxn, ...arr];
+                        await db.ref('transactions').set(merged);
+                        // ✅ Firebase نجح — الآن نحدّث الـ State المحلي
+                        setTransactions(merged);
+                        saveToLocalStorage('transactions', merged);
+                    } catch (firebaseErr) {
+                        // ❌ Firebase فشل — نوقف العملية ونحذّر المستخدم
+                        showToast("❌ فشل الحفظ في السيرفر — لا تعمل Refresh! حاول مرة ثانية", "error");
+                        setIsSubmitting(false);
+                        return;
+                    }
+                } else {
+                    // لا يوجد اتصال بـ Firebase — نحفظ محلياً مع تحذير
+                    setTransactions(prev => [newTxn, ...prev]);
+                    showToast("⚠️ حُفظ محلياً فقط — لا يوجد اتصال بالسيرفر", "error");
+                }
+
                 updateSource(form.sourceId, form.sourceType, totalAmount, form.type);
 
                 // ⭐ تحديث رصيد الخط أو الفيزا في Firebase بأمان عبر .transaction()
@@ -3122,7 +3237,7 @@
             // ══════════════════════════════════════════════════════
             //  ✂️  تنفيذ خطة التقسيم — حفظ عمليات متعددة دفعة واحدة
             // ══════════════════════════════════════════════════════
-            function executeSplitPlan() {
+            async function executeSplitPlan() {
                 if (!splitPlan || !splitPlan.steps.length) return;
                 if (isSubmitting) return;
 
@@ -3163,8 +3278,29 @@
                     });
                 });
 
-                // حفظ كل العمليات في الـ state دفعة واحدة
-                setTransactions(prev => [...newTxns.reverse(), ...prev]);
+                // ⭐ Firebase-First: نحفظ كل العمليات في Firebase أولاً قبل تحديث الـ State
+                if (auth.currentUser && firebaseReady) {
+                    try {
+                        const snap = await db.ref('transactions').once('value');
+                        const existing = snap.val();
+                        let arr = [];
+                        if (existing) {
+                            arr = Array.isArray(existing) ? existing.filter(Boolean) : Object.values(existing).filter(Boolean);
+                        }
+                        const merged = [...newTxns, ...arr];
+                        await db.ref('transactions').set(merged);
+                        // ✅ Firebase نجح — الآن نحدّث الـ State
+                        setTransactions(merged);
+                        saveToLocalStorage('transactions', merged);
+                    } catch (firebaseErr) {
+                        showToast("❌ فشل الحفظ في السيرفر — لا تعمل Refresh! حاول مرة ثانية", "error");
+                        setIsSubmitting(false);
+                        return;
+                    }
+                } else {
+                    setTransactions(prev => [...newTxns, ...prev]);
+                    showToast("⚠️ حُفظ محلياً فقط — لا يوجد اتصال بالسيرفر", "error");
+                }
 
                 // تحديث كل مصدر بالأمان عبر Firebase transaction
                 newTxns.forEach(txn => {
@@ -3711,6 +3847,24 @@
                         </div>
                         <div style={{display:"flex", gap:10, alignItems:"center"}}>
                             <div style={{fontSize:10,color:"#10b981"}}>{syncStatus}</div>
+                            {/* ⭐ زر التحديث الإجباري من Firebase */}
+                            <button
+                                onClick={forceRefresh}
+                                disabled={isRefreshing || !auth.currentUser}
+                                title="تحديث البيانات من Firebase"
+                                style={{
+                                    background: isRefreshing ? "#22d3ee20" : "rgba(255,255,255,0.05)",
+                                    border: `1px solid ${isRefreshing ? "#22d3ee60" : "var(--border-dim)"}`,
+                                    borderRadius: 20,
+                                    padding: "6px 10px",
+                                    color: isRefreshing ? "#22d3ee" : "#64748b",
+                                    fontSize: 16,
+                                    cursor: isRefreshing ? "not-allowed" : "pointer",
+                                    transition: "all 0.2s",
+                                    lineHeight: 1,
+                                    animation: isRefreshing ? "spin 1s linear infinite" : "none",
+                                }}
+                            >🔄</button>
                             {/* ⭐ زر وضع الشارع — Privacy Mask */}
                             <button
                                 onClick={()=>setPrivacyMode(p=>!p)}
