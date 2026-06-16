@@ -179,6 +179,10 @@
             animation: spin 0.75s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.15); opacity: 0.8; }
+        }
 
         /* ── Glassmorphism Modal Overlay ── */
         .glass-overlay {
@@ -506,52 +510,96 @@
             try { localStorage.setItem("openrouter_api_key", k.trim()); } catch(e) {}
         }
 
+        // ── نوع الـ API Key (Anthropic مباشرة أو OpenRouter)
+        function getAnthropicKey() {
+            try { return localStorage.getItem("anthropic_api_key") || ""; } catch(e) { return ""; }
+        }
+        function setAnthropicKey(k) {
+            try { localStorage.setItem("anthropic_api_key", k.trim()); } catch(e) {} 
+        }
+
         async function callClaudeChat(systemPrompt, history) {
-            const key = getOpenRouterKey();
-            if (!key) {
-                throw new Error("مفيش API Key — روح تبويب AI وأضف مفتاح OpenRouter");
+            const anthropicKey = getAnthropicKey();
+            const openrouterKey = getOpenRouterKey();
+
+            if (!anthropicKey && !openrouterKey) {
+                throw new Error("مفيش API Key — روح ⚙️ الإعدادات وحط مفتاح Anthropic أو OpenRouter");
             }
-            const messages = [
-                { role: "user", content: `[تعليمات النظام]:\n${systemPrompt}\n\nحاضر.` },
-                { role: "assistant", content: "حاضر، هتبعت على حسب التعليمات دي." },
-                ...history.map(m => ({
-                    role: m.role === "user" ? "user" : "assistant",
-                    content: m.text
-                }))
+
+            const messages = history.map(m => ({
+                role: m.role === "user" ? "user" : "assistant",
+                content: m.text || m.content || ""
+            })).filter(m => m.content);
+
+            // ── محاولة Anthropic مباشرة (الأسرع والأذكى) ──
+            if (anthropicKey) {
+                try {
+                    const res = await fetch("https://api.anthropic.com/v1/messages", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-api-key": anthropicKey,
+                            "anthropic-version": "2023-06-01",
+                            "anthropic-dangerous-direct-browser-access": "true"
+                        },
+                        body: JSON.stringify({
+                            model: "claude-haiku-4-5-20251001",
+                            max_tokens: 1024,
+                            system: systemPrompt,
+                            messages: messages.length > 0 ? messages : [{ role: "user", content: "مرحبا" }]
+                        })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+                    const text = data?.content?.[0]?.text;
+                    if (!text) throw new Error("رد فارغ من Anthropic");
+                    return text;
+                } catch(e) {
+                    console.warn("⚠️ Anthropic API:", e.message);
+                    if (!openrouterKey) throw e; // لو مفيش OpenRouter كمان، ارمي الخطأ
+                }
+            }
+
+            // ── fallback: OpenRouter بأفضل موديلات مجانية ──
+            const MODELS = [
+                "google/gemini-2.0-flash-exp:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "mistralai/mistral-small-3.1-24b-instruct:free",
+                "deepseek/deepseek-chat-v3-0324:free",
+                "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
             ];
 
-            const FREE_MODELS = [
-                "openrouter/free",
-                "mistralai/mistral-small-3.1-24b-instruct:free",
-                "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
-                "meta-llama/llama-3.2-3b-instruct:free",
+            const orMessages = [
+                { role: "user", content: `[System]:\n${systemPrompt}` },
+                { role: "assistant", content: "فهمت، أنا جاهز." },
+                ...messages
             ];
 
             let lastErr = "";
-            for (const model of FREE_MODELS) {
+            for (const model of MODELS) {
                 try {
                     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
-                            "Authorization": `Bearer ${getOpenRouterKey()}`,
-                            "HTTP-Referer": "https://hawker-app.local",
-                            "X-Title": "Hawker AI"
+                            "Authorization": `Bearer ${openrouterKey}`,
+                            "HTTP-Referer": "https://hawker-cash.app",
+                            "X-Title": "Hawker AI Assistant"
                         },
-                        body: JSON.stringify({ model, messages, max_tokens: 900, temperature: 0.5 })
+                        body: JSON.stringify({ model, messages: orMessages, max_tokens: 1024, temperature: 0.7 })
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
                     const text = data?.choices?.[0]?.message?.content;
                     if (!text) throw new Error("رد فارغ");
-                    console.log(`✅ OK: ${model}`);
+                    console.log(`✅ ${model}`);
                     return text;
                 } catch(e) {
                     console.warn(`⚠️ ${model}: ${e.message}`);
                     lastErr = e.message;
                 }
             }
-            throw new Error("كل الموديلات فشلت: " + lastErr);
+            throw new Error("فشل الاتصال بالـ AI — تحقق من الـ API Key وإنترنت: " + lastErr);
         }
 
         const callGemini = (sys, msg) => callClaudeChat(sys, [{role:"user", text:msg}]);
@@ -1753,6 +1801,272 @@
         }
 
         // ══════════════════════════════════════════════════════════════
+
+        // ════════════════════════════════════════════════════════════════
+        //  📊  DailyClose — وضع المحاسب
+        //  ملخص اليوم بالصوت + مقارنة بالأمس + تنبيه ديون غداً
+        // ════════════════════════════════════════════════════════════════
+        function DailyClose({ transactions, financeLogs, capital, lines, visas, people,
+                               getPersonBalance, formatNum, commissionSettings, onClose }) {
+
+            const fawriRate  = commissionSettings?.fawriWithdrawRate  ?? 0.0057;
+            const fawriFixed = commissionSettings?.fawriWithdrawFixed ?? 15;
+            const bankRate   = commissionSettings?.bankWithdrawRate   ?? 0.002;
+
+            function pad(n){ return String(n).padStart(2,"0"); }
+            const now     = new Date();
+            const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+            const yest    = new Date(now); yest.setDate(yest.getDate()-1);
+            const yesterdayStr = `${yest.getFullYear()}-${pad(yest.getMonth()+1)}-${pad(yest.getDate())}`;
+            const tomorrowStr  = (() => { const d = new Date(now); d.setDate(d.getDate()+1); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; })();
+
+            // ── حسابات اليوم ──
+            const todayTxns  = transactions.filter(t => normalizeDateStr(t.date) === todayStr);
+            const yesterTxns = transactions.filter(t => normalizeDateStr(t.date) === yesterdayStr);
+
+            const calcStats = (txns, logs) => {
+                const bank  = txns.filter(t=>t.type==="bank_withdraw").reduce((s,t)=>s+t.amount*bankRate,0);
+                const fawri = txns.filter(t=>t.type==="fawri_withdraw").reduce((s,t)=>s+(t.amount*fawriRate+fawriFixed),0);
+                const inc   = logs.filter(l=>l.type==="income").reduce((s,l)=>s+l.amount,0);
+                const exp   = logs.filter(l=>l.type==="expense").reduce((s,l)=>s+l.amount,0);
+                const total = txns.reduce((s,t)=>s+t.amount,0);
+                const topTxn = txns.length > 0 ? txns.reduce((max,t)=>t.amount>max.amount?t:max, txns[0]) : null;
+                return { count: txns.length, total, net: Math.round((bank+fawri+inc-exp)*100)/100, topTxn };
+            };
+
+            const todayLogs = financeLogs.filter(l => l.date === todayStr);
+            const yesterLogs = financeLogs.filter(l => l.date === yesterdayStr);
+            const today   = calcStats(todayTxns, todayLogs);
+            const yester  = calcStats(yesterTxns, yesterLogs);
+
+            const diffPct = yester.count > 0
+                ? Math.round(((today.count - yester.count) / yester.count) * 100)
+                : null;
+
+            // ── ديون غداً ──
+            const debtors = people.filter(p => getPersonBalance(p) > 0)
+                                  .sort((a,b) => getPersonBalance(b) - getPersonBalance(a));
+            const totalDebt = debtors.reduce((s,p) => s+getPersonBalance(p), 0);
+
+            // ── ملخص أرصدة الخطوط ──
+            const totalLinesBalance = [...lines, ...visas].reduce((s,l) => s+(l.balance||0), 0);
+
+            // ── الصوت ──
+            const [speaking, setSpeaking] = React.useState(false);
+            const [spoken,   setSpoken]   = React.useState(false);
+            const [phase, setPhase] = React.useState(0); // مرحلة الـ animation
+
+            React.useEffect(() => {
+                // entrance animation
+                const t = setTimeout(() => setPhase(1), 100);
+                return () => clearTimeout(t);
+            }, []);
+
+            function speakSummary() {
+                if (!window.speechSynthesis) {
+                    alert("المتصفح ده مش بيدعم الصوت");
+                    return;
+                }
+                window.speechSynthesis.cancel();
+                setSpeaking(true);
+
+                const lines_text = [
+                    `تقرير نهاية يوم ${now.toLocaleDateString("ar-EG", {weekday:"long", day:"numeric", month:"long"})}.`,
+                    `عدد العمليات النهارده: ${today.count} عملية.`,
+                    today.topTxn ? `أعلى عملية كانت لـ ${today.topTxn.personName} بمبلغ ${today.topTxn.amount.toLocaleString("ar-EG")} جنيه.` : "",
+                    `صافي الربح: ${today.net.toLocaleString("ar-EG")} جنيه.`,
+                    diffPct !== null ? `مقارنةً بالأمس: ${diffPct > 0 ? "أحسن بـ " + diffPct + "٪" : diffPct < 0 ? "أقل بـ " + Math.abs(diffPct) + "٪" : "نفس العدد"}.` : "",
+                    debtors.length > 0 ? `تنبيه: عندك ${debtors.length} عميل دين بإجمالي ${totalDebt.toLocaleString("ar-EG")} جنيه.` : "لا توجد ديون. ممتاز!",
+                    "تصبح على خير."
+                ].filter(Boolean).join(" ");
+
+                const utt = new SpeechSynthesisUtterance(lines_text);
+                utt.lang = "ar-EG";
+                utt.rate = 0.9;
+                utt.pitch = 1;
+                // جرّب صوت عربي لو موجود
+                const voices = window.speechSynthesis.getVoices();
+                const arVoice = voices.find(v => v.lang.startsWith("ar"));
+                if (arVoice) utt.voice = arVoice;
+                utt.onend = () => { setSpeaking(false); setSpoken(true); };
+                utt.onerror = () => setSpeaking(false);
+                window.speechSynthesis.speak(utt);
+            }
+
+            const StatCard = ({ icon, label, value, sub, color="#22d3ee", glow=false }) => (
+                <div style={{
+                    background: `linear-gradient(135deg,${color}08,${color}03)`,
+                    border: `1px solid ${color}25`,
+                    borderRadius: 16, padding: "14px 16px",
+                    boxShadow: glow ? `0 0 20px ${color}20` : "none",
+                    transition: "all 0.3s",
+                }}>
+                    <div style={{fontSize:22,marginBottom:4}}>{icon}</div>
+                    <div style={{fontSize:11,color:"#64748b",marginBottom:2}}>{label}</div>
+                    <div style={{fontSize:18,fontWeight:900,color,lineHeight:1}}>{value}</div>
+                    {sub && <div style={{fontSize:10,color:"#334155",marginTop:3}}>{sub}</div>}
+                </div>
+            );
+
+            return (
+                <div className="glass-overlay" style={{alignItems:"flex-end",justifyContent:"center",zIndex:500}}
+                    onClick={e=>e.target===e.currentTarget&&onClose()}>
+                    <div style={{
+                        width:"100%", maxWidth:500,
+                        background:"linear-gradient(180deg,#080c14 0%,#050810 100%)",
+                        borderRadius:"24px 24px 0 0",
+                        border:"1px solid #22d3ee20",
+                        borderBottom:"none",
+                        boxShadow:"0 -8px 60px rgba(34,211,238,0.08), 0 -2px 0 #22d3ee20",
+                        maxHeight:"92vh", overflowY:"auto",
+                        transform: phase >= 1 ? "translateY(0)" : "translateY(100%)",
+                        transition: "transform 0.4s cubic-bezier(0.22,0.61,0.36,1)",
+                        fontFamily:"Tajawal,sans-serif",
+                    }}>
+                        {/* ── Header ── */}
+                        <div style={{
+                            background:"linear-gradient(135deg,#0a1628,#0d1829)",
+                            borderBottom:"1px solid #22d3ee15",
+                            padding:"20px 20px 16px",
+                            position:"sticky", top:0, zIndex:10,
+                        }}>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                                <button onClick={onClose} style={{background:"#1e293b",border:"1px solid #334155",borderRadius:10,padding:"6px 12px",color:"#64748b",fontSize:12,cursor:"pointer"}}>✕ إغلاق</button>
+                                <div style={{textAlign:"center"}}>
+                                    <div style={{fontSize:11,color:"#334155",marginBottom:2}}>
+                                        {now.toLocaleDateString("ar-EG",{weekday:"long",day:"numeric",month:"long"})}
+                                    </div>
+                                    <div style={{fontSize:17,fontWeight:900,color:"#22d3ee",letterSpacing:1}}>
+                                        🌙 تقرير نهاية اليوم
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={speakSummary}
+                                    disabled={speaking}
+                                    style={{
+                                        background: speaking
+                                            ? "linear-gradient(135deg,#a78bfa30,#7c3aed20)"
+                                            : spoken
+                                            ? "linear-gradient(135deg,#10b98120,#059669)"
+                                            : "linear-gradient(135deg,#a78bfa20,#7c3aed15)",
+                                        border:`1px solid ${speaking?"#a78bfa":"#7c3aed40"}`,
+                                        borderRadius:10, padding:"6px 12px",
+                                        color: speaking ? "#a78bfa" : spoken ? "#10b981" : "#7c3aed",
+                                        fontSize:12, cursor:"pointer", fontWeight:700,
+                                        animation: speaking ? "pulse 1s ease-in-out infinite" : "none",
+                                    }}
+                                >
+                                    {speaking ? "🔊 ..." : spoken ? "✅ تم" : "🔊 اسمع"}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{padding:"16px 16px 24px"}}>
+
+                            {/* ── بطاقات الإحصاء ── */}
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                                <StatCard icon="📊" label="عدد العمليات" value={today.count}
+                                    sub={diffPct !== null ? `${diffPct >= 0 ? "▲" : "▼"} ${Math.abs(diffPct)}٪ عن أمس` : "أول يوم"}
+                                    color="#22d3ee" glow={today.count > 0}/>
+                                <StatCard icon="💰" label="صافي الربح"
+                                    value={`${today.net.toLocaleString("ar-EG")} ج`}
+                                    color={today.net >= 0 ? "#10b981" : "#ef4444"} glow={today.net > 0}/>
+                                <StatCard icon="💸" label="إجمالي الحجم"
+                                    value={`${today.total.toLocaleString("ar-EG")} ج`}
+                                    color="#f59e0b"/>
+                                <StatCard icon="🏦" label="رصيد الخطوط"
+                                    value={`${totalLinesBalance.toLocaleString("ar-EG")} ج`}
+                                    color="#3b82f6"/>
+                            </div>
+
+                            {/* ── مقارنة بالأمس ── */}
+                            {yester.count > 0 && (
+                                <div style={{
+                                    background:"#0d1829", border:"1px solid #1e3a5f",
+                                    borderRadius:14, padding:"12px 14px", marginBottom:14
+                                }}>
+                                    <div style={{fontSize:11,color:"#334155",fontWeight:700,marginBottom:10}}>⚡ مقارنة بالأمس</div>
+                                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,textAlign:"center"}}>
+                                        {[
+                                            {label:"أمس",  v:yester.count, c:"#64748b"},
+                                            {label:"اليوم", v:today.count,  c:"#22d3ee"},
+                                            {label:"الفرق", v:(today.count - yester.count > 0 ? "+" : "")+String(today.count - yester.count),
+                                             c: today.count >= yester.count ? "#10b981" : "#ef4444"},
+                                        ].map(x=>(
+                                            <div key={x.label} style={{background:"#080c14",borderRadius:10,padding:"8px 4px"}}>
+                                                <div style={{fontSize:18,fontWeight:900,color:x.c}}>{x.v}</div>
+                                                <div style={{fontSize:10,color:"#334155"}}>{x.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {today.topTxn && (
+                                        <div style={{marginTop:10,padding:"8px 10px",background:"#080c14",borderRadius:10,fontSize:11,color:"#64748b"}}>
+                                            🏆 أعلى عملية: <span style={{color:"#f59e0b",fontWeight:700}}>{today.topTxn.personName}</span>
+                                            {" — "}<span style={{color:"#22d3ee",fontWeight:700}}>{today.topTxn.amount.toLocaleString("ar-EG")} ج</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ── تنبيه الديون ── */}
+                            {debtors.length > 0 && (
+                                <div style={{
+                                    background:"#2a0a0a", border:"1px solid #ef444430",
+                                    borderRadius:14, padding:"12px 14px", marginBottom:14
+                                }}>
+                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                                        <div style={{fontSize:11,color:"#ef4444",fontWeight:700}}>🔴 ديون متبقية</div>
+                                        <div style={{fontSize:13,fontWeight:900,color:"#ef4444"}}>{totalDebt.toLocaleString("ar-EG")} ج</div>
+                                    </div>
+                                    {debtors.slice(0,5).map(p=>(
+                                        <div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #2a1515",fontSize:12}}>
+                                            <span style={{color:"#94a3b8"}}>{p.name || p.personName}</span>
+                                            <span style={{color:"#ef4444",fontWeight:700}}>{getPersonBalance(p).toLocaleString("ar-EG")} ج</span>
+                                        </div>
+                                    ))}
+                                    {debtors.length > 5 && (
+                                        <div style={{fontSize:10,color:"#64748b",marginTop:6,textAlign:"center"}}>+{debtors.length-5} عميل آخرين</div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ── رسالة نهاية اليوم ── */}
+                            <div style={{
+                                background: today.net > 0
+                                    ? "linear-gradient(135deg,#0a2a1a,#051208)"
+                                    : "linear-gradient(135deg,#1a1208,#0a0804)",
+                                border:`1px solid ${today.net>0?"#10b98130":"#f59e0b30"}`,
+                                borderRadius:14, padding:"14px 16px",
+                                textAlign:"center", marginBottom:14,
+                            }}>
+                                <div style={{fontSize:28,marginBottom:6}}>
+                                    {today.count === 0 ? "😴" : today.net > 0 ? "🔥" : today.net === 0 ? "😐" : "💪"}
+                                </div>
+                                <div style={{fontSize:13,fontWeight:700,color: today.net>0?"#10b981":"#f59e0b",marginBottom:4}}>
+                                    {today.count === 0
+                                        ? "ما فيش عمليات اليوم"
+                                        : today.net > 0
+                                        ? `يوم تمام! ربحت ${today.net.toLocaleString("ar-EG")} ج`
+                                        : today.net === 0
+                                        ? "يوم عادي — صافي الصفر"
+                                        : "يوم صعب — بكره أحسن إن شاء الله"}
+                                </div>
+                                <div style={{fontSize:11,color:"#334155"}}>
+                                    {diffPct !== null && diffPct > 0
+                                        ? `📈 أحسن من أمس بـ ${diffPct}٪`
+                                        : diffPct !== null && diffPct < 0
+                                        ? `📉 أقل من أمس بـ ${Math.abs(diffPct)}٪`
+                                        : ""}
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+
         //  📊  DailyReport — تقرير يومي كامل قابل للطباعة
         // ══════════════════════════════════════════════════════════════
         function DailyReport({ transactions, financeLogs, capital, lines, visas, people, getPersonBalance, formatNum, commissionSettings, onClose }) {
@@ -2075,6 +2389,7 @@
             const [showQuickAdd, setShowQuickAdd] = useState(false);
             const [showGlobalSearch, setShowGlobalSearch] = useState(false);
             const [showDailyReport, setShowDailyReport] = useState(false);
+            const [showDailyClose,  setShowDailyClose]  = useState(false);
 
             useEffect(() => { saveToLocalStorage('abuadiTarget', abuadiTarget); }, [abuadiTarget]);
             useEffect(() => { saveToLocalStorage('abuadiPayments', abuadiPayments); }, [abuadiPayments]);
@@ -2921,76 +3236,276 @@
                 }
 
                 try {
-                    // ⭐ Lazy load Tesseract — يتحمّل بس لما المستخدم يحتاجه
-                    if (typeof Tesseract === "undefined") {
-                        await new Promise((resolve, reject) => {
-                            const s = document.createElement("script");
-                            s.src = "https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js";
-                            s.onload = resolve;
-                            s.onerror = reject;
-                            document.head.appendChild(s);
-                        });
+                    // ── تحويل الصورة لـ base64 ──
+                    const toBase64 = f => new Promise((res, rej) => {
+                        const r = new FileReader();
+                        r.onload = () => res(r.result.split(",")[1]);
+                        r.onerror = rej;
+                        r.readAsDataURL(f);
+                    });
+                    const b64 = await toBase64(file);
+
+                    // ── بناء قائمة الأرقام المعروفة من الخطوط ──
+                    const knownNumbers = [...lines, ...visas, ...instaPays].map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        number: s.number || s.fromNumber || "",
+                        type: s.id.startsWith("visa") ? "visa" : s.id.startsWith("insta") ? "instapay" : "line"
+                    })).filter(s => s.number);
+
+                    const knownNumbersText = knownNumbers.length > 0
+                        ? `\nالأرقام المعروفة في النظام:\n${knownNumbers.map(s=>`${s.number} = ${s.name}`).join("\n")}`
+                        : "";
+
+                    // ── System Prompt للـ AI ──
+                    const systemPrompt = `أنت متخصص في استخراج بيانات من إشعارات فودافون كاش وبنوك مصرية.
+استخرج المعلومات التالية من الصورة وأرجعها بصيغة JSON فقط بدون أي نص إضافي:
+
+{
+  "amount": "المبلغ بالأرقام فقط بدون فواصل",
+  "fromPhone": "رقم المحول منه (11 رقم يبدأ بـ 01)",
+  "toPhone": "رقم المحول إليه (11 رقم يبدأ بـ 01)",
+  "type": "receive أو transfer أو fawri_withdraw أو bank_withdraw",
+  "time": "HH:MM بصيغة 24 ساعة",
+  "date": "YYYY-MM-DD لو موجود وإلا null",
+  "personName": "اسم الشخص لو موجود وإلا null",
+  "matchedSourceId": "ID الخط المطابق لو عرفت وإلا null",
+  "confidence": "high أو medium أو low"
+}
+
+قواعد:
+- لو الإشعار يقول استقبلت/أودع/received → type = receive
+- لو يقول حولت/خصم/sent/transfer → type = transfer  
+- لو فيه فوري/fawry → type = fawri_withdraw
+- لو فيه بنك/ATM/bank → type = bank_withdraw
+- الأرقام الموجودة في النص: استخرجهم كلهم
+- لو رقم من الأرقام المعروفة موجود في الإشعار → حدد matchedSourceId
+${knownNumbersText}`;
+
+                    let extractedData = null;
+                    let rawText = "";
+
+                    // ── محاولة 1: OpenRouter مع صورة (Gemini Vision) ──
+                    const orKey = getOpenRouterKey();
+                    const antKey = getAnthropicKey();
+
+                    // ── Vision Models بالترتيب: Anthropic → OpenRouter Vision Models ──
+                    const visionModels = [
+                        // OpenRouter vision models مع Vision support
+                        { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
+                        { provider: "openrouter", model: "openrouter/auto" },
+                        { provider: "openrouter", model: "meta-llama/llama-4-scout:free" },
+                    ];
+
+                    // جرّب Anthropic أولاً لو عنده Key
+                    if (antKey) {
+                        try {
+                            const res = await fetch("https://api.anthropic.com/v1/messages", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "x-api-key": antKey,
+                                    "anthropic-version": "2023-06-01",
+                                    "anthropic-dangerous-direct-browser-access": "true"
+                                },
+                                body: JSON.stringify({
+                                    model: "claude-haiku-4-5-20251001",
+                                    max_tokens: 512,
+                                    system: systemPrompt,
+                                    messages: [{
+                                        role: "user",
+                                        content: [
+                                            { type: "image", source: { type: "base64", media_type: file.type || "image/jpeg", data: b64 } },
+                                            { type: "text", text: "استخرج البيانات بصيغة JSON فقط." }
+                                        ]
+                                    }]
+                                })
+                            });
+                            const data = await res.json();
+                            const txt = data?.content?.[0]?.text;
+                            if (txt) {
+                                rawText = txt;
+                                const m = txt.match(/\{[\s\S]*\}/);
+                                if (m) extractedData = JSON.parse(m[0]);
+                            }
+                        } catch(e) { console.warn("Anthropic Vision:", e.message); }
                     }
-                    const { data: { text } } = await Tesseract.recognize(file, "ara+eng", { logger: () => {} });
 
-                    // ══ استخراج رقم الهاتف ══
-                    const phoneMatch = text.match(/01[0-9]{9}/);
-                    const phone = phoneMatch ? phoneMatch[0] : "";
-
-                    // ══ استخراج الوقت ══
-                    const timeMatch = text.match(/(\d{1,2}):(\d{2})\s*(AM|PM|ص|م)?/i);
-                    let extractedTime = "12:00"; // صيغة HH:MM فقط لـ input type="time"
-                    if (timeMatch) {
-                        let h = parseInt(timeMatch[1]);
-                        const mins = timeMatch[2];
-                        const ampm = (timeMatch[3] || "").toLowerCase();
-                        if ((ampm === "pm" || ampm === "م") && h < 12) h += 12;
-                        if ((ampm === "am" || ampm === "ص") && h === 12) h = 0;
-                        // تجاهل الوقت لو كان مجرد رقم عشوائي مش منطقي
-                        if (h >= 0 && h <= 23) {
-                            extractedTime = `${String(h).padStart(2,"0")}:${mins}`;
+                    // لو Anthropic فشل أو مفيش Key — جرّب OpenRouter
+                    if (!extractedData?.amount && orKey) {
+                        for (const { provider, model } of visionModels) {
+                            if (extractedData?.amount) break;
+                            try {
+                                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        "Authorization": `Bearer ${orKey}`,
+                                        "HTTP-Referer": "https://hawker-cash.app",
+                                        "X-Title": "Hawker OCR"
+                                    },
+                                    body: JSON.stringify({
+                                        model,
+                                        max_tokens: 512,
+                                        messages: [{
+                                            role: "user",
+                                            content: [
+                                                { type: "text", text: systemPrompt + "\n\nاستخرج البيانات بصيغة JSON فقط." },
+                                                { type: "image_url", image_url: { url: `data:${file.type || "image/jpeg"};base64,${b64}` } }
+                                            ]
+                                        }]
+                                    })
+                                });
+                                const data = await res.json();
+                                const txt = data?.choices?.[0]?.message?.content;
+                                if (txt) {
+                                    rawText = txt;
+                                    const m = txt.match(/\{[\s\S]*\}/);
+                                    if (m) { extractedData = JSON.parse(m[0]); console.log("✅ Vision OK:", model); }
+                                }
+                            } catch(e) { console.warn(`Vision ${model}:`, e.message); }
                         }
                     }
 
-                    // ══ استخراج المبلغ ══
-                    const amountPatterns = [
-                        /(?:مبلغ|تحويل|استقبال|إيداع|تم تحويل|تم استقبال|قيمة)[^\d]*(\d[\d,\.]*)/i,
-                        /(\d[\d,\.]*)\s*(?:جنيه|ج\.م|ج\b|EGP|egp)/i,
-                        /(\d{2,6}(?:\.\d{1,2})?)\s*(?:ج|جنيه|EGP)/i,
-                    ];
-                    let amount = "";
-                    for (const pat of amountPatterns) {
-                        const m = text.match(pat);
-                        if (m) { amount = m[1].replace(/,/g, ""); break; }
-                    }
-                    if (!amount) {
-                        const nums = [...text.matchAll(/\b(\d{2,6}(?:\.\d{1,2})?)\b/g)]
-                            .map(m => parseFloat(m[1]))
-                            .filter(n => n >= 10 && n <= 200000);
-                        if (nums.length) amount = String(Math.max(...nums));
+                    // ── Fallback ذكي: Tesseract + Parser متخصص في فودافون كاش ──
+                    if (!extractedData?.amount) {
+                        if (typeof Tesseract === "undefined") {
+                            await new Promise((resolve, reject) => {
+                                const s = document.createElement("script");
+                                s.src = "https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js";
+                                s.onload = resolve; s.onerror = reject;
+                                document.head.appendChild(s);
+                            });
+                        }
+                        const { data: { text } } = await Tesseract.recognize(file, "ara+eng", { logger: () => {} });
+                        rawText = rawText || text;
+
+                        // ── Parser متخصص في إشعارات فودافون كاش ──
+                        // أرقام الهاتف
+                        const phones = [...new Set([...text.matchAll(/0[12][0-9]{9}/g)].map(m=>m[0]))];
+
+                        // المبلغ — بالترتيب من الأدق للأشمل
+                        let amount = "";
+                        const amtPatterns = [
+                            /(?:تم تحويل|تم إيداع|تم استقبال|مبلغ|قيمة|Value)[^\d]*([\d,]+(?:\.\d{1,2})?)/i,
+                            /([\d,]+(?:\.\d{1,2})?)\s*(?:جنيه|ج\.م|EGP|egp|LE)/i,
+                            /Amount[:\s]*([\d,]+(?:\.\d{1,2})?)/i,
+                        ];
+                        for (const p of amtPatterns) {
+                            const m = text.match(p);
+                            if (m) { amount = m[1].replace(/,/g,""); break; }
+                        }
+                        // fallback: أكبر رقم معقول في النص
+                        if (!amount) {
+                            const nums = [...text.matchAll(/\b(\d{3,6}(?:\.\d{1,2})?)\b/g)]
+                                .map(m=>parseFloat(m[1])).filter(n=>n>=50&&n<=500000);
+                            if (nums.length) amount = String(Math.max(...nums));
+                        }
+
+                        // نوع العملية
+                        const rcvWords = /استقبل|استقبلت|أودع|أودعت|إيداع|استلام|received|deposit|credited|تم إيداع|تم استقبال/i;
+                        const sndWords = /حوّل|حولت|تم تحويل|سحب|خصم|sent|transfer|debit|دفع/i;
+                        const fawriWords = /فوري|fawry|fawri/i;
+                        const bankWords = /بنك|bank|atm|صراف/i;
+
+                        const detectedType = fawriWords.test(text) && sndWords.test(text) ? "fawri_withdraw"
+                            : bankWords.test(text) && sndWords.test(text) ? "bank_withdraw"
+                            : rcvWords.test(text) ? "receive"
+                            : sndWords.test(text) ? "transfer"
+                            : null;
+
+                        // وقت
+                        let time = "12:00";
+                        const tm = text.match(/(\d{1,2}):(\d{2})\s*(AM|PM|ص|م)?/i);
+                        if (tm) {
+                            let h = parseInt(tm[1]), mn = tm[2];
+                            const ap = (tm[3]||"").toLowerCase();
+                            if ((ap==="pm"||ap==="م") && h<12) h+=12;
+                            if ((ap==="am"||ap==="ص") && h===12) h=0;
+                            if (h>=0&&h<=23) time = `${String(h).padStart(2,"0")}:${mn}`;
+                        }
+
+                        // مطابقة الخط من الأرقام
+                        let matchedSrc = null;
+                        for (const ph of phones) {
+                            const found = knownNumbers.find(s=>s.number===ph||ph.includes(s.number));
+                            if (found) { matchedSrc = found; break; }
+                        }
+
+                        extractedData = {
+                            amount,
+                            fromPhone: phones[0] || "",
+                            toPhone: phones[1] || "",
+                            type: detectedType,
+                            time,
+                            date: null,
+                            personName: null,
+                            matchedSourceId: matchedSrc?.id || null,
+                            matchedSourceType: matchedSrc?.type || "line",
+                            confidence: amount && detectedType ? "medium" : "low"
+                        };
                     }
 
-                    // ══ تحديد نوع العملية ══
-                    const isReceive = /استقبال|إيداع|تم إيداع|تم استقبال|received|deposit|أودع|حوّل لك|حول لك/.test(text);
-                    const isTransfer = /تم تحويل|سحب|خصم|transfer|sent|دفع|صرف/.test(text.toLowerCase());
-                    const detectedType = isReceive ? "receive" : isTransfer ? "transfer" : null;
+                    // ── مطابقة الخط بالرقم ──
+                    const d = extractedData || {};
+                    let matchedSourceId = d.matchedSourceId || null;
+                    let matchedSourceType = "line";
 
-                    const result = { amount, phone, type: detectedType, raw: text.slice(0, 300) };
+                    if (!matchedSourceId) {
+                        const phones = [d.fromPhone, d.toPhone].filter(Boolean);
+                        for (const phone of phones) {
+                            const found = knownNumbers.find(s => s.number === phone || phone?.includes(s.number));
+                            if (found) {
+                                matchedSourceId = found.id;
+                                matchedSourceType = found.type;
+                                break;
+                            }
+                        }
+                    } else {
+                        const found = knownNumbers.find(s => s.id === matchedSourceId);
+                        if (found) matchedSourceType = found.type;
+                    }
+
+                    const result = {
+                        amount: d.amount || "",
+                        phone: d.toPhone || d.fromPhone || "",
+                        fromPhone: d.fromPhone || "",
+                        type: d.type || null,
+                        time: d.time || "12:00",
+                        date: d.date || null,
+                        personName: d.personName || null,
+                        matchedSourceId,
+                        matchedSourceType,
+                        confidence: d.confidence || "low",
+                        raw: rawText.slice(0, 300)
+                    };
                     setOcrResult(result);
 
-                    // ⭐ افتح Modal التأكيد بدل الملء المباشر
                     setOcrConfirm({
-                        amount:       amount || "",
-                        phone:        phone  || "",
-                        time:         extractedTime,
-                        date:         today(),
-                        detectedType: detectedType,
-                        previewUrl:   previewUrl,
-                        rawText:      text.slice(0, 200),
+                        amount:       result.amount,
+                        phone:        result.phone,
+                        fromPhone:    result.fromPhone,
+                        time:         result.time,
+                        date:         result.date || today(),
+                        detectedType: result.type,
+                        personName:   result.personName || "",
+                        matchedSourceId: result.matchedSourceId,
+                        matchedSourceType: result.matchedSourceType,
+                        confidence:   result.confidence,
+                        previewUrl,
+                        rawText:      rawText.slice(0, 200),
                     });
 
+                    if (result.confidence === "high") {
+                        showToast("✅ AI استخرج البيانات بدقة عالية");
+                    } else if (result.confidence === "medium") {
+                        showToast("⚡ تم استخراج البيانات — راجع قبل الحفظ");
+                    } else {
+                        showToast("⚠️ دقة منخفضة — راجع البيانات يدوياً", "error");
+                    }
+
                 } catch (e) {
-                    showToast("❌ فشل OCR: " + (e.message || "خطأ غير معروف"), "error");
+                    showToast("❌ فشل استخراج البيانات: " + (e.message || "خطأ"), "error");
                 } finally {
                     setOcrLoading(false);
                 }
@@ -3001,14 +3516,26 @@
                 if (!ocrConfirm) return;
                 setForm(f => ({
                     ...f,
-                    amount:   ocrConfirm.amount   || f.amount,
-                    toNumber: ocrConfirm.phone    || f.toNumber,
-                    time:     ocrConfirm.time     || f.time,
-                    date:     ocrConfirm.date     || f.date,
+                    amount:     ocrConfirm.amount    || f.amount,
+                    toNumber:   ocrConfirm.phone     || f.toNumber,
+                    fromNumber: ocrConfirm.fromPhone  || f.fromNumber,
+                    time:       ocrConfirm.time      || f.time,
+                    date:       ocrConfirm.date      || f.date,
+                    personName: ocrConfirm.personName || f.personName,
+                    // ⭐ تطبيق الخط المكتشف تلقائياً
+                    ...(ocrConfirm.matchedSourceId ? {
+                        sourceId:   ocrConfirm.matchedSourceId,
+                        sourceType: ocrConfirm.matchedSourceType || "line",
+                    } : {}),
                     ...(ocrConfirm.detectedType ? { type: ocrConfirm.detectedType } : {}),
                 }));
                 setOcrConfirm(null);
-                showToast("✅ تم نقل البيانات — راجع نوع العملية قبل الحفظ");
+                const srcName = ocrConfirm.matchedSourceId
+                    ? sources.find(s=>s.id===ocrConfirm.matchedSourceId)?.name
+                    : null;
+                showToast(srcName
+                    ? `✅ تم نقل البيانات — الخط: ${srcName}`
+                    : "✅ تم نقل البيانات — راجع الخط والنوع قبل الحفظ");
             }
 
             // ⭐ حساب العمولة بناءً على نوع العملية — ديناميكي من commissionSettings
@@ -3088,7 +3615,8 @@
                 // ⭐ التقاط رقم الخط/الفيزا المختار تلقائياً لضمان المطابقة في calcSourceStats
                 const selectedSrc = sources.find(s => s.id === form.sourceId);
                 const actualLineNumber = selectedSrc?.number || "";
-                const autoFromNumber = form.fromNumber || (isWithdraw ? actualLineNumber : "");
+                const src = sources.find(s => s.id === form.sourceId);
+                const autoFromNumber = form.fromNumber || src?.number || src?.fromNumber || (isWithdraw ? actualLineNumber : "");
                 const autoToNumber   = form.toNumber   || (form.type === "receive" ? actualLineNumber : "");
 
                 const newTxn = {
@@ -3098,7 +3626,7 @@
                     dateTime: fullDateTime,
                     fromNumber: autoFromNumber,
                     toNumber: autoToNumber,
-                    toInternalId: form.type === "internal_transfer" ? (form.toInternalId || null) : undefined,
+                    toInternalId: form.type === "internal_transfer" ? (form.toInternalId || null) : null,
                     personName: personName,
                     amount: amount,
                     commission: commission,
@@ -3118,15 +3646,16 @@
                 });
 
                 // ⭐ Firebase في الخلفية مع Retry — بدون await حتى لا يعيق الـ UI
+                // نحذف أي undefined قبل الرفع لـ Firebase (Firebase يرفض undefined)
+                const cleanTxn = JSON.parse(JSON.stringify(newTxn, (k, v) => v === undefined ? null : v));
                 if (auth.currentUser && firebaseReady) {
                     const saveToFirebase = (attempt = 1) => {
-                        db.ref('transactions/' + newTxn.id).set(newTxn)
+                        db.ref('transactions/' + cleanTxn.id).set(cleanTxn)
                             .then(() => {
                                 if (attempt > 1) showToast("✅ تم مزامنة العملية مع السيرفر");
                             })
                             .catch(err => {
                                 if (attempt < 3) {
-                                    // إعادة المحاولة بعد 3 ثواني
                                     setTimeout(() => saveToFirebase(attempt + 1), 3000);
                                 } else {
                                     showToast("⚠️ العملية حُفظت محلياً — اضغط 🔄 لمزامنة السيرفر", "error");
@@ -3226,10 +3755,9 @@
 
                 showToast(`تم ${txnLabels[form.type] || "العملية"} بنجاح ✓`);
 
+                // ⭐ إغلاق الفورم فوراً — لا ننتظر Firebase
                 setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", toInternalId: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
                 setModal(null);
-
-                // ⭐ إنهاء حالة الحفظ الآمن
                 setIsSubmitting(false);
             }
 
@@ -3288,8 +3816,10 @@
                 // ⭐ Firebase في الخلفية — كل عملية بـ ID مستقل مع Retry
                 if (auth.currentUser && firebaseReady) {
                     newTxns.forEach(txn => {
+                        // نظّف undefined قبل الرفع
+                        const cleanTxn = JSON.parse(JSON.stringify(txn, (k, v) => v === undefined ? null : v));
                         const saveOne = (attempt = 1) => {
-                            db.ref('transactions/' + txn.id).set(txn)
+                            db.ref('transactions/' + cleanTxn.id).set(cleanTxn)
                                 .catch(err => {
                                     if (attempt < 3) setTimeout(() => saveOne(attempt + 1), 3000);
                                     else showToast("⚠️ بعض العمليات لم تُزامَن — اضغط 🔄", "error");
@@ -3885,6 +4415,21 @@
 
                     {toast && <div className="toast-animate" style={{position:"fixed",top:68,left:"50%",transform:"translateX(-50%)",background:toast.type==="error"?"#ef4444":"#10b981",color:"#fff",padding:"10px 24px",borderRadius:30,fontSize:14,fontWeight:600,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.6)",whiteSpace:"nowrap"}}>{toast.msg}</div>}
 
+                    {/* ⭐ حارس الحوكر */}
+                    {(isAdmin || isAssistant) && (
+                        <HawkerGuardian
+                            transactions={transactions} lines={lines} visas={visas}
+                            instaPays={instaPays} people={people} capital={capital}
+                            firebaseReady={firebaseReady} auth={auth} db={db}
+                            isSubmitting={isSubmitting} syncStatus={syncStatus}
+                            alertSources={alertSources} warningSources={warningSources}
+                            oldDebtors={oldDebtors} todayTxns={todayTxns}
+                            showToast={showToast} setTransactions={setTransactions}
+                            saveToLocalStorage={saveToLocalStorage}
+                            forceRefresh={forceRefresh} isRefreshing={isRefreshing}
+                        />
+                    )}
+
                     {/* ⭐ OCR Confirmation Modal */}
                     {ocrConfirm && (
                         <div className="glass-overlay" style={{alignItems:"center",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setOcrConfirm(null)}>
@@ -3948,11 +4493,48 @@
 
                                 {/* رقم الهاتف لو موجود */}
                                 {ocrConfirm.phone && (
-                                    <div style={{marginBottom:14,background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:10,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
-                                        <span style={{fontSize:12,color:"#64748b"}}>📱 رقم مكتشف:</span>
+                                    <div style={{marginBottom:10,background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:10,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+                                        <span style={{fontSize:12,color:"#64748b"}}>📱 رقم:</span>
                                         <span style={{fontSize:13,fontWeight:700,color:"#22d3ee",direction:"ltr"}}>{ocrConfirm.phone}</span>
                                     </div>
                                 )}
+
+                                {/* ⭐ الخط المكتشف */}
+                                <div style={{marginBottom:14}}>
+                                    <div style={{fontSize:11,color:"#64748b",marginBottom:5,fontWeight:600}}>📱 الخط المصدر</div>
+                                    {ocrConfirm.matchedSourceId ? (
+                                        <div style={{background:"#10b98115",border:"1px solid #10b98140",borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+                                            <span style={{fontSize:18}}>✅</span>
+                                            <div>
+                                                <div style={{fontSize:12,color:"#10b981",fontWeight:700}}>
+                                                    {sources.find(s=>s.id===ocrConfirm.matchedSourceId)?.name || "خط مكتشف"}
+                                                </div>
+                                                <div style={{fontSize:10,color:"#64748b"}}>تم اكتشافه تلقائياً من الرقم</div>
+                                            </div>
+                                            <button onClick={()=>setOcrConfirm(c=>({...c,matchedSourceId:null}))}
+                                                style={{marginRight:"auto",background:"none",border:"none",color:"#64748b",fontSize:11,cursor:"pointer"}}>
+                                                تغيير
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={ocrConfirm.matchedSourceId || ""}
+                                            onChange={e=>{
+                                                const src = sources.find(s=>s.id===e.target.value);
+                                                setOcrConfirm(c=>({...c,
+                                                    matchedSourceId: e.target.value,
+                                                    matchedSourceType: src?.id?.startsWith("visa")?"visa":src?.id?.startsWith("insta")?"instapay":"line"
+                                                }));
+                                            }}
+                                            style={{width:"100%",background:"#0f1e3d",border:"1px solid #f59e0b40",borderRadius:10,padding:"10px 12px",color:"#e2e8f0",fontSize:12,outline:"none",fontFamily:"'Tajawal',sans-serif"}}
+                                        >
+                                            <option value="">⚠️ اختر الخط يدوياً</option>
+                                            {sources.map(s=>(
+                                                <option key={s.id} value={s.id}>{s.name} — {(s.balance||0).toLocaleString("ar-EG")} ج</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
 
                                 {/* أزرار التأكيد */}
                                 <div style={{display:"flex",gap:10,marginTop:4}}>
@@ -4117,6 +4699,10 @@
                                     <button onClick={()=>setShowGlobalSearch(true)}
                                         style={{flex:1,background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:12,padding:"10px 8px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>
                                         🔍 بحث
+                                    </button>
+                                    <button onClick={()=>setShowDailyClose(true)}
+                                        style={{background:"linear-gradient(135deg,#1e0a3a,#2d1458)",border:"1px solid #7c3aed40",borderRadius:12,padding:"8px 14px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+                                        🌙 نهاية اليوم
                                     </button>
                                     <button onClick={()=>setShowDailyReport(true)}
                                         style={{flex:1,background:"#10b98115",border:"1px solid #10b98140",borderRadius:12,padding:"10px 8px",color:"#10b981",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Tajawal,sans-serif"}}>
@@ -5263,6 +5849,45 @@
                     {/* MODAL: Add Transaction */}
                     {modal==="addTxn" && (
                         <Modal title="إضافة عملية جديدة" onClose={() => { setModal(null); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); }}>
+                        {/* ⭐ وضع التاجر السريع — صورة واحدة = عملية كاملة */}
+                        <div style={{
+                            margin:"0 0 14px 0",
+                            background:"linear-gradient(135deg,#1a0a2a,#0f0520)",
+                            border:"1px solid #a78bfa30",
+                            borderRadius:14, padding:"10px 14px",
+                            display:"flex", alignItems:"center", gap:10,
+                        }}>
+                            <div style={{fontSize:22}}>⚡</div>
+                            <div style={{flex:1}}>
+                                <div style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>التاجر السريع</div>
+                                <div style={{fontSize:10,color:"#64748b"}}>صوّر الإشعار وهملأ البيانات في ثانيتين</div>
+                            </div>
+                            <label style={{
+                                background:"linear-gradient(135deg,#7c3aed,#6d28d9)",
+                                border:"none", borderRadius:10,
+                                padding:"8px 14px", color:"#fff",
+                                fontSize:12, fontWeight:700, cursor:"pointer",
+                                boxShadow:"0 4px 15px #7c3aed40",
+                            }}>
+                                📸 صوّر
+                                <input type="file" accept="image/*" capture="camera"
+                                    style={{display:"none"}}
+                                    onChange={e=>{ if(e.target.files[0]) handleOcrImage(e.target.files[0]); }}
+                                />
+                            </label>
+                            <label style={{
+                                background:"#1e293b",
+                                border:"1px solid #334155",
+                                borderRadius:10, padding:"8px 12px",
+                                color:"#64748b", fontSize:12, cursor:"pointer",
+                            }}>
+                                🖼️
+                                <input type="file" accept="image/*"
+                                    style={{display:"none"}}
+                                    onChange={e=>{ if(e.target.files[0]) handleOcrImage(e.target.files[0]); }}
+                                />
+                            </label>
+                        </div>
                             {/* 1. حقل اللصق الذكي (Smart Paste) في بداية الفورم */}
                             <div style={{ marginBottom: 20, background: "#162545", padding: 15, borderRadius: 12, border: "1px dashed #1e3a5f" }}>
                                 <label style={{ display: "block", fontSize: 13, color: "#22d3ee", marginBottom: 8, fontWeight: "bold" }}>
@@ -5753,7 +6378,40 @@
 
                             {form.type === "transfer" && (
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                                    <Field label="من رقم المحفظة"><Input value={form.fromNumber} onChange={v => setForm({...form, fromNumber: v})} placeholder="01xxxxxxxxx"/></Field>
+                                    <Field label="من رقم المحفظة">
+                                        {/* ⭐ لو الخط المختار عنده رقم — اعرضه واسمح بالتعديل */}
+                                        {(() => {
+                                            const src = sources.find(s => s.id === form.sourceId);
+                                            const autoNum = src?.number || src?.fromNumber || "";
+                                            return (
+                                                <div style={{position:"relative"}}>
+                                                    <Input
+                                                        value={form.fromNumber || autoNum}
+                                                        onChange={v => setForm({...form, fromNumber: v})}
+                                                        placeholder={autoNum || "01xxxxxxxxx"}
+                                                    />
+                                                    {autoNum && !form.fromNumber && (
+                                                        <div style={{
+                                                            position:"absolute", top:-18, right:0,
+                                                            fontSize:9, color:"#10b981", fontWeight:600
+                                                        }}>✓ من الخط المختار</div>
+                                                    )}
+                                                    {autoNum && form.fromNumber && form.fromNumber !== autoNum && (
+                                                        <button
+                                                            onClick={() => setForm({...form, fromNumber: autoNum})}
+                                                            style={{
+                                                                position:"absolute", left:6, top:"50%",
+                                                                transform:"translateY(-50%)",
+                                                                background:"#10b98120", border:"1px solid #10b98140",
+                                                                borderRadius:6, padding:"2px 6px",
+                                                                fontSize:9, color:"#10b981", cursor:"pointer"
+                                                            }}
+                                                        >↩ رجّع</button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                    </Field>
                                     <Field label="إلى رقم المحفظة"><Input value={form.toNumber} onChange={v => setForm({...form, toNumber: v})} placeholder="01xxxxxxxxx"/></Field>
                                 </div>
                             )}
@@ -6290,6 +6948,21 @@
                             onClose={()=>setShowGlobalSearch(false)}
                         />
                     )}
+                    {showDailyClose && (
+                        <DailyClose
+                            transactions={transactions}
+                            financeLogs={financeLogs}
+                            capital={capital}
+                            lines={lines}
+                            visas={visas}
+                            people={people}
+                            getPersonBalance={getPersonBalance}
+                            formatNum={formatNum}
+                            commissionSettings={commissionSettings}
+                            onClose={()=>setShowDailyClose(false)}
+                        />
+                    )}
+
                     {showDailyReport && (
                         <DailyReport
                             transactions={transactions}
@@ -7199,6 +7872,508 @@
                 </div>
             );
         }
+
+
+        // ════════════════════════════════════════════════════════════════
+        //  🤖  HAWKER GUARDIAN — المساعد الذكي الحارس
+        //  يراقب التطبيق ويتكلم معاك بشكل طبيعي زي شخص حقيقي
+        // ════════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════════════════
+        //  🧠  ZIAD AI — الصديق الذكي الحقيقي
+        //  يعرف كل حاجة عن شغلك، بيفكر، بيقترح، وبيتكلم معاك زي إنسان
+        // ════════════════════════════════════════════════════════════════════════
+        function HawkerGuardian({
+            transactions, lines, visas, instaPays, people, capital,
+            firebaseReady, auth, db, isSubmitting, syncStatus,
+            alertSources, warningSources, oldDebtors, todayTxns,
+            showToast, setTransactions, saveToLocalStorage,
+            forceRefresh, isRefreshing
+        }) {
+            const [open, setOpen]         = React.useState(false);
+            const [chatHistory, setChatHistory] = React.useState([]); // {role, text, time, type}
+            const [input, setInput]       = React.useState("");
+            const [thinking, setThinking] = React.useState(false);
+            const [pulse, setPulse]       = React.useState(false);
+            const [unread, setUnread]     = React.useState(0);
+            const [greeted, setGreeted]   = React.useState(false);
+            const messagesEndRef = React.useRef(null);
+            const inputRef       = React.useRef(null);
+            const monitorRef     = React.useRef(null);
+            const lastAlertRef   = React.useRef({});
+
+            // ── scroll to bottom ──
+            React.useEffect(() => {
+                if (messagesEndRef.current)
+                    messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+            }, [chatHistory, thinking]);
+
+            // ── focus input when open ──
+            React.useEffect(() => {
+                if (open && inputRef.current) {
+                    setTimeout(() => inputRef.current?.focus(), 200);
+                }
+                if (open) setUnread(0);
+            }, [open]);
+
+            // ── بناء السياق الكامل للبيانات ──
+            function buildContext() {
+                function pad(n){ return String(n).padStart(2,"0"); }
+                const now = new Date();
+                const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+                const hour = now.getHours();
+                const greeting = hour < 12 ? "صباح" : hour < 17 ? "بعد ظهر" : "مساء";
+
+                const fawriRate  = 0.0057;
+                const fawriFixed = 15;
+                const bankRate   = 0.002;
+
+                const todayAll   = transactions.filter(t => normalizeDateStr(t.date) === todayStr);
+                const totalToday = todayAll.reduce((s,t) => s + (t.amount||0), 0);
+                const todayBank  = todayAll.filter(t=>t.type==="bank_withdraw").reduce((s,t)=>s+t.amount*bankRate,0);
+                const todayFawri = todayAll.filter(t=>t.type==="fawri_withdraw").reduce((s,t)=>s+(t.amount*fawriRate+fawriFixed),0);
+                const todayProfit = Math.round((todayBank + todayFawri) * 100) / 100;
+
+                const topClient = (() => {
+                    const counts = {};
+                    transactions.forEach(t => {
+                        if (t.personName) counts[t.personName] = (counts[t.personName]||0) + 1;
+                    });
+                    const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+                    return sorted[0] ? `${sorted[0][0]} (${sorted[0][1]} عملية)` : "لا يوجد";
+                })();
+
+                const debtors = people.filter(p => {
+                    const bal = (p.moves||[]).reduce((s,m) => s + (m.type==="debit" ? m.amount : -m.amount), 0);
+                    return bal > 0;
+                });
+                const totalDebt = debtors.reduce((s,p) => {
+                    return s + (p.moves||[]).reduce((ss,m) => ss + (m.type==="debit" ? m.amount : -m.amount), 0);
+                }, 0);
+
+                const linesStatus = [...(lines||[]), ...(visas||[])].map(l => ({
+                    name: l.name,
+                    balance: l.balance||0,
+                    pct: l.dailyLimit > 0 ? Math.round((l.usedTodayTransfer||0)/l.dailyLimit*100) : 0
+                }));
+
+                const criticalLines = linesStatus.filter(l => l.pct >= 80);
+                const lowBalance    = linesStatus.filter(l => l.balance < 500);
+
+                return `أنت "زياد AI" — المساعد الذكي الشخصي لصاحب محل فودافون كاش في مصر.
+اسم المستخدم: زياد.
+طبيعتك: صديق ذكي وخبير في شغل فودافون كاش، بتتكلم بالعربي العامية المصرية بشكل طبيعي ومريح.
+أسلوبك: مباشر، ذكي، أحياناً فيك روح دعابة خفيفة. مش رسمي زيادة عن اللزوم.
+مهمتك: تساعد زياد يشتغل أحسن، تحلل بياناته، تحذره من المشاكل، وتقترح حلول عملية.
+
+═══ بيانات النظام الآن ═══
+الوقت: ${greeting} — ${now.toLocaleString("ar-EG")}
+حالة Firebase: ${firebaseReady ? "✅ متصل" : "❌ منقطع"}
+رأس المال: ${(capital||0).toLocaleString("ar-EG")} جنيه
+
+📊 إحصائيات اليوم:
+- عدد العمليات: ${todayAll.length}
+- إجمالي الحجم: ${totalToday.toLocaleString("ar-EG")} ج
+- صافي الربح المتوقع: ${todayProfit.toLocaleString("ar-EG")} ج
+
+📋 إجمالي العمليات الكلية: ${transactions.length} عملية
+🏆 أكثر عميل تعامل: ${topClient}
+
+💳 حالة الخطوط والفيزات (${linesStatus.length} مصدر):
+${linesStatus.slice(0,8).map(l => `  - ${l.name}: رصيد ${l.balance.toLocaleString("ar-EG")} ج | استخدام اليوم ${l.pct}%`).join("\n")}
+${criticalLines.length > 0 ? `⚠️ خطوط على وشك الحد: ${criticalLines.map(l=>l.name).join("، ")}` : "✅ كل الخطوط بعيدة عن الحد"}
+${lowBalance.length > 0 ? `⚠️ خطوط رصيدها منخفض: ${lowBalance.map(l=>l.name).join("، ")}` : ""}
+
+👥 الديون:
+- عدد المدينين: ${debtors.length} عميل
+- إجمالي الديون: ${totalDebt.toLocaleString("ar-EG")} ج
+${debtors.slice(0,5).map(p => {
+    const bal = (p.moves||[]).reduce((s,m)=>s+(m.type==="debit"?m.amount:-m.amount),0);
+    return `  - ${p.name||p.personName}: ${bal.toLocaleString("ar-EG")} ج`;
+}).join("\n")}
+
+قواعد مهمة:
+- دايماً كلّم زياد بالاسم أحياناً
+- لما تحلل بيانات، اذكر أرقام حقيقية من السياق
+- لو في مشكلة واضحة، انبّه عليها أول ما تعرف
+- ردودك تكون مركّزة ومفيدة — مش طويلة فاضية
+- لو سألك عن حاجة مش في البيانات، قوله بصراحة
+- تقدر تقترح تحسينات على شغله بناءً على اللي شايفه`;
+            }
+
+            // ── الترحيب التلقائي ──
+            React.useEffect(() => {
+                if (!firebaseReady || !auth?.currentUser || greeted) return;
+                setGreeted(true);
+                const hour = new Date().getHours();
+                const greeting = hour < 12 ? "صباح الفل" : hour < 17 ? "مساء النور" : "مساء الخير";
+                const todayCount = (todayTxns||[]).length;
+
+                setTimeout(() => {
+                    const welcomeMsg = {
+                        role: "assistant",
+                        text: `${greeting} يا زياد! 👋\n${todayCount > 0
+                            ? `عندك ${todayCount} عملية النهارده لحد دلوقتي — يوم نشيط 💪`
+                            : "اليوم لسه بدري — يلا نشتغل! 🔥"
+                        }\nقولي إيه اللي تحتاجه أو اسألني عن أي حاجة في شغلك.`,
+                        time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}),
+                        type: "ai"
+                    };
+                    setChatHistory([welcomeMsg]);
+                    if (!open) { setUnread(1); setPulse(true); setTimeout(()=>setPulse(false),3000); }
+                }, 2500);
+            }, [firebaseReady]);
+
+            // ── مراقبة تلقائية ذكية ──
+            React.useEffect(() => {
+                if (!firebaseReady || !auth?.currentUser) return;
+                const cooldown = 10 * 60 * 1000;
+
+                function runMonitor() {
+                    const now = Date.now();
+                    const alerts = [];
+
+                    // خطوط حرجة
+                    const critLines = (lines||[]).filter(l => l.dailyLimit > 0 && (l.usedTodayTransfer||0)/l.dailyLimit >= 0.9);
+                    if (critLines.length > 0) {
+                        const key = "crit_" + critLines.map(l=>l.id).join();
+                        if (!lastAlertRef.current[key] || now - lastAlertRef.current[key] > cooldown) {
+                            lastAlertRef.current[key] = now;
+                            alerts.push({
+                                text: `⚠️ تنبيه يا زياد — ${critLines.map(l=>`${l.name} وصل ${Math.round((l.usedTodayTransfer||0)/l.dailyLimit*100)}%`).join(" و ")} من الحد اليومي. العمليات الجاية ممكن تتوقف!`,
+                                type: "warn"
+                            });
+                        }
+                    }
+
+                    // Firebase منقطع
+                    if (!firebaseReady) {
+                        const key = "firebase_off";
+                        if (!lastAlertRef.current[key] || now - lastAlertRef.current[key] > cooldown) {
+                            lastAlertRef.current[key] = now;
+                            alerts.push({ text: "🔴 الاتصال بـ Firebase منقطع! العمليات بتتحفظ محلياً بس — لا تعمل Refresh!", type: "danger" });
+                        }
+                    }
+
+                    alerts.forEach(a => {
+                        const msg = { role:"assistant", text:a.text, time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}), type:"ai" };
+                        setChatHistory(prev => [...prev, msg]);
+                        if (!open) { setUnread(u=>u+1); setPulse(true); setTimeout(()=>setPulse(false),2000); }
+                    });
+                }
+
+                monitorRef.current = setInterval(runMonitor, 3 * 60 * 1000);
+                return () => clearInterval(monitorRef.current);
+            }, [firebaseReady, lines]);
+
+            // ── إرسال رسالة ──
+            async function sendMessage(overrideText) {
+                const text = (overrideText || input).trim();
+                if (!text || thinking) return;
+
+                if (!getOpenRouterKey()) {
+                    const errMsg = { role:"assistant", text:"⚠️ مفيش API Key! روح ⚙️ الإعدادات وحط مفتاح OpenRouter عشان أقدر أرد عليك بذكاء.", time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}), type:"warn" };
+                    setChatHistory(prev => [...prev, errMsg]);
+                    return;
+                }
+
+                const userMsg = { role:"user", text, time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}) };
+                setChatHistory(prev => [...prev, userMsg]);
+                setInput("");
+                setThinking(true);
+
+                try {
+                    const systemPrompt = buildContext();
+                    // نبعت آخر 10 رسائل كـ history للـ AI
+                    const history = [...chatHistory.slice(-10), userMsg]
+                        .map(m => ({ role: m.role === "user" ? "user" : "assistant", text: m.text }));
+
+                    const response = await callClaudeChat(systemPrompt, history);
+
+                    const aiMsg = {
+                        role: "assistant",
+                        text: response,
+                        time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}),
+                        type: "ai"
+                    };
+                    setChatHistory(prev => [...prev, aiMsg]);
+                } catch(err) {
+                    const errMsg = {
+                        role: "assistant",
+                        text: `❌ ${err.message}`,
+                        time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}),
+                        type: "danger"
+                    };
+                    setChatHistory(prev => [...prev, errMsg]);
+                } finally {
+                    setThinking(false);
+                }
+            }
+
+            // ── اقتراحات سريعة ──
+            const quickSuggestions = [
+                "إيه أفضل خط أستخدمه دلوقتي؟",
+                "حلل شغلي النهارده",
+                "مين أكتر عميل بيتعامل معايا؟",
+                "في ديون محتاج أحصّلها؟",
+                "إيه الأشياء اللي لازم أحسّنها؟",
+            ];
+
+            const msgTypeStyle = {
+                ai:      { bg:"linear-gradient(135deg,#0d1829,#0a1220)", border:"#22d3ee20", nameColor:"#22d3ee", name:"🧠 زياد AI" },
+                warn:    { bg:"linear-gradient(135deg,#1a0f00,#120a00)",  border:"#f59e0b30", nameColor:"#f59e0b", name:"⚠️ تنبيه" },
+                danger:  { bg:"linear-gradient(135deg,#1a0505,#100303)",  border:"#ef444430", nameColor:"#ef4444", name:"🔴 تحذير" },
+                success: { bg:"linear-gradient(135deg,#051a0d,#030e07)",  border:"#10b98130", nameColor:"#10b981", name:"✅ زياد AI" },
+            };
+
+            return (
+                <>
+                    {/* ══ زر العائم ══ */}
+                    <div style={{ position:"fixed", bottom:80, left:16, zIndex:1000 }}>
+                        {unread > 0 && !open && (
+                            <div style={{
+                                position:"absolute", top:-8, right:-8,
+                                background:"#ef4444", color:"#fff",
+                                borderRadius:"50%", width:20, height:20,
+                                display:"flex", alignItems:"center", justifyContent:"center",
+                                fontSize:11, fontWeight:900, zIndex:2,
+                                boxShadow:"0 0 12px #ef4444",
+                                animation:"pulse 1s ease-in-out infinite"
+                            }}>{unread}</div>
+                        )}
+                        <button
+                            onClick={() => setOpen(o => !o)}
+                            style={{
+                                width:54, height:54, borderRadius:"50%",
+                                background: open
+                                    ? "linear-gradient(135deg,#22d3ee,#0ea5e9)"
+                                    : pulse
+                                    ? "linear-gradient(135deg,#f59e0b,#d97706)"
+                                    : "linear-gradient(135deg,#1e3a5f,#0f2744)",
+                                border:`2px solid ${open?"#22d3ee":pulse?"#f59e0b":"#22d3ee30"}`,
+                                boxShadow: open
+                                    ? "0 0 30px #22d3ee40, 0 4px 20px rgba(0,0,0,0.6)"
+                                    : pulse
+                                    ? "0 0 25px #f59e0b60, 0 4px 20px rgba(0,0,0,0.6)"
+                                    : "0 4px 20px rgba(0,0,0,0.5)",
+                                cursor:"pointer",
+                                display:"flex", alignItems:"center", justifyContent:"center",
+                                fontSize:24,
+                                transition:"all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+                                transform: open ? "scale(1.1) rotate(0deg)" : "scale(1)",
+                            }}
+                            title="زياد AI — مساعدك الذكي"
+                        >
+                            {open ? "✕" : "🧠"}
+                        </button>
+                    </div>
+
+                    {/* ══ نافذة الشات ══ */}
+                    {open && (
+                        <div style={{
+                            position:"fixed", bottom:148, left:16,
+                            width:"min(360px, calc(100vw - 32px))",
+                            height:"min(520px, calc(100vh - 200px))",
+                            zIndex:999,
+                            display:"flex", flexDirection:"column",
+                            borderRadius:22,
+                            overflow:"hidden",
+                            border:"1px solid #22d3ee25",
+                            boxShadow:"0 -8px 60px rgba(34,211,238,0.12), 0 0 0 1px #22d3ee10, 0 20px 60px rgba(0,0,0,0.8)",
+                            animation:"slideUp 0.35s cubic-bezier(0.22,0.61,0.36,1)",
+                            fontFamily:"Tajawal,sans-serif",
+                        }}>
+
+                            {/* Header */}
+                            <div style={{
+                                background:"linear-gradient(135deg,#080c14,#0d1829)",
+                                borderBottom:"1px solid #22d3ee15",
+                                padding:"12px 14px",
+                                display:"flex", alignItems:"center", gap:10,
+                                flexShrink:0,
+                            }}>
+                                <div style={{
+                                    width:40, height:40, borderRadius:"50%",
+                                    background:"linear-gradient(135deg,#1e3a5f,#0f2744)",
+                                    border:"2px solid #22d3ee30",
+                                    display:"flex", alignItems:"center", justifyContent:"center",
+                                    fontSize:20,
+                                    boxShadow:"0 0 15px #22d3ee20",
+                                }}>🧠</div>
+                                <div style={{flex:1}}>
+                                    <div style={{fontSize:14,fontWeight:900,color:"#e2e8f0",letterSpacing:0.5}}>زياد AI</div>
+                                    <div style={{fontSize:10,display:"flex",alignItems:"center",gap:5}}>
+                                        <div style={{width:6,height:6,borderRadius:"50%",background:firebaseReady?"#10b981":"#ef4444",boxShadow:`0 0 6px ${firebaseReady?"#10b981":"#ef4444"}`}}/>
+                                        <span style={{color:firebaseReady?"#10b981":"#ef4444"}}>
+                                            {thinking ? "جاري التفكير..." : firebaseReady ? "نشط — يعرف كل حاجة" : "غير متصل بـ Firebase"}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{textAlign:"left"}}>
+                                    <div style={{fontSize:10,color:"#334155"}}>{(todayTxns||[]).length} عملية اليوم</div>
+                                    <div style={{fontSize:10,color:"#334155"}}>{(capital||0).toLocaleString("ar-EG")} ج رأس مال</div>
+                                </div>
+                            </div>
+
+                            {/* Messages */}
+                            <div style={{
+                                flex:1, overflowY:"auto",
+                                padding:"10px 10px 6px",
+                                background:"#05080f",
+                                display:"flex", flexDirection:"column", gap:8,
+                            }}>
+                                {chatHistory.length === 0 && (
+                                    <div style={{textAlign:"center",color:"#1e3a5f",fontSize:12,padding:"30px 20px"}}>
+                                        <div style={{fontSize:36,marginBottom:8}}>🧠</div>
+                                        <div>جاري تحميل البيانات...</div>
+                                    </div>
+                                )}
+
+                                {chatHistory.map((msg, idx) => {
+                                    const isUser = msg.role === "user";
+                                    const style = msgTypeStyle[msg.type] || msgTypeStyle.ai;
+                                    return (
+                                        <div key={idx} style={{
+                                            display:"flex",
+                                            flexDirection: isUser ? "row-reverse" : "row",
+                                            gap:6, alignItems:"flex-end",
+                                        }}>
+                                            {!isUser && (
+                                                <div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#1e3a5f,#0f2744)",border:"1px solid #22d3ee25",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🧠</div>
+                                            )}
+                                            <div style={{
+                                                maxWidth:"82%",
+                                                background: isUser
+                                                    ? "linear-gradient(135deg,#1e3a5f,#0f2744)"
+                                                    : style.bg,
+                                                border:`1px solid ${isUser?"#22d3ee25":style.border}`,
+                                                borderRadius: isUser ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
+                                                padding:"10px 12px",
+                                                animation:"fadeIn 0.25s ease",
+                                            }}>
+                                                {!isUser && (
+                                                    <div style={{fontSize:9,color:style.nameColor,fontWeight:700,marginBottom:4}}>{style.name}</div>
+                                                )}
+                                                <div style={{
+                                                    fontSize:12, lineHeight:1.7,
+                                                    color: isUser ? "#c8d6e8" : "#94a3b8",
+                                                    direction:"rtl", whiteSpace:"pre-wrap",
+                                                    wordBreak:"break-word",
+                                                }}>
+                                                    {msg.text}
+                                                </div>
+                                                <div style={{fontSize:9,color:"#1e3a5f",marginTop:4,textAlign: isUser?"left":"right"}}>
+                                                    {msg.time}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Thinking indicator */}
+                                {thinking && (
+                                    <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+                                        <div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#1e3a5f,#0f2744)",border:"1px solid #22d3ee25",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🧠</div>
+                                        <div style={{background:"linear-gradient(135deg,#0d1829,#0a1220)",border:"1px solid #22d3ee20",borderRadius:"4px 16px 16px 16px",padding:"12px 16px"}}>
+                                            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                                                {[0,1,2].map(i=>(
+                                                    <div key={i} style={{
+                                                        width:7,height:7,borderRadius:"50%",
+                                                        background:"#22d3ee",
+                                                        animation:`pulse 1s ease-in-out ${i*0.2}s infinite`,
+                                                        opacity:0.7,
+                                                    }}/>
+                                                ))}
+                                                <span style={{fontSize:10,color:"#334155",marginRight:6}}>بيفكر...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div ref={messagesEndRef}/>
+                            </div>
+
+                            {/* Quick Suggestions */}
+                            {chatHistory.length <= 1 && !thinking && (
+                                <div style={{
+                                    background:"#080c14",
+                                    borderTop:"1px solid #0d1829",
+                                    padding:"6px 10px",
+                                    display:"flex", gap:5, flexWrap:"wrap",
+                                    flexShrink:0,
+                                }}>
+                                    {quickSuggestions.map((s,i) => (
+                                        <button key={i} onClick={()=>sendMessage(s)}
+                                            style={{
+                                                background:"#0d1829",border:"1px solid #1e3a5f",
+                                                borderRadius:20,padding:"4px 10px",
+                                                color:"#64748b",fontSize:10,cursor:"pointer",
+                                                fontFamily:"Tajawal,sans-serif",
+                                                transition:"all 0.2s",
+                                            }}
+                                            onMouseEnter={e=>{e.target.style.borderColor="#22d3ee50";e.target.style.color="#22d3ee";}}
+                                            onMouseLeave={e=>{e.target.style.borderColor="#1e3a5f";e.target.style.color="#64748b";}}
+                                        >{s}</button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Input */}
+                            <div style={{
+                                background:"#080c14",
+                                borderTop:"1px solid #0d1829",
+                                padding:"8px 10px",
+                                display:"flex", gap:6, flexShrink:0, alignItems:"flex-end",
+                            }}>
+                                <textarea
+                                    ref={inputRef}
+                                    value={input}
+                                    onChange={e=>setInput(e.target.value)}
+                                    onKeyDown={e=>{
+                                        if(e.key==="Enter" && !e.shiftKey){
+                                            e.preventDefault();
+                                            sendMessage();
+                                        }
+                                    }}
+                                    placeholder="اسأل زياد AI أي حاجة..."
+                                    rows={1}
+                                    style={{
+                                        flex:1, background:"#0d1829",
+                                        border:"1px solid #1e3a5f",
+                                        borderRadius:12, padding:"8px 12px",
+                                        color:"#c8d6e8", fontSize:12,
+                                        fontFamily:"Tajawal,sans-serif",
+                                        resize:"none", outline:"none",
+                                        direction:"rtl", lineHeight:1.5,
+                                        maxHeight:80, overflowY:"auto",
+                                    }}
+                                    onFocus={e=>e.target.style.borderColor="#22d3ee50"}
+                                    onBlur={e=>e.target.style.borderColor="#1e3a5f"}
+                                />
+                                <button
+                                    onClick={()=>sendMessage()}
+                                    disabled={thinking || !input.trim()}
+                                    style={{
+                                        background: thinking || !input.trim()
+                                            ? "#0d1829"
+                                            : "linear-gradient(135deg,#22d3ee,#0ea5e9)",
+                                        border:"none", borderRadius:12,
+                                        width:38, height:38, flexShrink:0,
+                                        color: thinking || !input.trim() ? "#1e3a5f" : "#000",
+                                        fontSize:16, cursor: thinking || !input.trim() ? "not-allowed" : "pointer",
+                                        display:"flex", alignItems:"center", justifyContent:"center",
+                                        transition:"all 0.2s",
+                                        boxShadow: thinking || !input.trim() ? "none" : "0 4px 15px #22d3ee30",
+                                    }}
+                                >
+                                    {thinking ? "⏳" : "➤"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+
 
         function BackupRestoreScreen({
             lines, visas, instaPays, transactions, people,
@@ -8221,7 +9396,7 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
             const [orKey, setOrKey] = useState(() => getOpenRouterKey());
             const [showKeyInput, setShowKeyInput] = useState(false);
             const [keyDraft, setKeyDraft] = useState("");
-            const hasKey = !!orKey;
+            const hasKey = !!orKey || !!((() => { try { return localStorage.getItem("anthropic_api_key"); } catch(e){ return ""; } })());
 
             function saveKey() {
                 setOpenRouterKey(keyDraft);
@@ -8270,7 +9445,32 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                         </button>
                         {showKeyInput && (
                             <div style={{marginTop:8,background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:14}}>
-                                <div style={{fontSize:11,color:"#3d4f65",marginBottom:8}}>أضف مفتاح OpenRouter (sk-or-v1-...)</div>
+                                {/* Anthropic Key */}
+                                <div style={{marginBottom:12}}>
+                                    <div style={{fontSize:11,color:"#22d3ee",marginBottom:6,fontWeight:700}}>
+                                        🔑 Anthropic API Key — الأسرع والأذكى (claude-haiku)
+                                    </div>
+                                    <div style={{display:"flex",gap:8}}>
+                                        <input
+                                            type="password"
+                                            value={(() => { try { return localStorage.getItem("anthropic_api_key")||""; } catch(e){ return ""; } })()}
+                                            onChange={e=>{ try { localStorage.setItem("anthropic_api_key", e.target.value.trim()); } catch(ex){} }}
+                                            placeholder="sk-ant-api03-..."
+                                            style={{flex:1,background:"#05070f",border:"1px solid #22d3ee30",borderRadius:8,padding:"10px 12px",color:"#c8d6e8",fontSize:12,outline:"none",fontFamily:"'Tajawal',sans-serif",direction:"ltr"}}
+                                        />
+                                        <button onClick={()=>{ showToast("✅ تم حفظ مفتاح Anthropic"); }}
+                                            style={{background:"linear-gradient(135deg,#22d3ee,#0ea5e9)",border:"none",borderRadius:8,padding:"10px 16px",color:"#000",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                                            حفظ
+                                        </button>
+                                    </div>
+                                    <div style={{fontSize:10,color:"#334155",marginTop:4}}>
+                                        احصل على مفتاحك من <a href="https://console.anthropic.com" target="_blank" style={{color:"#22d3ee"}}>console.anthropic.com</a>
+                                    </div>
+                                </div>
+                                {/* OpenRouter Key (fallback) */}
+                                <div style={{fontSize:11,color:"#a78bfa",marginBottom:6,fontWeight:700}}>
+                                    🔑 OpenRouter API Key — بديل مجاني (sk-or-v1-)
+                                </div>
                                 <div style={{display:"flex",gap:8}}>
                                     <input
                                         type="password"
