@@ -177,6 +177,28 @@
             50.1%, 100% { opacity: 0.45;}
         }
 
+        /* ══ Street Mode — إخفاء شامل للأرقام والمبالغ ══ */
+        .street-mode-blur {
+            filter: blur(7px) !important;
+            user-select: none !important;
+            transition: filter 0.3s ease;
+        }
+        .street-mode-overlay::after {
+            content: "🕵️";
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(5,7,15,0.85);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 80px; z-index: 8888; pointer-events: none;
+        }
+
+        /* ══ Voice Pulse Animation ══ */
+        @keyframes voicePulse {
+            0%   { box-shadow: 0 0 0 0 rgba(34,211,238,0.5); }
+            70%  { box-shadow: 0 0 0 10px rgba(34,211,238,0); }
+            100% { box-shadow: 0 0 0 0 rgba(34,211,238,0); }
+        }
+        .voice-listening { animation: voicePulse 1s infinite; }
+
         /* ── Spinner ── */
         .loading-spinner {
             display: inline-block;
@@ -604,6 +626,30 @@
             return defaultValue;
         };
 
+        // ══ Offline-First Queue ══
+        function enqueueOffline(path, data) {
+            const q = loadFromLocalStorage('__offlineQueue', []);
+            q.push({ path, data, ts: Date.now() });
+            saveToLocalStorage('__offlineQueue', q);
+        }
+        function flushOfflineQueue(db) {
+            const q = loadFromLocalStorage('__offlineQueue', []);
+            if (!q.length) return;
+            const remaining = [];
+            q.forEach(item => {
+                try { db.ref(item.path).set(item.data); }
+                catch(e) { remaining.push(item); }
+            });
+            saveToLocalStorage('__offlineQueue', remaining);
+            if (q.length !== remaining.length)
+                console.log(`✅ Offline Queue: نفّذنا ${q.length - remaining.length} عملية معلّقة`);
+        }
+        function safeFirebaseSet(db, path, data) {
+            if (!db) return enqueueOffline(path, data);
+            try { db.ref(path).set(data); }
+            catch(e) { enqueueOffline(path, data); }
+        }
+
         function pad(n) { return String(n).padStart(2, "0"); }
         function nowStr() {
             const d = new Date();
@@ -646,6 +692,28 @@
             const s = String(Math.round(Number(n)));
             if (s.length <= 2) return "**";
             return "*".repeat(s.length - 2) + s.slice(-2);
+        }
+        // Street Mode: يرجع style object يخفي المحتوى بـ CSS blur
+        function streetStyle(isStreet) {
+            if (!isStreet) return {};
+            return { filter: "blur(6px)", userSelect: "none", pointerEvents: "none", transition: "filter 0.3s" };
+        }
+
+        /** تحويل رقم هاتف مصري لرابط واتساب */
+        function phoneToWA(phone, msg = "") {
+            if (!phone) return null;
+            const cleaned = String(phone).replace(/\D/g, "");
+            // تأكد من صيغة دولية مصرية
+            const intl = cleaned.startsWith("2") ? cleaned :
+                         cleaned.startsWith("0") ? "2" + cleaned :
+                         "20" + cleaned;
+            return `https://wa.me/${intl}${msg ? "?text=" + encodeURIComponent(msg) : ""}`;
+        }
+
+        /** رابط واتساب مجهّز لتذكير الدين */
+        function debtReminderWA(person, balance) {
+            const msg = `السلام عليكم ${person.personName}،\nيرجى العلم أن رصيدك المستحق هو: ${Number(balance).toLocaleString("ar-EG")} جنيه.\nنرجو السداد في أقرب وقت ممكن. شكراً 🙏`;
+            return phoneToWA(person.phone, msg);
         }
         function formatDateOnly(dateStr) {
             if (!dateStr) return "";
@@ -756,6 +824,421 @@
         // ══════════════════════════════════════════════════════════════
         //  📊  DashboardCharts — رسوم بيانية SVG تفاعلية خفيفة
         // ══════════════════════════════════════════════════════════════
+
+        // ══════════════════════════════════════════════════════════════
+        //  🧮  CALC HELPERS — منطق الحسابات المستقل (خارج App تماماً)
+        //  كل دالة هنا pure function لا تعتمد على state
+        // ══════════════════════════════════════════════════════════════
+
+        /** حساب إحصائيات مصدر معين (خط/فيزا/إنستاباي) من سجل العمليات */
+        function calcSourceStats(source, txns) {
+            const num = source.number;
+            const sid = source.id;
+            const todayStr = today();
+            const monthStr = currentMonthStr();
+            let usedTodayTransfer = 0, usedMonthTransfer = 0;
+            let usedTodayReceive  = 0, usedMonthReceive  = 0;
+            for (const t of txns) {
+                const tMonth = (t.date || "").slice(0, 7);
+                const isToday = t.date === todayStr;
+                const isMonth = tMonth === monthStr;
+                const isOutgoing = t.type === "transfer" || t.type === "bank_withdraw" ||
+                                   t.type === "fawri_withdraw" || t.type === "fawri_transfer" ||
+                                   t.type === "internal_transfer";
+                const matchesOutgoing = t.sourceId === sid || (num && t.fromNumber === num);
+                const matchesIncoming = t.sourceId === sid || (num && t.toNumber === num);
+                const effectiveAmount = t.totalAmount || t.amount || 0;
+                if (isOutgoing && matchesOutgoing) {
+                    if (isToday) usedTodayTransfer += effectiveAmount;
+                    if (isMonth) usedMonthTransfer += effectiveAmount;
+                }
+                if (t.type === "receive" && matchesIncoming) {
+                    if (isToday) usedTodayReceive += (t.amount || 0);
+                    if (isMonth) usedMonthReceive += (t.amount || 0);
+                }
+            }
+            return { usedTodayTransfer, usedMonthTransfer, usedTodayReceive, usedMonthReceive };
+        }
+
+        /** بناء قائمة المصادر الكاملة مع إحصائياتها */
+        function buildSources(lines, visas, instaPays, transactions, limits) {
+            const { vodDailyLimit, linesMonthlyLimit, visaDailyLimit, visaMonthlyLimit,
+                    instapayDailyLimit, instapayMonthlyLimit } = limits;
+            const enrich = (arr, type, dailyLimit, monthlyLimit) =>
+                arr.map(s => {
+                    const stats = calcSourceStats(s, transactions);
+                    return { ...s, type, dailyLimit, monthlyLimit,
+                        usedToday:           stats.usedTodayTransfer,
+                        usedTodayReceive:    stats.usedTodayReceive,
+                        usedMonth:           stats.usedMonthTransfer,
+                        usedMonthTransfer:   stats.usedMonthTransfer,
+                        usedMonthReceive:    stats.usedMonthReceive,
+                    };
+                });
+            return [
+                ...enrich(lines,      "line",      vodDailyLimit,      linesMonthlyLimit),
+                ...enrich(visas,      "visa",      visaDailyLimit,     visaMonthlyLimit),
+                ...enrich(instaPays,  "instapay",  instapayDailyLimit, instapayMonthlyLimit),
+            ];
+        }
+
+        /** حساب أفضل مصدر للعملية (Smart Auto-Routing) */
+        function getSmartRoute(sources, amount, txnType) {
+            const amt = parseFloat(amount);
+            if (!amt || isNaN(amt) || amt <= 0) return { suggestedId: null, allAtLimit: false };
+            const available = sources.filter(s => s.available !== false);
+            if (!available.length) return { suggestedId: null, allAtLimit: true };
+            const WARN = 0.85;
+            if (txnType === "receive" || txnType === "transfer") {
+                const eligible = available.filter(s => {
+                    const bal = s.balance || 0;
+                    const afterDaily   = (s.usedToday || 0) + amt;
+                    const afterMonthly = (s.usedMonth || 0) + amt;
+                    const dailyOk   = s.dailyLimit   > 0 ? (afterDaily   / s.dailyLimit)   < WARN : true;
+                    const monthlyOk = s.monthlyLimit > 0 ? (afterMonthly / s.monthlyLimit) < WARN : true;
+                    return bal >= amt && dailyOk && monthlyOk;
+                });
+                if (!eligible.length) {
+                    const fallback = available.filter(s => (s.balance || 0) >= amt);
+                    if (!fallback.length) return { suggestedId: null, allAtLimit: true };
+                    fallback.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                    return { suggestedId: fallback[0].id, allAtLimit: false };
+                }
+                eligible.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                return { suggestedId: eligible[0].id, allAtLimit: false };
+            } else {
+                const withSpace = available.map(s => {
+                    const dR = s.dailyLimit   > 0 ? Math.max(0, s.dailyLimit   - (s.usedToday || 0)) : Infinity;
+                    const mR = s.monthlyLimit > 0 ? Math.max(0, s.monthlyLimit - (s.usedMonth || 0)) : Infinity;
+                    const space = Math.min(dR, mR);
+                    return { ...s, space, canAbsorb: space >= amt };
+                });
+                const canAbsorb = withSpace.filter(s => s.canAbsorb);
+                if (!canAbsorb.length) return { suggestedId: null, allAtLimit: true };
+                canAbsorb.sort((a, b) => b.space - a.space);
+                return { suggestedId: canAbsorb[0].id, allAtLimit: false };
+            }
+        }
+
+        /** حساب خطة التقسيم الذكي على عدة خطوط */
+        function calcSmartSplit(sources, amount, txnType) {
+            const amt = parseFloat(amount);
+            if (!amt || isNaN(amt) || amt <= 0) return null;
+            if (txnType !== "transfer" && txnType !== "receive") return null;
+            const isTransfer = txnType === "transfer";
+            const candidates = sources
+                .filter(s => s.available !== false)
+                .map(s => {
+                    const balance  = parseFloat(s.balance) || 0;
+                    const dUT = s.usedToday || 0;
+                    const dUR = s.usedTodayReceive || 0;
+                    const dL  = s.dailyLimit   || Infinity;
+                    const mU  = s.usedMonth    || 0;
+                    const mL  = s.monthlyLimit || Infinity;
+                    const dRT = Math.max(0, dL - dUT);
+                    const dRR = Math.max(0, dL - dUR);
+                    const mR  = Math.max(0, mL - mU);
+                    const capacity = isTransfer
+                        ? Math.min(balance, dRT, mR)
+                        : Math.min(dRR, mR);
+                    return { ...s, capacity: Math.floor(capacity * 100) / 100 };
+                })
+                .filter(s => s.capacity > 0)
+                .sort((a, b) => b.capacity - a.capacity);
+            if (!candidates.length) return null;
+            if (candidates.some(s => s.capacity >= amt)) return null; // لا داعي للتقسيم
+            const steps = [];
+            let remaining = amt;
+            for (const src of candidates) {
+                if (remaining <= 0) break;
+                const take = Math.min(src.capacity, remaining);
+                if (take > 0) {
+                    steps.push({ sourceId: src.id, sourceName: src.name, sourceType: src.type,
+                                 amount: Math.round(take * 100) / 100,
+                                 balance: src.balance || 0, capacity: src.capacity });
+                    remaining = Math.round((remaining - take) * 100) / 100;
+                }
+            }
+            const totalCovered = Math.round((amt - remaining) * 100) / 100;
+            return { steps, totalCovered, needed: amt, remaining: Math.max(0, remaining), isComplete: remaining <= 0 };
+        }
+
+        /** حساب العمولة لعملية معينة */
+        function calcCommissionPure(type, amount, commissionSettings) {
+            if (type === "bank_withdraw") {
+                const rate = parseFloat(commissionSettings?.bankWithdrawRate) || 0.002;
+                const comm = Math.round(amount * rate * 100) / 100;
+                return { commission: comm, total: Math.round((amount + comm) * 100) / 100 };
+            }
+            if (type === "fawri_withdraw") {
+                const rate  = parseFloat(commissionSettings?.fawriWithdrawRate)  || 0.0057;
+                const fixed = parseFloat(commissionSettings?.fawriWithdrawFixed) || 15;
+                const comm  = Math.round((amount * rate + fixed) * 100) / 100;
+                return { commission: comm, total: Math.round((amount + comm) * 100) / 100 };
+            }
+            return { commission: 0, total: amount };
+        }
+
+        /** حساب delta الرصيد عند إضافة/حذف عملية */
+        function calcSourceDelta(txnType, amount, reverse = false) {
+            const isOutgoing = ["transfer","bank_withdraw","fawri_withdraw",
+                                "fawri_transfer","internal_transfer"].includes(txnType);
+            const delta = isOutgoing ? -amount : amount;
+            return reverse ? -delta : delta;
+        }
+
+        /** بناء updater وظيفي لتحديث رصيد المصدر */
+        function buildSourceUpdater(sourceId, txnType, amount, reverse = false) {
+            const isOutgoing = ["transfer","bank_withdraw","fawri_withdraw",
+                                "fawri_transfer","internal_transfer"].includes(txnType);
+            const delta = isOutgoing ? -amount : amount;
+            const sign  = reverse ? -1 : 1;
+            return prev => prev.map(item => {
+                if (item.id !== sourceId) return item;
+                return {
+                    ...item,
+                    usedTodayTransfer: Math.max(0,(item.usedTodayTransfer||0) + sign*(isOutgoing ? amount : 0)),
+                    usedMonthTransfer: Math.max(0,(item.usedMonthTransfer||0) + sign*(isOutgoing ? amount : 0)),
+                    usedTodayReceive:  Math.max(0,(item.usedTodayReceive||0)  + sign*(txnType==="receive" ? amount : 0)),
+                    usedMonthReceive:  Math.max(0,(item.usedMonthReceive||0)  + sign*(txnType==="receive" ? amount : 0)),
+                    balance: (item.balance||0) + sign*delta,
+                };
+            });
+        }
+
+        /** الـ updater الذي يطبّق buildSourceUpdater على الـ setState الصح */
+        function applySourceUpdate(txn, amount, setLines, setVisas, setInstaPays, reverse = false) {
+            const updater = buildSourceUpdater(txn.sourceId, txn.type, amount, reverse);
+            if (txn.sourceType === "line")      setLines(updater);
+            else if (txn.sourceType === "visa") setVisas(updater);
+            else                                setInstaPays(updater);
+        }
+
+        /** إحصائيات اليومية السريعة للـ Dashboard */
+        function calcDailyStats(transactions, financeLogs, commissionSettings) {
+            const todayStr = today();
+            const todayTxns = transactions.filter(t => (t.date||"").startsWith(todayStr));
+            const fawriRate  = commissionSettings?.fawriWithdrawRate  ?? 0.0057;
+            const fawriFixed = commissionSettings?.fawriWithdrawFixed ?? 15;
+            const bankRate   = commissionSettings?.bankWithdrawRate   ?? 0.002;
+            return {
+                todayTxns,
+                totalIn:    todayTxns.filter(t=>t.type==="transfer").reduce((s,t)=>s+t.amount,0),
+                totalOut:   todayTxns.filter(t=>t.type==="receive").reduce((s,t)=>s+t.amount,0),
+                bankComm:   todayTxns.filter(t=>t.type==="bank_withdraw").reduce((s,t)=>s+(t.amount*bankRate),0),
+                fawriComm:  todayTxns.filter(t=>t.type==="fawri_withdraw").reduce((s,t)=>s+(t.amount*fawriRate+fawriFixed),0),
+                count:      todayTxns.length,
+            };
+        }
+
+        /** رصيد العميل (مجموع الديون - المدفوعات) */
+        function getPersonBalancePure(person) {
+            const moves = person.moves || [];
+            const debit  = moves.filter(m=>m.type==="debit") .reduce((s,m)=>s+(m.amount||0),0);
+            const credit = moves.filter(m=>m.type==="credit").reduce((s,m)=>s+(m.amount||0),0);
+            return debit - credit;
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  📊  PERFORMANCE HELPERS — تحليل أداء المساعدين (pure)
+        // ══════════════════════════════════════════════════════════════
+
+        /** بناء لوحة أداء المساعدين من سجل العمليات */
+        function calcPerformanceBoard(transactions) {
+            const board = {};
+            for (const t of transactions) {
+                const name = t.addedBy || "غير محدد";
+                if (!board[name]) {
+                    board[name] = { name, count: 0, reversed: 0, totalMs: 0, timeSamples: 0 };
+                }
+                board[name].count++;
+                if (t.reversed) board[name].reversed++;
+                if (t.addedAt && t.createdAt) {
+                    // وقت الإدخال = الفرق بين وقت فتح المودال ووقت الحفظ (بالثواني)
+                    const ms = new Date(t.addedAt) - new Date(t.createdAt);
+                    if (ms > 0 && ms < 600000) { // بين 0 و10 دقايق
+                        board[name].totalMs += ms;
+                        board[name].timeSamples++;
+                    }
+                }
+            }
+            return Object.values(board)
+                .map(b => ({
+                    ...b,
+                    avgSec: b.timeSamples > 0 ? Math.round(b.totalMs / b.timeSamples / 1000) : null,
+                    efficiency: b.count > 0 ? Math.round(((b.count - b.reversed) / b.count) * 100) : 100
+                }))
+                .sort((a, b) => b.count - a.count);
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🔮  FORECASTING HELPERS — التنبؤ المالي (pure)
+        // ══════════════════════════════════════════════════════════════
+
+        /** تحليل نمط 7 أيام وتوقع احتياج السيولة لليوم القادم */
+        function calcLiquidityForecast(transactions, sources) {
+            const days = 7;
+            const results = [];
+
+            // نبني array للـ 7 أيام الماضية
+            const dayData = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().slice(0, 10);
+                const dayTxns = transactions.filter(t => (t.date || "").startsWith(dateStr));
+                const outflow = dayTxns
+                    .filter(t => ["transfer","bank_withdraw","fawri_withdraw","fawri_transfer","internal_transfer"].includes(t.type))
+                    .reduce((s, t) => s + (t.totalAmount || t.amount || 0), 0);
+                dayData.push({ dateStr, outflow, count: dayTxns.length });
+            }
+
+            const avgOutflow = dayData.length > 0
+                ? dayData.reduce((s, d) => s + d.outflow, 0) / dayData.length
+                : 0;
+
+            // توقع الغد = متوسط + 10% buffer
+            const tomorrowForecast = Math.round(avgOutflow * 1.1);
+
+            // تحليل كل مصدر — هل رصيده يكفي الغد؟
+            const sourceAlerts = sources
+                .filter(s => s.available !== false && s.type === "line")
+                .map(s => {
+                    const bal = s.balance || 0;
+                    const avgDaily = dayData.reduce((sum, d) => {
+                        const dayOut = transactions
+                            .filter(t => (t.date || "").startsWith(d.dateStr) && t.sourceId === s.id)
+                            .reduce((ss, t) => ss + (t.totalAmount || t.amount || 0), 0);
+                        return sum + dayOut;
+                    }, 0) / Math.max(dayData.filter(d => d.count > 0).length, 1);
+
+                    const daysLeft = avgDaily > 0 ? Math.floor(bal / avgDaily) : 99;
+                    return { ...s, avgDaily: Math.round(avgDaily), daysLeft, willRunOut: daysLeft <= 1 };
+                })
+                .filter(s => s.willRunOut);
+
+            // اتجاه آخر 3 أيام vs 4 أيام قبلها
+            const recent3  = dayData.slice(-3).reduce((s, d) => s + d.outflow, 0) / 3;
+            const before4  = dayData.slice(0, 4).reduce((s, d) => s + d.outflow, 0) / 4;
+            const trend    = before4 > 0 ? Math.round(((recent3 - before4) / before4) * 100) : 0;
+
+            return {
+                tomorrowForecast,
+                avgOutflow: Math.round(avgOutflow),
+                trend,          // % تغير الاتجاه (موجب = زيادة)
+                sourceAlerts,   // خطوط ستنفد غداً
+                dayData,
+            };
+        }
+
+        /** رصيد العميل (مجموع الديون - المدفوعات) */
+        function calcDebtAge(person) {
+            // أقدم دين غير مسدد بالأيام
+            const moves = person.moves || [];
+            const debitMoves = moves
+                .filter(m => m.type === "debit")
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+            if (!debitMoves.length) return 0;
+            const oldest = new Date(debitMoves[0].date);
+            const now    = new Date();
+            return Math.floor((now - oldest) / (1000 * 60 * 60 * 24));
+        }
+
+        /** IndexedDB wrapper بسيط لتخزين الصور وأي بيانات كبيرة */
+        const IDB = (() => {
+            const DB_NAME = "HawkerCashDB";
+            const STORE   = "images";
+            let _db = null;
+
+            function open() {
+                if (_db) return Promise.resolve(_db);
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(DB_NAME, 1);
+                    req.onupgradeneeded = e => {
+                        e.target.result.createObjectStore(STORE);
+                    };
+                    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+                    req.onerror   = () => reject(req.error);
+                });
+            }
+
+            return {
+                async set(key, value) {
+                    const db = await open();
+                    return new Promise((res, rej) => {
+                        const tx = db.transaction(STORE, "readwrite");
+                        tx.objectStore(STORE).put(value, key);
+                        tx.oncomplete = () => res(true);
+                        tx.onerror    = () => rej(tx.error);
+                    });
+                },
+                async get(key) {
+                    const db = await open();
+                    return new Promise((res, rej) => {
+                        const tx  = db.transaction(STORE, "readonly");
+                        const req = tx.objectStore(STORE).get(key);
+                        req.onsuccess = () => res(req.result || null);
+                        req.onerror   = () => rej(req.error);
+                    });
+                },
+                async delete(key) {
+                    const db = await open();
+                    return new Promise((res, rej) => {
+                        const tx = db.transaction(STORE, "readwrite");
+                        tx.objectStore(STORE).delete(key);
+                        tx.oncomplete = () => res(true);
+                        tx.onerror    = () => rej(tx.error);
+                    });
+                },
+                async keys() {
+                    const db = await open();
+                    return new Promise((res, rej) => {
+                        const tx  = db.transaction(STORE, "readonly");
+                        const req = tx.objectStore(STORE).getAllKeys();
+                        req.onsuccess = () => res(req.result || []);
+                        req.onerror   = () => rej(req.error);
+                    });
+                },
+                /** تنظيف الصور القديمة غير المرتبطة بأي عملية */
+                async cleanup(usedKeys) {
+                    const all = await this.keys();
+                    const used = new Set(usedKeys);
+                    for (const k of all) {
+                        if (!used.has(k)) await this.delete(k);
+                    }
+                }
+            };
+        })();
+
+        /** حفظ صورة في IndexedDB وإرجاع مفتاحها */
+        async function saveImageToIDB(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = async ev => {
+                    try {
+                        const key = `img_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+                        await IDB.set(key, ev.target.result);
+                        resolve(key);
+                    } catch(e) { reject(e); }
+                };
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        /** جلب صورة من IndexedDB أو fallback على localStorage/_memStore */
+        async function getImageFromIDB(imageRef) {
+            if (!imageRef) return null;
+            if (imageRef.startsWith("http") || imageRef.startsWith("data:")) return imageRef;
+            // جرب IDB أولاً
+            try {
+                const v = await IDB.get(imageRef);
+                if (v) return v;
+            } catch(e) {}
+            // fallback على localStorage (للصور القديمة)
+            try { const v = localStorage.getItem(imageRef); if (v) return v; } catch(e) {}
+            return _memStore[imageRef] || null;
+        }
 
         // ── مكون مستقل: SVG Bar Chart ─────────────────────────────────
         function SvgBarChart({ data, valueKey, gradient, id, labelColor, mounted, tooltip, setTooltip }) {
@@ -1177,6 +1660,35 @@
                 window.print();
             }
 
+            // ══ Bluetooth Thermal Print (Web Bluetooth API) ══
+            async function doBluetooth() {
+                if (!navigator.bluetooth) {
+                    alert("المتصفح مش بيدعم Bluetooth — جرب Chrome على أندرويد");
+                    return;
+                }
+                try {
+                    const device = await navigator.bluetooth.requestDevice({
+                        filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+                        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+                    });
+                    const server = await device.gatt.connect();
+                    const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                    const char = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+                    // ESC/POS commands للطباعة الحرارية
+                    const srcEl = document.getElementById("receipt-content-inner");
+                    const text = srcEl ? srcEl.innerText : "فاتورة";
+                    const encoder = new TextEncoder();
+                    const initCmd = new Uint8Array([0x1B, 0x40]); // ESC @ reset
+                    const cutCmd  = new Uint8Array([0x1D, 0x56, 0x41, 0x10]); // cut paper
+                    await char.writeValue(initCmd);
+                    await char.writeValue(encoder.encode(text + "\n\n\n"));
+                    await char.writeValue(cutCmd);
+                    alert("✅ تم الإرسال للطابعة!");
+                } catch(e) {
+                    if (e.name !== 'NotFoundError') alert("خطأ في الطباعة: " + e.message);
+                }
+            }
+
             const receiptStyle = {
                 fontFamily:"'Courier New',monospace",
                 background:"#fff", color:"#000", direction:"rtl",
@@ -1276,6 +1788,12 @@
                                     style={{flex:2,background:"linear-gradient(135deg,#22d3ee,#0891b2)",border:"none",borderRadius:12,padding:12,color:"#000",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 14px #22d3ee30"}}>
                                     🖨️ تأكيد وطباعة الفاتورة
                                 </button>
+                                {navigator.bluetooth && (
+                                    <button onClick={doBluetooth} title="طباعة بلوتوث مباشرة"
+                                        style={{background:"#3b82f620",border:"1px solid #3b82f640",borderRadius:12,padding:"12px 14px",color:"#3b82f6",fontSize:18,cursor:"pointer"}}>
+                                        🦷
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1432,6 +1950,12 @@
                                         <tr><td style={{color:"#555",paddingBottom:3}}>إجمالي ما سدَّد</td><td style={{textAlign:"left",fontWeight:700,color:"#166534"}}>{Number(totalC).toLocaleString("ar-EG")} ج</td></tr>
                                         <tr><td style={{color:"#555",paddingBottom:3}}>عدد الحركات</td><td style={{textAlign:"left"}}>{moves.length}</td></tr>
                                         {lastMove && <tr><td style={{color:"#555",paddingBottom:3}}>آخر حركة</td><td style={{textAlign:"left",fontSize:10}}>{lastMove.date||"—"} — {lastMove.type==="debit"?"حوّل":"سدّد"}</td></tr>}
+                                        <tr style={{borderTop:"2px solid #000"}}>
+                                            <td style={{fontWeight:900,paddingTop:4}}>رصيدك الحالي</td>
+                                            <td style={{textAlign:"left",fontWeight:900,fontSize:13,color:balance>0?"#991b1b":balance<0?"#166534":"#555"}}>
+                                                {Number(Math.abs(balance)).toLocaleString("ar-EG")} ج {balance>0?"(مدين)":balance<0?"(دائن)":"✅"}
+                                            </td>
+                                        </tr>
                                     </tbody>
                                 </table>
                                 <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
@@ -2290,6 +2814,21 @@
             const [ocrPreviewUrl, setOcrPreviewUrl] = useState(null);
             const ocrInputRef = useRef(null);
 
+            // ══ Voice-to-Accounting ══
+            const [voiceListening, setVoiceListening] = useState(false);
+            const [voiceTranscript, setVoiceTranscript] = useState("");
+            const [voiceStatus, setVoiceStatus] = useState("idle");
+            const voiceRecogRef = useRef(null);
+
+            // ══ Street Mode (إخفاء شامل بضغطة واحدة) ══
+            const [streetMode, setStreetMode] = useState(() => loadFromLocalStorage('streetMode', false));
+
+            // ══ Page Visibility Lock ══
+            const [pageLocked, setPageLocked] = useState(false);
+
+            // ══ Performance Tracking ══
+            const [txnStartTime, setTxnStartTime] = useState(null);
+
             // ⭐ Privacy Mask Mode — وضع الشارع
             const [privacyMode, setPrivacyMode] = useState(() => loadFromLocalStorage('privacyMode', false));
 
@@ -2625,52 +3164,69 @@
             // ⭐ Auto-save to localStorage AND Firebase — محمي من الكتابة قبل اكتمال تحميل Firebase
             useEffect(() => { 
                 saveToLocalStorage('lines', lines);
-                if (isAdmin && auth.currentUser && firebaseReady && linesFromFirebase.current) { try { db.ref('lines').set(lines); } catch(e){} }
+                if (isAdmin && auth.currentUser && firebaseReady && linesFromFirebase.current) { safeFirebaseSet(db, 'lines', lines); }
             }, [lines]);
 
             useEffect(() => { 
                 saveToLocalStorage('visas', visas);
-                if (isAdmin && auth.currentUser && firebaseReady && visasFromFirebase.current) { try { db.ref('visas').set(visas); } catch(e){} }
+                if (isAdmin && auth.currentUser && firebaseReady && visasFromFirebase.current) { safeFirebaseSet(db, 'visas', visas); }
             }, [visas]);
 
             useEffect(() => { 
                 saveToLocalStorage('instaPays', instaPays);
-                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('instaPays').set(instaPays); } catch(e){} }
+                if (isAdmin && auth.currentUser && firebaseReady) { safeFirebaseSet(db, 'instaPays', instaPays); }
             }, [instaPays]);
 
             useEffect(() => { 
-                // ⭐ FIX: لا نحفظ في localStorage إلا لو Firebase حمّل فعلاً (لمنع الكاش القديم)
                 if (transactionsFromFirebase.current) {
                     saveToLocalStorage('transactions', transactions);
                 }
-                // ⭐ إصلاح — لا تكتب على Firebase إلا لو:
-                // 1) Firebase حمّل بياناته الأصلية (transactionsFromFirebase.current)
-                // 2) وفيه عمليات فعلية أو Firebase خالي
                 if (isAdmin && auth.currentUser && firebaseReady && transactionsFromFirebase.current) {
-                    try { db.ref('transactions').set(transactions); } catch(e){}
+                    safeFirebaseSet(db, 'transactions', transactions);
                 }
             }, [transactions]);
 
             useEffect(() => { 
                 saveToLocalStorage('people', people);
-                // الأدمن والمساعد يقدرون يحدثون العملاء في Firebase
                 if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
                     try {
-                        people.forEach(p => {
-                            db.ref('customers').child(String(p.id)).set(p);
-                        });
-                    } catch(e){}
+                        people.forEach(p => { db.ref('customers').child(String(p.id)).set(p); });
+                    } catch(e){ enqueueOffline('customers', Object.fromEntries(people.map(p=>[p.id,p]))); }
                 }
             }, [people]);
 
             useEffect(() => { 
                 saveToLocalStorage('capital', capital);
-                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('capital').set(capital); } catch(e){} }
+                if (isAdmin && auth.currentUser && firebaseReady) { safeFirebaseSet(db, 'capital', capital); }
             }, [capital]);
 
             useEffect(() => { saveToLocalStorage('fawriBalance', fawriBalance); }, [fawriBalance]);
 
             useEffect(() => { saveToLocalStorage('privacyMode', privacyMode); }, [privacyMode]);
+            useEffect(() => { saveToLocalStorage('streetMode', streetMode); }, [streetMode]);
+
+            // ══ Page Visibility Lock: قفل التطبيق لما يتعمل Hide ══
+            useEffect(() => {
+                const handleVisibility = () => {
+                    if (document.hidden && userRole) {
+                        setPageLocked(true);
+                    }
+                };
+                document.addEventListener('visibilitychange', handleVisibility);
+                return () => document.removeEventListener('visibilitychange', handleVisibility);
+            }, [userRole]);
+
+            // ══ Offline Queue Flush: نفّذ العمليات المعلّقة لما يرجع الإنترنت ══
+            useEffect(() => {
+                const handleOnline = () => {
+                    if (window.db) flushOfflineQueue(window.db);
+                };
+                window.addEventListener('online', handleOnline);
+                if (navigator.onLine && window.db) flushOfflineQueue(window.db);
+                // تنظيف دوري (مرة عند التحميل)
+                cleanupOldOfflineQueue();
+                return () => window.removeEventListener('online', handleOnline);
+            }, []);
 
             // ⭐ Web Share Target — استقبال الصور المشاركة من واتساب وغيره
             useEffect(() => {
@@ -2836,7 +3392,7 @@
                     setSplitConfirmed(false);
                     return;
                 }
-                const plan = calcSmartSplit(amt, form.type);
+                const plan = calcSmartSplit(sources, amt, form.type);
                 setSplitPlan(plan);
                 if (plan === null) setSplitConfirmed(false); // reset لو المبلغ صغير يكفي خط واحد
             }, [form.amount, form.type, modal, lines, visas, instaPays, transactions]);
@@ -2859,6 +3415,22 @@
                 }} />;
             }
 
+            // ══ Page Lock Screen ══
+            if (pageLocked) {
+                return (
+                    <div style={{minHeight:"100vh",background:"#05070f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Tajawal',sans-serif",direction:"rtl"}}>
+                        <div style={{fontSize:64,marginBottom:16}}>🔒</div>
+                        <div style={{fontSize:20,fontWeight:800,color:"#e2e8f0",marginBottom:8}}>التطبيق مقفول</div>
+                        <div style={{fontSize:13,color:"#64748b",marginBottom:32}}>غادرت التطبيق — اضغط للعودة</div>
+                        <button onClick={()=>setPageLocked(false)}
+                            style={{background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:14,padding:"14px 40px",color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 20px rgba(228,0,0,0.4)"}}>
+                            🔓 فتح التطبيق
+                        </button>
+                        <div style={{marginTop:16,fontSize:11,color:"#1e3a5f"}}>v17 • Hawker Cash</div>
+                    </div>
+                );
+            }
+
             function logout() {
                 if (firebaseUser) {
                     auth.signOut();
@@ -2870,215 +3442,130 @@
 
             function showToast(msg, type="success") { setToast({msg,type}); setTimeout(()=>setToast(null),3000); }
 
-            // ⭐ حساب الـ stats من الـ transactions بناءً على رقم الخط (number) — يحل مشكلة تغيير الـ ID بعد الحذف والإضافة
-            function calcSourceStats(source, txns) {
-                const num = source.number;
-                const sid = source.id;
-                const todayStr = today();
-                const monthStr = currentMonthStr();
-                let usedTodayTransfer = 0, usedMonthTransfer = 0;
-                let usedTodayReceive  = 0, usedMonthReceive  = 0;
-                for (const t of txns) {
-                    const tMonth = (t.date || "").slice(0, 7);
-                    const isToday = t.date === todayStr;
-                    const isMonth = tMonth === monthStr;
-                    const isOutgoing = t.type === "transfer" || t.type === "bank_withdraw" || t.type === "fawri_withdraw" || t.type === "fawri_transfer" || t.type === "internal_transfer";
-                    // ⭐ مطابقة بـ sourceId أولاً (الأدق)، وإلا بـ رقم التليفون كـ fallback
-                    const matchesOutgoing = t.sourceId === sid || (num && t.fromNumber === num);
-                    const matchesIncoming = t.sourceId === sid || (num && t.toNumber === num);
-                    // ⭐ نستخدم totalAmount (شامل العمولة) لعمليات السحب
-                    const effectiveAmount = t.totalAmount || t.amount || 0;
-                    if (isOutgoing && matchesOutgoing) {
-                        if (isToday) usedTodayTransfer += effectiveAmount;
-                        if (isMonth) usedMonthTransfer += effectiveAmount;
-                    }
-                    if (t.type === "receive" && matchesIncoming) {
-                        if (isToday) usedTodayReceive += (t.amount || 0);
-                        if (isMonth) usedMonthReceive += (t.amount || 0);
-                    }
+            // ══ Voice-to-Accounting ══
+            function startVoiceInput() {
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SR) { showToast("المتصفح مش بيدعم التعرف على الصوت", "error"); return; }
+                if (voiceListening) {
+                    voiceRecogRef.current?.stop();
+                    setVoiceListening(false);
+                    setVoiceStatus("idle");
+                    return;
                 }
-                return { usedTodayTransfer, usedMonthTransfer, usedTodayReceive, usedMonthReceive };
-            }
-
-            const sources = [
-                ...lines.map(l => {
-                    const stats = calcSourceStats(l, transactions);
-                    return {...l, type:"line", dailyLimit:vodDailyLimit, monthlyLimit:linesMonthlyLimit,
-                        usedToday: stats.usedTodayTransfer,
-                        usedTodayReceive: stats.usedTodayReceive,
-                        usedMonth: stats.usedMonthTransfer,
-                        usedMonthTransfer: stats.usedMonthTransfer,
-                        usedMonthReceive: stats.usedMonthReceive,
-                    };
-                }),
-                ...visas.map(v => {
-                    const stats = calcSourceStats(v, transactions);
-                    return {...v, type:"visa", dailyLimit:visaDailyLimit, monthlyLimit:visaMonthlyLimit,
-                        usedToday: stats.usedTodayTransfer,
-                        usedTodayReceive: stats.usedTodayReceive,
-                        usedMonth: stats.usedMonthTransfer,
-                        usedMonthTransfer: stats.usedMonthTransfer,
-                        usedMonthReceive: stats.usedMonthReceive,
-                    };
-                }),
-                ...instaPays.map(ip => {
-                    const stats = calcSourceStats(ip, transactions);
-                    return {...ip, type:"instapay", dailyLimit:instapayDailyLimit, monthlyLimit:instapayMonthlyLimit,
-                        usedToday: stats.usedTodayTransfer,
-                        usedTodayReceive: stats.usedTodayReceive,
-                        usedMonth: stats.usedMonthTransfer,
-                        usedMonthTransfer: stats.usedMonthTransfer,
-                        usedMonthReceive: stats.usedMonthReceive,
-                    };
-                }),
-            ];
-
-            // ══════════════════════════════════════════════════════
-            //  💡 توزيع العمليات الذكي — Smart Auto-Routing Logic
-            // ══════════════════════════════════════════════════════
-            function getSmartRoute(amount, txnType) {
-                const amt = parseFloat(amount);
-                if (!amt || isNaN(amt) || amt <= 0) return { suggestedId: null, allAtLimit: false };
-
-                // الخطوط المتاحة فقط
-                const available = sources.filter(s => s.available !== false);
-                if (available.length === 0) return { suggestedId: null, allAtLimit: true };
-
-                const WARN_THRESHOLD = 0.85; // 85% من الحد = خط مرهق
-
-                if (txnType === "receive" || txnType === "transfer") {
-                    // ═══ تحويل/استلام: نحتاج خطاً برصيد كافٍ وضمن الحد اليومي ═══
-                    const eligible = available.filter(s => {
-                        const bal = s.balance || 0;
-                        const hasBalance = bal >= amt;
-                        // ⭐ FIX: usedToday = تحويلات فقط، لا نجمع الاستلام
-                        const afterDailyTransfer = (s.usedToday || 0) + amt;
-                        const afterMonthly       = (s.usedMonth || 0) + amt;
-                        const dailyOk   = s.dailyLimit   > 0 ? (afterDailyTransfer / s.dailyLimit)   < WARN_THRESHOLD : true;
-                        const monthlyOk = s.monthlyLimit > 0 ? (afterMonthly       / s.monthlyLimit) < WARN_THRESHOLD : true;
-                        return hasBalance && dailyOk && monthlyOk;
-                    });
-
-                    if (eligible.length === 0) {
-                        // fallback: على الأقل رصيد كافٍ بدون شرط الـ 85%
-                        const fallback = available.filter(s => (s.balance || 0) >= amt);
-                        if (fallback.length === 0) return { suggestedId: null, allAtLimit: true };
-                        fallback.sort((a, b) => (b.balance || 0) - (a.balance || 0));
-                        return { suggestedId: fallback[0].id, allAtLimit: false };
-                    }
-                    eligible.sort((a, b) => (b.balance || 0) - (a.balance || 0));
-                    return { suggestedId: eligible[0].id, allAtLimit: false };
-
-                } else {
-                    // ═══ سحب بنك/فوري: نحتاج خطاً له مساحة في حدّه اليومي ═══
-                    const withSpace = available.map(s => {
-                        // ⭐ FIX: المتبقي = dailyLimit - usedTodayTransfer (تحويلات فقط)
-                        const dailyRemaining   = s.dailyLimit   > 0 ? Math.max(0, s.dailyLimit   - (s.usedToday || 0)) : Infinity;
-                        const monthlyRemaining = s.monthlyLimit > 0 ? Math.max(0, s.monthlyLimit - (s.usedMonth || 0)) : Infinity;
-                        const space = Math.min(dailyRemaining, monthlyRemaining);
-                        return { ...s, space, canAbsorb: space >= amt };
-                    });
-
-                    const canAbsorb = withSpace.filter(s => s.canAbsorb);
-                    if (canAbsorb.length === 0) return { suggestedId: null, allAtLimit: true };
-                    canAbsorb.sort((a, b) => b.space - a.space);
-                    return { suggestedId: canAbsorb[0].id, allAtLimit: false };
-                }
-            }
-
-            // ══════════════════════════════════════════════════════
-            //  ✂️  Smart Multi-Line Splitting — حساب خطة التقسيم
-            // ══════════════════════════════════════════════════════
-            function calcSmartSplit(amount, txnType) {
-                const amt = parseFloat(amount);
-                if (!amt || isNaN(amt) || amt <= 0) return null;
-
-                // فقط للتحويل والاستلام (العمليات التي تتأثر بالرصيد واليومي)
-                if (txnType !== "transfer" && txnType !== "receive") return null;
-
-                const isTransfer = txnType === "transfer";
-
-                // نبني قائمة المصادر المتاحة مع حساب السعة الفعلية لكل واحد
-                const candidates = sources
-                    .filter(s => s.available !== false)
-                    .map(s => {
-                        const balance = parseFloat(s.balance) || 0;
-                        // ⭐ FIX: الحد اليومي يُطبَّق على التحويلات فقط (s.usedToday = transfer only بعد الإصلاح)
-                        const dailyUsedTransfer = s.usedToday || 0;          // تحويلات اليوم فقط
-                        const dailyUsedReceive  = s.usedTodayReceive || 0;   // استلامات اليوم فقط
-                        const dailyLimit   = s.dailyLimit   || Infinity;
-                        const monthlyUsed  = s.usedMonth    || 0;
-                        const monthlyLimit = s.monthlyLimit || Infinity;
-
-                        // ⭐ FIX: المتبقي اليومي = dailyLimit - usedTodayTransfer (لا نجمع الاستلام)
-                        const dailyRemainingTransfer = Math.max(0, dailyLimit - dailyUsedTransfer);
-                        const dailyRemainingReceive  = Math.max(0, dailyLimit - dailyUsedReceive);
-                        const monthlyRemaining       = Math.max(0, monthlyLimit - monthlyUsed);
-
-                        const capacity = isTransfer
-                            ? Math.min(balance, dailyRemainingTransfer, monthlyRemaining)
-                            : Math.min(dailyRemainingReceive, monthlyRemaining); // الاستلام: حد يومي منفصل
-
-                        return { ...s, capacity: Math.floor(capacity * 100) / 100 };
-                    })
-                    .filter(s => s.capacity > 0)
-                    .sort((a, b) => b.capacity - a.capacity); // ترتيب تنازلي بالسعة
-
-                if (candidates.length === 0) return null;
-
-                // فحص سريع: هل في خط واحد يستوعب المبلغ كاملاً؟
-                const singleLineOk = candidates.some(s => s.capacity >= amt);
-                if (singleLineOk) return null; // لا داعي للتقسيم
-
-                // بناء خطة التقسيم — greedy من الأعلى سعة للأدنى
-                const steps = [];
-                let remaining = amt;
-
-                for (const src of candidates) {
-                    if (remaining <= 0) break;
-                    const take = Math.min(src.capacity, remaining);
-                    if (take > 0) {
-                        steps.push({
-                            sourceId:   src.id,
-                            sourceName: src.name,
-                            sourceType: src.type,
-                            amount:     Math.round(take * 100) / 100,
-                            balance:    src.balance || 0,
-                            capacity:   src.capacity
-                        });
-                        remaining = Math.round((remaining - take) * 100) / 100;
-                    }
-                }
-
-                const totalCovered = Math.round((amt - remaining) * 100) / 100;
-                const isComplete   = remaining <= 0;
-
-                return { steps, totalCovered, needed: amt, remaining: Math.max(0, remaining), isComplete };
-            }
-
-            function handleImagePick(e) {
-                const file = e.target.files[0]; if (!file) return;
-                const imageKey = `img_${Date.now()}`;
-                const reader = new FileReader();
-                reader.onload = ev => {
-                    try {
-                        try { localStorage.setItem(imageKey, ev.target.result); } catch(err) {}
-                        _memStore[imageKey] = ev.target.result;
-                        setForm(f => ({...f, image: imageKey}));
-                        showToast("✓ تم حفظ الصورة");
-                    } catch (err) {
-                        showToast("فشل حفظ الصورة - جرب صورة أصغر", "error");
-                    }
+                const recog = new SR();
+                recog.lang = "ar-EG";
+                recog.continuous = false;
+                recog.interimResults = false;
+                voiceRecogRef.current = recog;
+                recog.onstart = () => { setVoiceListening(true); setVoiceStatus("listening"); setVoiceTranscript(""); };
+                recog.onresult = (e) => {
+                    const text = e.results[0][0].transcript;
+                    setVoiceTranscript(text);
+                    setVoiceStatus("processing");
+                    parseVoiceCommand(text);
                 };
-                reader.readAsDataURL(file);
+                recog.onerror = () => { setVoiceListening(false); setVoiceStatus("error"); showToast("مش فاهمتك — حاول تاني", "error"); };
+                recog.onend = () => { setVoiceListening(false); };
+                recog.start();
             }
 
-            // ⭐ جلب الصورة الحقيقية من localStorage أو memory باستخدام المفتاح
+            function parseVoiceCommand(text) {
+                // أنماط: "حوّل 500 لزياد" / "استلم 1000 من محمد" / "سحب بنك 2000" / "فوري 500"
+                const t = text.trim();
+                let amount = null, name = null, type = null, phone = null;
+
+                // استخرج الرقم
+                const numMatch = t.match(/(\d[\d,٠-٩]*(?:\.\d+)?)/);
+                if (numMatch) {
+                    amount = parseFloat(numMatch[1].replace(/,/g, '').replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632));
+                }
+
+                // استخرج النوع
+                if (/حوّل|حول|تحويل|ارسل|إرسال/.test(t)) type = "transfer";
+                else if (/استلم|استلام|واخد|استقبل/.test(t)) type = "receive";
+                else if (/سحب.*بنك|بنك/.test(t)) type = "bank_withdraw";
+                else if (/فوري|فوري/.test(t)) type = "fawri_withdraw";
+                else if (/انستاباي|انستا/.test(t)) type = "instapay";
+                else type = "transfer"; // default
+
+                // استخرج الاسم بعد "لـ" أو "من" أو "لـ"
+                const nameMatch = t.match(/(?:ل|لـ|من|إلى|الى)\s+([أ-ي\u0600-\u06FFa-zA-Z]+)/u);
+                if (nameMatch) name = nameMatch[1];
+
+                // ابحث عن شخص بالاسم
+                let matchedPerson = null;
+                if (name) {
+                    matchedPerson = people.find(p =>
+                        p.personName && p.personName.includes(name)
+                    );
+                    if (matchedPerson) phone = matchedPerson.phone || "";
+                }
+
+                // ملّي الفورم
+                setForm(prev => ({
+                    ...prev,
+                    amount: amount ? String(amount) : prev.amount,
+                    type: type || prev.type,
+                    toName: name || prev.toName || "",
+                    toNumber: phone || prev.toNumber || "",
+                }));
+
+                setVoiceStatus("done");
+                const summary = `${type==="transfer"?"تحويل":type==="receive"?"استلام":type==="bank_withdraw"?"سحب بنك":"سحب فوري"} ${amount||"?"} ج${name ? ` — ${name}` : ""}`;
+                showToast(`🎤 ${summary}`, "success");
+                // افتح مودال الإضافة
+                setTimeout(() => setModal("addTxn"), 300);
+            }
+
+            // ══ Page Lock Unlock ══
+            function unlockPage(pin) {
+                // بسيطة: أي ضغط على الزر يفك القفل (يمكن تطويرها بـ PIN)
+                setPageLocked(false);
+            }
+
+            // ⭐ حساب الـ stats من الـ transactions بناءً على رقم الخط (number) — يحل مشكلة تغيير الـ ID بعد الحذف والإضافة
+            // ── استخدام CALC HELPERS المستقلة ──────────────────────────
+            // calcSourceStats, getSmartRoute, calcSmartSplit معرّفة خارج App
+
+            const sources = buildSources(lines, visas, instaPays, transactions, {
+                vodDailyLimit, linesMonthlyLimit,
+                visaDailyLimit, visaMonthlyLimit,
+                instapayDailyLimit, instapayMonthlyLimit,
+            });
+
+            // ── صور OCR: تخزين في IndexedDB (IDB) بدل localStorage ──
+            async function handleImagePick(e) {
+                const file = e.target.files[0]; if (!file) return;
+                try {
+                    const key = await saveImageToIDB(file);
+                    setForm(f => ({...f, image: key}));
+                    setOcrPreviewUrl(URL.createObjectURL(file));
+                    showToast("✓ تم حفظ الصورة");
+                } catch(err) {
+                    showToast("فشل حفظ الصورة — جرب صورة أصغر", "error");
+                }
+            }
+
+            // جلب الصورة من IDB + fallback للصور القديمة
             function getImageSrc(imageRef) {
                 if (!imageRef) return null;
                 if (imageRef.startsWith("http") || imageRef.startsWith("data:")) return imageRef;
                 try { const v = localStorage.getItem(imageRef); if (v) return v; } catch(e) {}
                 return _memStore[imageRef] || null;
+            }
+
+            // تنظيف صور IDB غير المستخدمة (بعد حذف عمليات)
+            function cleanupUnusedImages() {
+                const usedKeys = transactions.map(t => t.image).filter(k => k && k.startsWith("img_"));
+                IDB.cleanup(usedKeys).catch(() => {});
+            }
+
+            // تنظيف العمليات المعكوسة القديمة من الـ offlineQueue (أكتر من 7 أيام)
+            function cleanupOldOfflineQueue() {
+                const q = loadFromLocalStorage('__offlineQueue', []);
+                const week = 7 * 24 * 60 * 60 * 1000;
+                const fresh = q.filter(item => Date.now() - item.ts < week);
+                if (fresh.length !== q.length) saveToLocalStorage('__offlineQueue', fresh);
             }
 
             // ⭐ دالة معالجة الـ Smart Paste مع AI Fallback (مُصلَّحة)
@@ -3464,19 +3951,9 @@ ${knownNumbersText}`;
             }
 
             // ⭐ حساب العمولة بناءً على نوع العملية — ديناميكي من commissionSettings
+            // ── wrapper يستدعي calcCommissionPure المستقلة ──────────────
             function calcCommission(type, amount) {
-                if (type === "bank_withdraw") {
-                    const rate = parseFloat(commissionSettings?.bankWithdrawRate) || 0.002;
-                    const comm = Math.round(amount * rate * 100) / 100;
-                    return { commission: comm, total: Math.round((amount + comm) * 100) / 100 };
-                }
-                if (type === "fawri_withdraw") {
-                    const rate  = parseFloat(commissionSettings?.fawriWithdrawRate)  || 0.0057;
-                    const fixed = parseFloat(commissionSettings?.fawriWithdrawFixed) || 15;
-                    const comm = Math.round((amount * rate + fixed) * 100) / 100;
-                    return { commission: comm, total: Math.round((amount + comm) * 100) / 100 };
-                }
-                return { commission: 0, total: amount };
+                return calcCommissionPure(type, amount, commissionSettings);
             }
 
             async function addTransaction() {
@@ -3560,7 +4037,12 @@ ${knownNumbersText}`;
                     sourceType: form.sourceType,
                     createdAt: nowStr(),
                     notes: autoNotes,
-                    image: null
+                    image: null,
+                    // ══ Performance Tracking ══
+                    addedBy: firebaseUser?.displayName || firebaseUser?.email || userRole || "غير محدد",
+                    addedAt: new Date().toISOString(),
+                    inputDurationSec: txnStartTime ? Math.round((Date.now() - txnStartTime) / 1000) : null,
+                    reversed: false,
                 };
 
                 // ⭐ Local-First: نحفظ فوراً محلياً علشان الهاتف ما يتأخرش
@@ -3822,75 +4304,40 @@ ${knownNumbersText}`;
                 setIsSubmitting(false);
             }
 
+            // ── استخدام SYNC HELPERS المستقلة لتحديث المصادر ──────────
             function updateSource(sourceId, sourceType, amount, txnType) {
-                // ⭐ سحب بنك وسحب فوري والتحويل الداخلي = خروج (زي transfer)
-                const isOutgoing = txnType === "transfer" || txnType === "bank_withdraw" || txnType === "fawri_withdraw" || txnType === "fawri_transfer" || txnType === "internal_transfer";
-                const delta = isOutgoing ? -amount : amount;
-                const updater = prev => prev.map(item => {
-                    if (item.id !== sourceId) return item;
-                    return {
-                        ...item,
-                        usedTodayTransfer: (item.usedTodayTransfer||0) + (isOutgoing ? amount : 0),
-                        usedMonthTransfer: (item.usedMonthTransfer||0) + (isOutgoing ? amount : 0),
-                        usedTodayReceive:  (item.usedTodayReceive||0)  + (txnType==="receive" ? amount : 0),
-                        usedMonthReceive:  (item.usedMonthReceive||0)  + (txnType==="receive" ? amount : 0),
-                        balance: (item.balance||0) + delta
-                    };
-                });
-                if (sourceType === "line") setLines(updater);
+                const updater = buildSourceUpdater(sourceId, txnType, amount, false);
+                if (sourceType === "line")      setLines(updater);
                 else if (sourceType === "visa") setVisas(updater);
-                else if (sourceType === "instapay") setInstaPays(updater);
+                else                            setInstaPays(updater);
             }
 
             function deleteTransaction(txn) {
                 setTransactions(prev => prev.filter(t => t.id !== txn.id));
-                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer" || txn.type === "internal_transfer";
-                const effectiveAmount = txn.totalAmount || txn.amount; // الإجمالي شامل العمولة
-                const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
-                const reverter = prev => prev.map(item => {
-                    if (item.id !== txn.sourceId) return item;
-                    return {
-                        ...item,
-                        usedTodayTransfer: Math.max(0, (item.usedTodayTransfer||0) - (isOutgoing ? effectiveAmount : 0)),
-                        usedMonthTransfer: Math.max(0, (item.usedMonthTransfer||0) - (isOutgoing ? effectiveAmount : 0)),
-                        usedTodayReceive:  Math.max(0, (item.usedTodayReceive||0)  - (txn.type==="receive" ? effectiveAmount : 0)),
-                        usedMonthReceive:  Math.max(0, (item.usedMonthReceive||0)  - (txn.type==="receive" ? effectiveAmount : 0)),
-                        balance: (item.balance||0) + delta
-                    };
-                });
-                if (txn.sourceType === "line") setLines(reverter);
-                else if (txn.sourceType === "visa") setVisas(reverter);
-                else if (txn.sourceType === "instapay") setInstaPays(reverter);
+                const effectiveAmount = txn.totalAmount || txn.amount;
+                applySourceUpdate(txn, effectiveAmount, setLines, setVisas, setInstaPays, true);
                 setConfirmDelete(null);
                 showToast("تم حذف العملية ✓");
+                cleanupUnusedImages();
             }
 
             // ⭐ عكس العملية - بيرجع الأرقام كأن شيئاً لم يكن
             function reverseTransaction(txn) {
-                const isOutgoing = txn.type === "transfer" || txn.type === "bank_withdraw" || txn.type === "fawri_withdraw" || txn.type === "fawri_transfer" || txn.type === "internal_transfer";
                 const effectiveAmount = txn.totalAmount || txn.amount;
-                const delta = isOutgoing ? effectiveAmount : -effectiveAmount;
-
-                // نحذف العملية من القائمة
-                setTransactions(prev => prev.filter(t => t.id !== txn.id));
-
-                // نعكس أرقام الخط/الفيزا/انستاباي
-                const reverter = prev => prev.map(item => {
-                    if (item.id !== txn.sourceId) return item;
-                    return {
-                        ...item,
-                        usedTodayTransfer: Math.max(0, (item.usedTodayTransfer||0) - (isOutgoing ? effectiveAmount : 0)),
-                        usedMonthTransfer: Math.max(0, (item.usedMonthTransfer||0) - (isOutgoing ? effectiveAmount : 0)),
-                        usedTodayReceive:  Math.max(0, (item.usedTodayReceive||0)  - (txn.type==="receive" ? effectiveAmount : 0)),
-                        usedMonthReceive:  Math.max(0, (item.usedMonthReceive||0)  - (txn.type==="receive" ? effectiveAmount : 0)),
-                        balance: (item.balance||0) + delta
-                    };
+                // ✅ علّم العملية كـ reversed (للـ Performance Board) بدل حذفها كلياً
+                setTransactions(prev => {
+                    const updated = prev.map(t => t.id === txn.id ? {...t, reversed: true, reversedAt: nowStr()} : t);
+                    saveToLocalStorage('transactions', updated);
+                    return updated;
                 });
-                if (txn.sourceType === "line") setLines(reverter);
-                else if (txn.sourceType === "visa") setVisas(reverter);
-                else if (txn.sourceType === "instapay") setInstaPays(reverter);
-
-                // ⭐ تحويل داخلي — اعكس المبلغ عن الخط المستقبِل كمان
+                // رفع تعليم reversed لـ Firebase
+                if (auth.currentUser && firebaseReady) {
+                    safeFirebaseSet(db, `transactions/${txn.id}/reversed`, true);
+                    safeFirebaseSet(db, `transactions/${txn.id}/reversedAt`, nowStr());
+                }
+                // عكس المصدر الأصلي باستخدام helper
+                applySourceUpdate(txn, effectiveAmount, setLines, setVisas, setInstaPays, true);
+                // تحويل داخلي — اعكس الخط المستقبِل كمان
                 if (txn.type === "internal_transfer" && txn.toInternalId) {
                     const destReverter = prev => prev.map(item => item.id !== txn.toInternalId ? item : {
                         ...item,
@@ -3902,10 +4349,9 @@ ${knownNumbersText}`;
                     setVisas(destReverter);
                     setInstaPays(destReverter);
                 }
-
-                // نعكس سجل الشخص لو موجود
+                // عكس سجل الشخص لو موجود
                 setPeople(prev => prev.map(p => {
-                    if (p.personName.toLowerCase() !== txn.personName?.toLowerCase()) return p;
+                    if (p.personName?.toLowerCase() !== txn.personName?.toLowerCase()) return p;
                     return {
                         ...p,
                         records: (p.records || []).filter(r => !(
@@ -3915,7 +4361,6 @@ ${knownNumbersText}`;
                         lastUpdated: nowStr()
                     };
                 }));
-
                 setConfirmDelete(null);
                 showToast("↩️ تم عكس العملية وإرجاع الأرقام ✓");
             }
@@ -4227,6 +4672,12 @@ ${knownNumbersText}`;
                 return new Date(lastDebit.date) < threeDaysAgo;
             }).sort((a,b) => getPersonBalance(b) - getPersonBalance(a));
 
+            // ══ Performance Board (مُحسوب مرة واحدة فقط) ══
+            const performanceBoard = (isAdmin || isOmar) ? calcPerformanceBoard(transactions) : [];
+
+            // ══ Liquidity Forecast ══
+            const liquidityForecast = (isAdmin || isOmar) ? calcLiquidityForecast(transactions, sources) : null;
+
             const thisMonth = currentMonthStr();
             const monthlyLogs = financeLogs.filter(l => l.monthDate === thisMonth);
             
@@ -4345,12 +4796,65 @@ ${knownNumbersText}`;
                                     lineHeight: 1,
                                 }}
                             >{privacyMode ? "🙈" : "👁️"}</button>
+
+                            {/* ══ Street Mode — إخفاء شامل ══ */}
+                            <button
+                                onClick={()=>setStreetMode(s=>!s)}
+                                title={streetMode ? "إلغاء وضع الشارع الكامل" : "وضع الشارع — إخفاء كل شيء"}
+                                style={{
+                                    background: streetMode ? "#ef444420" : "rgba(255,255,255,0.05)",
+                                    border: `1px solid ${streetMode ? "#ef444460" : "var(--border-dim)"}`,
+                                    borderRadius: 20, padding: "6px 10px",
+                                    color: streetMode ? "#ef4444" : "#64748b",
+                                    fontSize: 15, cursor: "pointer", lineHeight: 1,
+                                }}
+                            >{streetMode ? "🕵️" : "🪟"}</button>
+
+                            {/* ══ زر الصوت Voice-to-Accounting ══ */}
+                            {(isAdmin || isAssistant) && (
+                                <button
+                                    onClick={startVoiceInput}
+                                    title="أمر صوتي — قل: حوّل 500 لزياد"
+                                    style={{
+                                        background: voiceListening ? "#22d3ee20" : "rgba(255,255,255,0.05)",
+                                        border: `1px solid ${voiceListening ? "#22d3ee60" : "var(--border-dim)"}`,
+                                        borderRadius: 20, padding: "6px 10px",
+                                        color: voiceListening ? "#22d3ee" : "#64748b",
+                                        fontSize: 15, cursor: "pointer", lineHeight: 1,
+                                        animation: voiceListening ? "blink 0.8s infinite" : "none",
+                                    }}
+                                >{voiceListening ? "🔴" : "🎤"}</button>
+                            )}
                             {alertSources.length>0 && <div style={{background:"#ef444420",border:"1px solid #ef4444",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#ef4444",animation:"blink 1s infinite"}}>⚠️ {alertSources.length}</div>}
                             <button onClick={logout} style={{background:"#ef444420", border:"1px solid #ef4444", borderRadius:20, padding:"6px 14px", color:"#ef4444", fontSize:12, cursor:"pointer", fontWeight:600}}>خروج</button>
                         </div>
                     </div>
 
                     {toast && <div className="toast-animate" style={{position:"fixed",top:68,left:"50%",transform:"translateX(-50%)",background:toast.type==="error"?"#ef4444":"#10b981",color:"#fff",padding:"10px 24px",borderRadius:30,fontSize:14,fontWeight:600,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.6)",whiteSpace:"nowrap"}}>{toast.msg}</div>}
+
+                    {/* ══ Street Mode Overlay ══ */}
+                    {streetMode && (
+                        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(5,7,15,0.92)",zIndex:8888,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Tajawal',sans-serif"}}>
+                            <div style={{fontSize:64,marginBottom:12}}>🕵️</div>
+                            <div style={{fontSize:18,fontWeight:800,color:"#e2e8f0",marginBottom:6}}>وضع الشارع مفعّل</div>
+                            <div style={{fontSize:12,color:"#475569",marginBottom:24}}>كل البيانات الحساسة مخفية</div>
+                            <button onClick={()=>setStreetMode(false)}
+                                style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:12,padding:"12px 32px",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                                👁️ إظهار البيانات
+                            </button>
+                        </div>
+                    )}
+
+                    {/* ══ Voice Transcript Banner ══ */}
+                    {(voiceListening || voiceStatus === "processing" || voiceStatus === "done") && (
+                        <div style={{position:"fixed",top:60,left:0,right:0,zIndex:998,background:voiceListening?"#22d3ee15":"#a78bfa15",borderBottom:`1px solid ${voiceListening?"#22d3ee40":"#a78bfa40"}`,padding:"8px 16px",display:"flex",alignItems:"center",gap:10,fontFamily:"'Tajawal',sans-serif",direction:"rtl"}}>
+                            <span style={{fontSize:18}}>{voiceListening?"🔴":"✅"}</span>
+                            <span style={{fontSize:13,color:voiceListening?"#22d3ee":"#a78bfa",fontWeight:600}}>
+                                {voiceListening ? "جاري الاستماع..." : voiceStatus==="processing" ? "⚙️ جاري التحليل..." : `✅ ${voiceTranscript}`}
+                            </span>
+                            <button onClick={()=>{setVoiceStatus("idle");setVoiceTranscript("");}} style={{marginRight:"auto",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:16}}>✕</button>
+                        </div>
+                    )}
 
                     {/* ⭐ حارس الحوكر */}
                     {(isAdmin || isAssistant) && (
@@ -4612,15 +5116,86 @@ ${knownNumbersText}`;
                                 {/* ⭐ FEATURE: تذكيرات الديون القديمة */}
                                 {oldDebtors.length>0 && (
                                     <div style={{background:"#ef444408",border:"1px solid #ef444430",borderRadius:14,padding:12,marginBottom:12}}>
-                                        <div style={{fontSize:12,fontWeight:700,color:"#ef4444",marginBottom:8}}>🕐 ديون من أكتر من 3 أيام</div>
-                                        <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                                            {oldDebtors.slice(0,4).map(p=>(
-                                                <div key={p.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:"1px solid #1a2235"}}>
-                                                    <span style={{color:"#c8d6e8"}}>{p.personName}</span>
-                                                    <span style={{color:"#ef4444",fontWeight:700}}>{formatNum(getPersonBalance(p))} ج</span>
+                                        <div style={{fontSize:12,fontWeight:700,color:"#ef4444",marginBottom:8}}>🕐 ديون متأخرة أكتر من 3 أيام</div>
+                                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                                            {oldDebtors.slice(0,5).map(p=>{
+                                                const bal = getPersonBalance(p);
+                                                const age = calcDebtAge(p);
+                                                const wa  = debtReminderWA(p, bal);
+                                                return (
+                                                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,padding:"5px 0",borderBottom:"1px solid #1a2235"}}>
+                                                        <div>
+                                                            <span style={{color:"#c8d6e8",fontWeight:600}}>{p.personName}</span>
+                                                            <span style={{color:"#64748b",fontSize:10,marginRight:6}}>{age} يوم</span>
+                                                        </div>
+                                                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                                            <span style={{color:"#ef4444",fontWeight:700}}>{maskNum(bal, privacyMode)} ج</span>
+                                                            {wa && (
+                                                                <a href={wa} target="_blank" rel="noopener"
+                                                                    style={{background:"#25D36620",border:"1px solid #25D36640",borderRadius:6,padding:"3px 8px",color:"#25D366",fontSize:12,textDecoration:"none",display:"inline-flex",alignItems:"center"}}>
+                                                                    💬
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {oldDebtors.length>5 && <div style={{fontSize:11,color:"#3d4f65",textAlign:"center"}}>+ {oldDebtors.length-5} عملاء آخرين</div>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ══ Liquidity Forecast ══ */}
+                                {liquidityForecast && (
+                                    <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #a78bfa30",borderRadius:14,padding:14,marginBottom:12}}>
+                                        <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:10}}>🔮 التوقع المالي لغداً</div>
+                                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                                            <div style={{background:"#a78bfa10",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                                                <div style={{fontSize:18,fontWeight:900,color:"#a78bfa"}}>{maskNum(liquidityForecast.tomorrowForecast, privacyMode)} ج</div>
+                                                <div style={{fontSize:10,color:"#64748b",marginTop:2}}>سيولة متوقعة غداً</div>
+                                            </div>
+                                            <div style={{background: liquidityForecast.trend >= 0 ? "#10b98110" : "#ef444410",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                                                <div style={{fontSize:18,fontWeight:900,color: liquidityForecast.trend >= 0 ? "#10b981" : "#ef4444"}}>
+                                                    {liquidityForecast.trend >= 0 ? "▲" : "▼"} {Math.abs(liquidityForecast.trend)}%
+                                                </div>
+                                                <div style={{fontSize:10,color:"#64748b",marginTop:2}}>اتجاه 3 أيام</div>
+                                            </div>
+                                        </div>
+                                        {liquidityForecast.sourceAlerts.length > 0 && (
+                                            <div style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:8,padding:"8px 10px"}}>
+                                                <div style={{fontSize:11,fontWeight:700,color:"#ef4444",marginBottom:4}}>⚠️ خطوط ستنفد غداً:</div>
+                                                {liquidityForecast.sourceAlerts.map(s=>(
+                                                    <div key={s.id} style={{fontSize:11,color:"#fca5a5",marginBottom:2}}>
+                                                        📱 {s.name} — رصيد: {maskNum(s.balance, privacyMode)} ج | معدل يومي: {maskNum(s.avgDaily, privacyMode)} ج
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ══ Performance Board ══ */}
+                                {performanceBoard.length > 0 && (
+                                    <div style={{background:"linear-gradient(135deg,#0a1628,#0d1a2e)",border:"1px solid #22d3ee20",borderRadius:14,padding:14,marginBottom:12}}>
+                                        <div style={{fontSize:12,fontWeight:700,color:"#22d3ee",marginBottom:10}}>🏆 أداء المساعدين</div>
+                                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                                            {performanceBoard.slice(0,4).map((b,idx)=>(
+                                                <div key={b.name} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #0d1a2e"}}>
+                                                    <div style={{fontSize:16,width:24,textAlign:"center"}}>{["🥇","🥈","🥉","4️⃣"][idx]||"•"}</div>
+                                                    <div style={{flex:1}}>
+                                                        <div style={{fontSize:12,fontWeight:700,color:"#e2e8f0"}}>{b.name}</div>
+                                                        <div style={{fontSize:10,color:"#475569",marginTop:1}}>
+                                                            {b.count} عملية
+                                                            {b.reversed>0 && <span style={{color:"#ef4444"}}> — {b.reversed} معكوسة</span>}
+                                                            {b.avgSec && <span style={{color:"#64748b"}}> — متوسط {b.avgSec}ث</span>}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{textAlign:"center"}}>
+                                                        <div style={{fontSize:14,fontWeight:800,color:b.efficiency>=90?"#10b981":b.efficiency>=70?"#f59e0b":"#ef4444"}}>{b.efficiency}%</div>
+                                                        <div style={{fontSize:9,color:"#475569"}}>كفاءة</div>
+                                                    </div>
                                                 </div>
                                             ))}
-                                            {oldDebtors.length>4 && <div style={{fontSize:11,color:"#3d4f65",textAlign:"center"}}>+ {oldDebtors.length-4} عملاء آخرين</div>}
                                         </div>
                                     </div>
                                 )}
@@ -4648,7 +5223,7 @@ ${knownNumbersText}`;
                                 </div>
 
                                 {canAddTxn && (
-                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); setForm({ type:"transfer", date:today(), time:nowTime(), fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
+                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setTxnStartTime(Date.now()); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); setForm({ type:"transfer", date:today(), time:nowTime(), fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
                                 )}
 
                                 {/* ⭐ الرسوم البيانية التفاعلية */}
@@ -4764,8 +5339,10 @@ ${knownNumbersText}`;
                                         {t.type === "transfer" && <div style={{fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                                                 من: {t.fromNumber}
                                                 {(isViewer||isAdmin||isOmar) && t.fromNumber && <button onClick={()=>{navigator.clipboard.writeText(t.fromNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                                {t.fromNumber && phoneToWA(t.fromNumber) && <a href={phoneToWA(t.fromNumber)} target="_blank" rel="noopener" style={{background:"#25D36615",border:"1px solid #25D36630",borderRadius:6,padding:"1px 6px",color:"#25D366",fontSize:10,textDecoration:"none"}}>💬</a>}
                                                 ← إلى: {t.toNumber}
                                                 {(isViewer||isAdmin||isOmar) && t.toNumber && <button onClick={()=>{navigator.clipboard.writeText(t.toNumber);showToast("تم النسخ ✓");}} style={{background:"#1e293b",border:"none",borderRadius:6,padding:"2px 7px",color:"#22d3ee",cursor:"pointer",fontSize:11}}>نسخ</button>}
+                                                {t.toNumber && phoneToWA(t.toNumber) && <a href={phoneToWA(t.toNumber)} target="_blank" rel="noopener" style={{background:"#25D36615",border:"1px solid #25D36630",borderRadius:6,padding:"1px 6px",color:"#25D366",fontSize:10,textDecoration:"none"}}>💬</a>}
                                             </div>}
                                     </div>
                                 ))}
@@ -5086,6 +5663,14 @@ ${knownNumbersText}`;
                                                         style={{background:"#0a1628",border:"1px solid #a78bfa30",borderRadius:8,padding:"7px 10px",color:"#a78bfa",fontSize:13,cursor:"pointer"}}>
                                                         🖨️
                                                     </button>
+                                                    {balance > 0 && person.phone && (
+                                                        <a href={`https://wa.me/2${person.phone.replace(/^0/,'')}?text=${encodeURIComponent(`السلام عليكم ${person.personName}،\nيرجى العلم أن رصيدك المستحق هو: ${Number(balance).toLocaleString('ar-EG')} جنيه.\nشكراً 🙏`)}`}
+                                                            target="_blank" rel="noopener"
+                                                            title="تذكير واتساب"
+                                                            style={{background:"#25D36620",border:"1px solid #25D36640",borderRadius:8,padding:"7px 10px",color:"#25D366",fontSize:14,cursor:"pointer",textDecoration:"none",display:"flex",alignItems:"center"}}>
+                                                            💬
+                                                        </a>
+                                                    )}
                                                 </div>
                                             )}
                                             {!canEditPeople && (
@@ -6438,7 +7023,7 @@ ${knownNumbersText}`;
                                         <button
                                             onClick={() => {
                                                 setAutoRouting(prev => ({ ...prev, userOverrode: false }));
-                                                const result = getSmartRoute(form.amount, form.type);
+                                                const result = getSmartRoute(sources, form.amount, form.type);
                                                 if (result.suggestedId) {
                                                     const sel = sources.find(s => s.id === result.suggestedId);
                                                     setForm(f => ({ ...f, sourceId: result.suggestedId, sourceType: sel ? sel.type : "line" }));
