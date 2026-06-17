@@ -35,7 +35,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script>
+    // ✅ Disable Babel's internal dynamic imports that break on file:// protocol
+    document.addEventListener('DOMContentLoaded', function() {
+        // Force Babel to process scripts synchronously
+        var scripts = document.querySelectorAll('script[type="text/babel"]');
+        scripts.forEach(function(s) { s.setAttribute('data-type', 'module'); });
+    });
+    </script>
 
     <!-- ══ Inline Manifest fallback (بديل لو manifest.json مش موجود) ══ -->
     <script id="pwa-manifest-inline">
@@ -427,7 +435,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
 
-    <script type="text/babel">
+    <script type="text/jsx-raw" id="main-jsx-src" >
         const { useState, useEffect, useRef } = React;
 
         // ══════════════════════════════════════════════════════════════
@@ -519,87 +527,30 @@
         }
 
         async function callClaudeChat(systemPrompt, history) {
-            const anthropicKey = getAnthropicKey();
-            const openrouterKey = getOpenRouterKey();
-
-            if (!anthropicKey && !openrouterKey) {
-                throw new Error("مفيش API Key — روح ⚙️ الإعدادات وحط مفتاح Anthropic أو OpenRouter");
-            }
-
             const messages = history.map(m => ({
                 role: m.role === "user" ? "user" : "assistant",
                 content: m.text || m.content || ""
             })).filter(m => m.content);
 
-            // ── محاولة Anthropic مباشرة (الأسرع والأذكى) ──
-            if (anthropicKey) {
-                try {
-                    const res = await fetch("https://api.anthropic.com/v1/messages", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "x-api-key": anthropicKey,
-                            "anthropic-version": "2023-06-01",
-                            "anthropic-dangerous-direct-browser-access": "true"
-                        },
-                        body: JSON.stringify({
-                            model: "claude-haiku-4-5-20251001",
-                            max_tokens: 1024,
-                            system: systemPrompt,
-                            messages: messages.length > 0 ? messages : [{ role: "user", content: "مرحبا" }]
-                        })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
-                    const text = data?.content?.[0]?.text;
-                    if (!text) throw new Error("رد فارغ من Anthropic");
-                    return text;
-                } catch(e) {
-                    console.warn("⚠️ Anthropic API:", e.message);
-                    if (!openrouterKey) throw e; // لو مفيش OpenRouter كمان، ارمي الخطأ
-                }
-            }
-
-            // ── fallback: OpenRouter بأفضل موديلات مجانية ──
-            const MODELS = [
-                "google/gemini-2.0-flash-exp:free",
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "mistralai/mistral-small-3.1-24b-instruct:free",
-                "deepseek/deepseek-chat-v3-0324:free",
-                "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
-            ];
-
-            const orMessages = [
-                { role: "user", content: `[System]:\n${systemPrompt}` },
-                { role: "assistant", content: "فهمت، أنا جاهز." },
-                ...messages
-            ];
-
-            let lastErr = "";
-            for (const model of MODELS) {
-                try {
-                    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${openrouterKey}`,
-                            "HTTP-Referer": "https://hawker-cash.app",
-                            "X-Title": "Hawker AI Assistant"
-                        },
-                        body: JSON.stringify({ model, messages: orMessages, max_tokens: 1024, temperature: 0.7 })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
-                    const text = data?.choices?.[0]?.message?.content;
-                    if (!text) throw new Error("رد فارغ");
-                    console.log(`✅ ${model}`);
-                    return text;
-                } catch(e) {
-                    console.warn(`⚠️ ${model}: ${e.message}`);
-                    lastErr = e.message;
-                }
-            }
-            throw new Error("فشل الاتصال بالـ AI — تحقق من الـ API Key وإنترنت: " + lastErr);
+            // ── Claude.ai Built-in API (بدون API Key) ──
+            const res = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "anthropic-version": "2023-06-01",
+                },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-6",
+                    max_tokens: 1000,
+                    system: systemPrompt,
+                    messages: messages.length > 0 ? messages : [{ role: "user", content: "مرحبا" }]
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+            const text = data?.content?.map(b => b.text || "").filter(Boolean).join("\n");
+            if (!text) throw new Error("رد فارغ");
+            return text;
         }
 
         const callGemini = (sys, msg) => callClaudeChat(sys, [{role:"user", text:msg}]);
@@ -664,6 +615,11 @@
             const d = new Date();
             return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
         }
+        // ✅ إضافة: دالة للوقت الحالي HH:MM
+        function nowTime() {
+            const d = new Date();
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
         // ⭐ FIX: مقارنة التاريخ المعيارية — تستخرج YYYY-MM-DD من أي تنسيق
         function normalizeDateStr(dateStr) {
             if (!dateStr) return '';
@@ -706,44 +662,58 @@
             return `${dayName} ${parts[2]}/${parts[1]}/${parts[0]}`;
         }
 
-        // ⭐ دالة حساب آمنة — بدون eval أو Function() — تحل العمليات الحسابية فقط
+        // ⭐ دالة حساب آمنة — بدون eval أو Function() — تحل العمليات الحسابية مع أولوية صحيحة
+        // ✅ إصلاح: يدعم أولوية العمليات (* و / قبل + و -) والأقواس
         const evaluateExpression = (input) => {
             try {
                 const sanitized = String(input).trim().replace(/[^0-9+\-*/.() ]/g, '');
                 if (!sanitized) return "";
-                // محلل حسابي آمن بدون eval
+
+                // Tokenizer
                 const tokens = sanitized.match(/(\d+\.?\d*)|([+\-*/()])/g);
                 if (!tokens) return input;
-                // تقييم آمن: نسمح فقط بالأرقام والعمليات الأساسية
-                let result = 0;
-                let current = 0;
-                let operator = '+';
-                const stack = [];
-                for (const tok of tokens) {
-                    if (tok === '(') {
-                        stack.push({ result, operator });
-                        result = 0; operator = '+';
-                    } else if (tok === ')') {
-                        const num = result;
-                        const frame = stack.pop();
-                        if (!frame) return input;
-                        result = frame.result;
-                        operator = frame.operator;
-                        if (operator === '+') result += num;
-                        else if (operator === '-') result -= num;
-                        else if (operator === '*') result *= num;
-                        else if (operator === '/') result = num !== 0 ? result / num : result;
-                    } else if (['+','-','*','/'].includes(tok)) {
-                        operator = tok;
-                    } else {
-                        const num = parseFloat(tok);
-                        if (isNaN(num)) return input;
-                        if (operator === '+') result += num;
-                        else if (operator === '-') result -= num;
-                        else if (operator === '*') result *= num;
-                        else if (operator === '/') result = num !== 0 ? result / num : result;
+
+                // ── Recursive Descent Parser ──
+                let pos = 0;
+
+                function peek()    { return tokens[pos]; }
+                function consume() { return tokens[pos++]; }
+
+                function parseExpr() {
+                    let left = parseTerm();
+                    while (peek() === '+' || peek() === '-') {
+                        const op = consume();
+                        const right = parseTerm();
+                        left = op === '+' ? left + right : left - right;
                     }
+                    return left;
                 }
+
+                function parseTerm() {
+                    let left = parseFactor();
+                    while (peek() === '*' || peek() === '/') {
+                        const op = consume();
+                        const right = parseFactor();
+                        if (op === '*') left = left * right;
+                        else left = right !== 0 ? left / right : left; // division by zero → keep left
+                    }
+                    return left;
+                }
+
+                function parseFactor() {
+                    const tok = peek();
+                    if (tok === '(') {
+                        consume(); // '('
+                        const val = parseExpr();
+                        if (peek() === ')') consume(); // ')'
+                        return val;
+                    }
+                    if (tok === '-') { consume(); return -parseFactor(); } // unary minus
+                    const num = parseFloat(consume());
+                    return isNaN(num) ? 0 : num;
+                }
+
+                const result = parseExpr();
                 return isNaN(result) || !isFinite(result) ? input : String(Math.round(result * 100) / 100);
             } catch (e) {
                 return input;
@@ -1236,7 +1206,7 @@
                                 <div style={{textAlign:"center",marginBottom:4}}>
                                     <div style={{fontSize:16,fontWeight:900,letterSpacing:1}}>✨ أبو زياد للكاش ✨</div>
                                     <div style={{fontSize:10,marginTop:2}}>مدير التحويلات والمالية الذكي</div>
-                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v6 — نظام متكامل</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v13 — نظام متكامل</div>
                                 </div>
                                 <hr className="receipt-divider-solid"/>
 
@@ -1281,13 +1251,14 @@
                                 <div style={{display:"flex",flexDirection:"column",alignItems:"center",margin:"8px 0"}}>
                                     <QRCodeSVG text={qrData} size={100}/>
                                     <div style={{fontSize:8,color:"#888",marginTop:3,textAlign:"center",maxWidth:110,wordBreak:"break-all"}}>{qrData}</div>
+                                    <div style={{fontSize:7,color:"#bbb",marginTop:2,textAlign:"center"}}>* رمز مرجعي للأرشفة فقط</div>
                                 </div>
                                 <hr className="receipt-divider"/>
 
                                 {/* ===== الفوتر ===== */}
                                 <div style={{textAlign:"center",fontSize:10,color:"#555",marginTop:4}}>
                                     <div>شكراً لتعاملك معنا! 🙏</div>
-                                    <div style={{marginTop:2,fontWeight:700}}>— الحوكر v7 —</div>
+                                    <div style={{marginTop:2,fontWeight:700}}>— الحوكر v13 —</div>
                                     <div style={{fontSize:8,marginTop:3,color:"#999"}}>أبو زياد للكاش • خدمة على مدار الساعة</div>
                                 </div>
 
@@ -1339,7 +1310,7 @@
                                 <div style={{textAlign:"center",marginBottom:6}}>
                                     <div style={{fontSize:15,fontWeight:900,letterSpacing:0.5}}>🔥 أبو زياد للكاش 🔥</div>
                                     <div style={{fontSize:10,marginTop:2}}>حسابات أبو عدي التاريخية</div>
-                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v6 — نظام التتبع المالي</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v13 — نظام التتبع المالي</div>
                                 </div>
                                 <hr style={{border:"none",borderTop:"2px solid #000",margin:"6px 0"}}/>
                                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
@@ -1389,7 +1360,7 @@
                                 <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
                                 <div style={{textAlign:"center",fontSize:10,color:"#555"}}>
                                     <div>شكراً لتعاملك معنا! 🙏</div>
-                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v6 —</div>
+                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v13 —</div>
                                     <div style={{fontSize:8,marginTop:3,color:"#999",letterSpacing:2}}>- - - - - - - - - - - - - - -</div>
                                 </div>
                             </div>
@@ -1442,7 +1413,7 @@
                                 <div style={{textAlign:"center",marginBottom:6}}>
                                     <div style={{fontSize:15,fontWeight:900,letterSpacing:0.5}}>🔥 أبو زياد للكاش 🔥</div>
                                     <div style={{fontSize:10,marginTop:2}}>إيصال حساب عميل</div>
-                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v6 — نظام الحساب الجاري</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v13 — نظام الحساب الجاري</div>
                                 </div>
                                 <hr style={{border:"none",borderTop:"2px solid #000",margin:"6px 0"}}/>
                                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
@@ -1491,7 +1462,7 @@
                                 <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
                                 <div style={{textAlign:"center",fontSize:10,color:"#555"}}>
                                     <div>شكراً لتعاملك معنا! 🙏</div>
-                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v6 —</div>
+                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v13 —</div>
                                     <div style={{fontSize:8,marginTop:3,color:"#999",letterSpacing:2}}>- - - - - - - - - - - - - - -</div>
                                 </div>
                             </div>
@@ -2168,6 +2139,12 @@
             const [firebaseUser, setFirebaseUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
             const [tab, setTab] = useState("dashboard");
+
+            // ✅ FIX: تعريف الصلاحيات هنا أول حاجة عشان يكون متاح في كل الـ useEffects
+            const isAdmin     = userRole === "admin";
+            const isAssistant = userRole === "assistant";
+            const isViewer    = userRole === "viewer";
+            const isOmar = firebaseUser?.email === "omar@gmail.com";
             
             // ⭐ Load from localStorage on first load
             const [lines, setLines] = useState(() => loadFromLocalStorage('lines', initialLines));
@@ -2292,7 +2269,7 @@
             const [form, setForm] = useState({ 
                 type: "transfer",
                 date: today(), 
-                time: "12:00",
+                time: nowTime(),
                 fromNumber: "", 
                 toNumber: "", 
                 toInternalId: "",
@@ -3134,7 +3111,7 @@
                 }
 
                 // Regex فشل — استخدم Gemini AI
-                const keyMissing = !GEMINI_API_KEY || GEMINI_API_KEY === "ضع_مفتاح_الـ_API_هنا" || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE";
+                const keyMissing = !GEMINI_API_KEY || GEMINI_API_KEY === "CLAUDE_ACTIVE" || GEMINI_API_KEY === "ضع_مفتاح_الـ_API_هنا" || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE";
                 if (keyMissing) {
                     // Fallback بدون AI — استخدم ما أمكن من الـ Regex
                     setForm(f => ({
@@ -3232,7 +3209,7 @@
                     setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false });
                     setSplitPlan(null); setSplitConfirmed(false);
                     setOcrConfirm(null);
-                    setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null });
+                    setForm({ type:"transfer", date:today(), time:nowTime(), fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null });
                 }
 
                 try {
@@ -3285,87 +3262,35 @@ ${knownNumbersText}`;
                     let extractedData = null;
                     let rawText = "";
 
-                    // ── محاولة 1: OpenRouter مع صورة (Gemini Vision) ──
-                    const orKey = getOpenRouterKey();
-                    const antKey = getAnthropicKey();
-
-                    // ── Vision Models بالترتيب: Anthropic → OpenRouter Vision Models ──
-                    const visionModels = [
-                        // OpenRouter vision models مع Vision support
-                        { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
-                        { provider: "openrouter", model: "openrouter/auto" },
-                        { provider: "openrouter", model: "meta-llama/llama-4-scout:free" },
-                    ];
-
-                    // جرّب Anthropic أولاً لو عنده Key
-                    if (antKey) {
-                        try {
-                            const res = await fetch("https://api.anthropic.com/v1/messages", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    "x-api-key": antKey,
-                                    "anthropic-version": "2023-06-01",
-                                    "anthropic-dangerous-direct-browser-access": "true"
-                                },
-                                body: JSON.stringify({
-                                    model: "claude-haiku-4-5-20251001",
-                                    max_tokens: 512,
-                                    system: systemPrompt,
-                                    messages: [{
-                                        role: "user",
-                                        content: [
-                                            { type: "image", source: { type: "base64", media_type: file.type || "image/jpeg", data: b64 } },
-                                            { type: "text", text: "استخرج البيانات بصيغة JSON فقط." }
-                                        ]
-                                    }]
-                                })
-                            });
-                            const data = await res.json();
-                            const txt = data?.content?.[0]?.text;
-                            if (txt) {
-                                rawText = txt;
-                                const m = txt.match(/\{[\s\S]*\}/);
-                                if (m) extractedData = JSON.parse(m[0]);
-                            }
-                        } catch(e) { console.warn("Anthropic Vision:", e.message); }
-                    }
-
-                    // لو Anthropic فشل أو مفيش Key — جرّب OpenRouter
-                    if (!extractedData?.amount && orKey) {
-                        for (const { provider, model } of visionModels) {
-                            if (extractedData?.amount) break;
-                            try {
-                                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                        "Authorization": `Bearer ${orKey}`,
-                                        "HTTP-Referer": "https://hawker-cash.app",
-                                        "X-Title": "Hawker OCR"
-                                    },
-                                    body: JSON.stringify({
-                                        model,
-                                        max_tokens: 512,
-                                        messages: [{
-                                            role: "user",
-                                            content: [
-                                                { type: "text", text: systemPrompt + "\n\nاستخرج البيانات بصيغة JSON فقط." },
-                                                { type: "image_url", image_url: { url: `data:${file.type || "image/jpeg"};base64,${b64}` } }
-                                            ]
-                                        }]
-                                    })
-                                });
-                                const data = await res.json();
-                                const txt = data?.choices?.[0]?.message?.content;
-                                if (txt) {
-                                    rawText = txt;
-                                    const m = txt.match(/\{[\s\S]*\}/);
-                                    if (m) { extractedData = JSON.parse(m[0]); console.log("✅ Vision OK:", model); }
-                                }
-                            } catch(e) { console.warn(`Vision ${model}:`, e.message); }
+                    // ── Claude Built-in Vision API (بدون API Key) ──
+                    try {
+                        const res = await fetch("https://api.anthropic.com/v1/messages", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "anthropic-version": "2023-06-01",
+                            },
+                            body: JSON.stringify({
+                                model: "claude-sonnet-4-6",
+                                max_tokens: 512,
+                                system: systemPrompt,
+                                messages: [{
+                                    role: "user",
+                                    content: [
+                                        { type: "image", source: { type: "base64", media_type: file.type || "image/jpeg", data: b64 } },
+                                        { type: "text", text: "استخرج البيانات بصيغة JSON فقط." }
+                                    ]
+                                }]
+                            })
+                        });
+                        const data = await res.json();
+                        const txt = data?.content?.map(b => b.text || "").filter(Boolean).join("\n");
+                        if (txt) {
+                            rawText = txt;
+                            const m = txt.match(/\{[\s\S]*\}/);
+                            if (m) extractedData = JSON.parse(m[0]);
                         }
-                    }
+                    } catch(e) { console.warn("Claude Vision:", e.message); }
 
                     // ── Fallback ذكي: Tesseract + Parser متخصص في فودافون كاش ──
                     if (!extractedData?.amount) {
@@ -3668,35 +3593,41 @@ ${knownNumbersText}`;
                 updateSource(form.sourceId, form.sourceType, totalAmount, form.type);
 
                 // ⭐ تحديث رصيد الخط أو الفيزا في Firebase بأمان عبر .transaction()
-                // بدلاً من .set() الشامل الذي يسبب Race Condition عند التزامن
+                // ✅ إصلاح: نبحث عن index الخط في الـ array لأن Firebase يخزّن كـ array لا كـ object
                 if (form.sourceType === "line") {
-                    db.ref(`lines/${form.sourceId}`).transaction((currentLine) => {
-                        if (currentLine) {
-                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer";
-                            // نستخدم totalAmount (شامل العمولة) لتطابق updateSource المحلية
-                            const change = isOutgoing ? -totalAmount : amount;
-                            currentLine.balance = (parseFloat(currentLine.balance) || 0) + change;
+                    const lineIdx = lines.findIndex(l => l.id === form.sourceId);
+                    if (lineIdx !== -1) {
+                        db.ref(`lines/${lineIdx}`).transaction((currentLine) => {
+                            if (currentLine) {
+                                const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer";
+                                // نستخدم totalAmount (شامل العمولة) لتطابق updateSource المحلية
+                                const change = isOutgoing ? -totalAmount : amount;
+                                currentLine.balance = (parseFloat(currentLine.balance) || 0) + change;
 
-                            // تحديث الاستهلاك — totalAmount للصادر، amount للوارد
-                            if (form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer") {
-                                currentLine.usedTodayTransfer = (parseFloat(currentLine.usedTodayTransfer) || 0) + totalAmount;
-                                currentLine.usedMonthTransfer = (parseFloat(currentLine.usedMonthTransfer) || 0) + totalAmount;
-                            } else if (form.type === "receive") {
-                                currentLine.usedTodayReceive = (parseFloat(currentLine.usedTodayReceive) || 0) + amount;
-                                currentLine.usedMonthReceive = (parseFloat(currentLine.usedMonthReceive) || 0) + amount;
+                                // تحديث الاستهلاك — totalAmount للصادر، amount للوارد
+                                if (form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer") {
+                                    currentLine.usedTodayTransfer = (parseFloat(currentLine.usedTodayTransfer) || 0) + totalAmount;
+                                    currentLine.usedMonthTransfer = (parseFloat(currentLine.usedMonthTransfer) || 0) + totalAmount;
+                                } else if (form.type === "receive") {
+                                    currentLine.usedTodayReceive = (parseFloat(currentLine.usedTodayReceive) || 0) + amount;
+                                    currentLine.usedMonthReceive = (parseFloat(currentLine.usedMonthReceive) || 0) + amount;
+                                }
                             }
-                        }
-                        return currentLine;
-                    });
+                            return currentLine;
+                        });
+                    }
                 } else if (form.sourceType === "visa") {
-                    db.ref(`visas/${form.sourceId}`).transaction((currentVisa) => {
-                        if (currentVisa) {
-                            const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer";
-                            const change = isOutgoing ? -totalAmount : amount;
-                            currentVisa.balance = (parseFloat(currentVisa.balance) || 0) + change;
-                        }
-                        return currentVisa;
-                    });
+                    const visaIdx = visas.findIndex(v => v.id === form.sourceId);
+                    if (visaIdx !== -1) {
+                        db.ref(`visas/${visaIdx}`).transaction((currentVisa) => {
+                            if (currentVisa) {
+                                const isOutgoing = form.type === "transfer" || form.type === "bank_withdraw" || form.type === "fawri_withdraw" || form.type === "fawri_transfer" || form.type === "internal_transfer";
+                                const change = isOutgoing ? -totalAmount : amount;
+                                currentVisa.balance = (parseFloat(currentVisa.balance) || 0) + change;
+                            }
+                            return currentVisa;
+                        });
+                    }
                 }
 
                 const existingPerson = people.find(p => p.personName.toLowerCase() === personName.toLowerCase());
@@ -3743,20 +3674,25 @@ ${knownNumbersText}`;
                         else setInstaPays(destUpdater);
                         // حدّث Firebase للمستقبِل
                         const destRef = destType === 'line' ? 'lines' : destType === 'visa' ? 'visas' : 'instaPays';
-                        db.ref(`${destRef}/${form.toInternalId}`).transaction(curr => {
-                            if (!curr) return curr;
-                            curr.balance = (parseFloat(curr.balance) || 0) + amount;
-                            curr.usedTodayReceive = (parseFloat(curr.usedTodayReceive) || 0) + amount;
-                            curr.usedMonthReceive = (parseFloat(curr.usedMonthReceive) || 0) + amount;
-                            return curr;
-                        });
+                        // ✅ إصلاح: نبحث عن index بدل ID لأن Firebase يخزّن كـ array
+                        const destArr = destType === 'line' ? lines : destType === 'visa' ? visas : instaPays;
+                        const destIdx = destArr.findIndex(s => s.id === form.toInternalId);
+                        if (destIdx !== -1) {
+                            db.ref(`${destRef}/${destIdx}`).transaction(curr => {
+                                if (!curr) return curr;
+                                curr.balance = (parseFloat(curr.balance) || 0) + amount;
+                                curr.usedTodayReceive = (parseFloat(curr.usedTodayReceive) || 0) + amount;
+                                curr.usedMonthReceive = (parseFloat(curr.usedMonthReceive) || 0) + amount;
+                                return curr;
+                            });
+                        }
                     }
                 }
 
                 showToast(`تم ${txnLabels[form.type] || "العملية"} بنجاح ✓`);
 
                 // ⭐ إغلاق الفورم فوراً — لا ننتظر Firebase
-                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", toInternalId: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
+                setForm({ type: "transfer", date: today(), time: nowTime(), fromNumber: "", toNumber: "", toInternalId: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
                 setModal(null);
                 setIsSubmitting(false);
             }
@@ -3833,26 +3769,32 @@ ${knownNumbersText}`;
                 newTxns.forEach(txn => {
                     updateSource(txn.sourceId, txn.sourceType, txn.amount, txn.type);
                     if (txn.sourceType === "line") {
-                        db.ref(`lines/${txn.sourceId}`).transaction(curr => {
-                            if (!curr) return curr;
-                            const isOut = txn.type === "transfer";
-                            curr.balance = (parseFloat(curr.balance) || 0) + (isOut ? -txn.amount : txn.amount);
-                            if (isOut) {
-                                curr.usedTodayTransfer = (parseFloat(curr.usedTodayTransfer) || 0) + txn.amount;
-                                curr.usedMonthTransfer = (parseFloat(curr.usedMonthTransfer) || 0) + txn.amount;
-                            } else {
-                                curr.usedTodayReceive = (parseFloat(curr.usedTodayReceive) || 0) + txn.amount;
-                                curr.usedMonthReceive = (parseFloat(curr.usedMonthReceive) || 0) + txn.amount;
-                            }
-                            return curr;
-                        });
+                        const lineIdx = lines.findIndex(l => l.id === txn.sourceId);
+                        if (lineIdx !== -1) {
+                            db.ref(`lines/${lineIdx}`).transaction(curr => {
+                                if (!curr) return curr;
+                                const isOut = txn.type === "transfer";
+                                curr.balance = (parseFloat(curr.balance) || 0) + (isOut ? -txn.amount : txn.amount);
+                                if (isOut) {
+                                    curr.usedTodayTransfer = (parseFloat(curr.usedTodayTransfer) || 0) + txn.amount;
+                                    curr.usedMonthTransfer = (parseFloat(curr.usedMonthTransfer) || 0) + txn.amount;
+                                } else {
+                                    curr.usedTodayReceive = (parseFloat(curr.usedTodayReceive) || 0) + txn.amount;
+                                    curr.usedMonthReceive = (parseFloat(curr.usedMonthReceive) || 0) + txn.amount;
+                                }
+                                return curr;
+                            });
+                        }
                     } else if (txn.sourceType === "visa") {
-                        db.ref(`visas/${txn.sourceId}`).transaction(curr => {
-                            if (!curr) return curr;
-                            const isOut = txn.type === "transfer";
-                            curr.balance = (parseFloat(curr.balance) || 0) + (isOut ? -txn.amount : txn.amount);
-                            return curr;
-                        });
+                        const visaIdx = visas.findIndex(v => v.id === txn.sourceId);
+                        if (visaIdx !== -1) {
+                            db.ref(`visas/${visaIdx}`).transaction(curr => {
+                                if (!curr) return curr;
+                                const isOut = txn.type === "transfer";
+                                curr.balance = (parseFloat(curr.balance) || 0) + (isOut ? -txn.amount : txn.amount);
+                                return curr;
+                            });
+                        }
                     }
                 });
 
@@ -3875,7 +3817,7 @@ ${knownNumbersText}`;
                 showToast(`✅ تم تنفيذ التقسيم: ${splitPlan.steps.length} عمليات — إجمالي ${maskNum(splitPlan.totalCovered, privacyMode)} ج`);
                 setSplitPlan(null);
                 setSplitConfirmed(false);
-                setForm({ type: "transfer", date: today(), time: "12:00", fromNumber: "", toNumber: "", toInternalId: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
+                setForm({ type: "transfer", date: today(), time: nowTime(), fromNumber: "", toNumber: "", toInternalId: "", personName: "", amount: "", sourceId: "", sourceType: "line", notes: "", image: null });
                 setModal(null);
                 setIsSubmitting(false);
             }
@@ -4303,12 +4245,7 @@ ${knownNumbersText}`;
             // ══════════════════════════════════════════════════════
             //  🔐  نظام الصلاحيات المتقدم — Granular Access Control
             // ══════════════════════════════════════════════════════
-            const isAdmin     = userRole === "admin";
-            const isAssistant = userRole === "assistant";
-            const isViewer    = userRole === "viewer";
-
-            // ⭐ عمر — مساعد ذو صلاحيات مخصصة (omar@gmail.com)
-            const isOmar = firebaseUser?.email === "omar@gmail.com";
+            // (isAdmin, isAssistant, isViewer, isOmar defined above at top of App)
 
             // قسم أبو عدي والأشخاص: عمر له صلاحيات كاملة كالأدمن
             const canEditAbuAdi  = isAdmin || isAssistant || isOmar;
@@ -4711,7 +4648,7 @@ ${knownNumbersText}`;
                                 </div>
 
                                 {canAddTxn && (
-                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); setForm({ type:"transfer", date:today(), time:"12:00", fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
+                                    <button onClick={()=>{ if(isSubmitting) return; setModal("addTxn"); setAutoRouting({ suggestedId: null, allAtLimit: false, userOverrode: false }); setSplitPlan(null); setSplitConfirmed(false); setOcrResult(null); setOcrPreviewUrl(null); setForm({ type:"transfer", date:today(), time:nowTime(), fromNumber:"", toNumber:"", toInternalId:"", personName:"", amount:"", sourceId:"", sourceType:"line", notes:"", image:null }); }} disabled={isSubmitting} style={{width:"100%",background: isSubmitting ? "linear-gradient(135deg,#4a4a4a,#333333)" : "linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor: isSubmitting ? "not-allowed" : "pointer",marginBottom:16,opacity: isSubmitting ? 0.7 : 1,transition:"all 0.2s"}}>{isSubmitting ? "⏳ جاري الحفظ الآمن..." : "+ عملية جديدة"}</button>
                                 )}
 
                                 {/* ⭐ الرسوم البيانية التفاعلية */}
@@ -8070,12 +8007,6 @@ ${debtors.slice(0,5).map(p => {
                 const text = (overrideText || input).trim();
                 if (!text || thinking) return;
 
-                if (!getOpenRouterKey()) {
-                    const errMsg = { role:"assistant", text:"⚠️ مفيش API Key! روح ⚙️ الإعدادات وحط مفتاح OpenRouter عشان أقدر أرد عليك بذكاء.", time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}), type:"warn" };
-                    setChatHistory(prev => [...prev, errMsg]);
-                    return;
-                }
-
                 const userMsg = { role:"user", text, time: new Date().toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}) };
                 setChatHistory(prev => [...prev, userMsg]);
                 setInput("");
@@ -9424,76 +9355,10 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                         <div style={{fontSize:34,marginBottom:6}}>✨</div>
                         <div style={{fontSize:20,fontWeight:900,color:"#a78bfa",letterSpacing:0.5}}>المساعد الذكي</div>
                         <div style={{fontSize:12,color:"#475569",marginTop:4}}>Claude Sonnet • يفهم بياناتك</div>
-                        <div style={{display:"inline-flex",alignItems:"center",gap:6,background: hasKey?"#10b98120":"#ef444420",border:`1px solid ${hasKey?"#10b98130":"#ef444430"}`,borderRadius:20,padding:"3px 12px",fontSize:10,color:hasKey?"#10b981":"#ef4444",marginTop:8,fontWeight:700}}>
-                            <div style={{width:6,height:6,borderRadius:99,background:hasKey?"#10b981":"#ef4444",animation:hasKey?"blink 2s infinite":"none"}}/>
-                            {hasKey ? "API متصل ✓" : "⚠️ أضف API Key"}
+                        <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#10b98120",border:"1px solid #10b98130",borderRadius:20,padding:"3px 12px",fontSize:10,color:"#10b981",marginTop:8,fontWeight:700}}>
+                            <div style={{width:6,height:6,borderRadius:99,background:"#10b981",animation:"blink 2s infinite"}}/>
+                            مُتصل تلقائياً ✓
                         </div>
-                    </div>
-
-                    {/* Key Input Section */}
-                    <div style={{marginBottom:14}}>
-                        {!hasKey && (
-                            <div style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:14,padding:14,marginBottom:10,fontSize:13,color:"#ef4444",lineHeight:1.7}}>
-                                <b>⚙️ مفتاح OpenRouter مش موجود</b><br/>
-                                اضغط "إضافة API Key" تحت وأضف مفتاحك من{" "}
-                                <a href="https://openrouter.ai/keys" target="_blank" style={{color:"#22d3ee"}}>openrouter.ai</a>
-                            </div>
-                        )}
-                        <button onClick={()=>{setShowKeyInput(v=>!v); setKeyDraft(orKey);}} aria-label="إدارة مفتاح OpenRouter API"
-                            style={{width:"100%",background:"#0d1120",border:"1px solid #a78bfa25",borderRadius:12,padding:"10px 14px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",textAlign:"right"}}>
-                            {hasKey ? "🔑 تعديل API Key" : "➕ إضافة API Key"}
-                        </button>
-                        {showKeyInput && (
-                            <div style={{marginTop:8,background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:14}}>
-                                {/* Anthropic Key */}
-                                <div style={{marginBottom:12}}>
-                                    <div style={{fontSize:11,color:"#22d3ee",marginBottom:6,fontWeight:700}}>
-                                        🔑 Anthropic API Key — الأسرع والأذكى (claude-haiku)
-                                    </div>
-                                    <div style={{display:"flex",gap:8}}>
-                                        <input
-                                            type="password"
-                                            value={(() => { try { return localStorage.getItem("anthropic_api_key")||""; } catch(e){ return ""; } })()}
-                                            onChange={e=>{ try { localStorage.setItem("anthropic_api_key", e.target.value.trim()); } catch(ex){} }}
-                                            placeholder="sk-ant-api03-..."
-                                            style={{flex:1,background:"#05070f",border:"1px solid #22d3ee30",borderRadius:8,padding:"10px 12px",color:"#c8d6e8",fontSize:12,outline:"none",fontFamily:"'Tajawal',sans-serif",direction:"ltr"}}
-                                        />
-                                        <button onClick={()=>{ showToast("✅ تم حفظ مفتاح Anthropic"); }}
-                                            style={{background:"linear-gradient(135deg,#22d3ee,#0ea5e9)",border:"none",borderRadius:8,padding:"10px 16px",color:"#000",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-                                            حفظ
-                                        </button>
-                                    </div>
-                                    <div style={{fontSize:10,color:"#334155",marginTop:4}}>
-                                        احصل على مفتاحك من <a href="https://console.anthropic.com" target="_blank" style={{color:"#22d3ee"}}>console.anthropic.com</a>
-                                    </div>
-                                </div>
-                                {/* OpenRouter Key (fallback) */}
-                                <div style={{fontSize:11,color:"#a78bfa",marginBottom:6,fontWeight:700}}>
-                                    🔑 OpenRouter API Key — بديل مجاني (sk-or-v1-)
-                                </div>
-                                <div style={{display:"flex",gap:8}}>
-                                    <input
-                                        type="password"
-                                        value={keyDraft}
-                                        onChange={e=>setKeyDraft(e.target.value)}
-                                        onKeyPress={e=>e.key==="Enter"&&saveKey()}
-                                        placeholder="sk-or-v1-..."
-                                        aria-label="مفتاح OpenRouter API"
-                                        style={{flex:1,background:"#05070f",border:"1px solid #1e3a5f",borderRadius:8,padding:"10px 12px",color:"#c8d6e8",fontSize:12,outline:"none",fontFamily:"'Tajawal',sans-serif",direction:"ltr"}}
-                                    />
-                                    <button onClick={saveKey}
-                                        style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:8,padding:"10px 16px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-                                        حفظ
-                                    </button>
-                                </div>
-                                {hasKey && (
-                                    <button onClick={()=>{setOpenRouterKey(""); setOrKey(""); setShowKeyInput(false); showToast("تم حذف الـ Key","error");}}
-                                        style={{marginTop:8,width:"100%",background:"#ef444410",border:"1px solid #ef444430",borderRadius:8,padding:"8px",color:"#ef4444",fontSize:11,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
-                                        🗑️ حذف الـ Key
-                                    </button>
-                                )}
-                            </div>
-                        )}
                     </div>
 
                     {/* Quick Suggestions */}
@@ -9577,7 +9442,7 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                         <input
                             value={input}
                             onChange={e=>setInput(e.target.value)}
-                            onKeyPress={e=>e.key==="Enter"&&!thinking&&sendMessage()}
+                            onKeyDown={e=>e.key==="Enter"&&!thinking&&sendMessage()}
                             placeholder="اسأل عن الأرباح، الخطوط، العملاء..."
                             style={{
                                 flex:1,
@@ -9629,6 +9494,42 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
         root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 
+    <!-- ✅ Manual Babel Transform - bypasses 500KB limit -->
+    <script>
+    (function() {
+        function runJSX() {
+            var src = document.getElementById('main-jsx-src');
+            if (!src || !window.Babel) {
+                setTimeout(runJSX, 50);
+                return;
+            }
+            try {
+                var code = src.textContent;
+                var result = Babel.transform(code, {
+                    presets: ['react'],
+                    sourceType: 'script',
+                    compact: false,
+                    generatorOpts: { compact: false }
+                });
+                // Execute directly via eval to avoid blob URL module issues
+                (new Function(result.code))();
+            } catch(e) {
+                console.error('Babel transform failed:', e);
+                showFallbackError(e.message);
+            }
+        }
+        function showFallbackError(msg) {
+            var root = document.getElementById('root');
+            if (root) root.innerHTML = '<div style="color:#ef4444;padding:40px;font-family:Tajawal,sans-serif;text-align:center;background:#05070f;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-size:48px">⚠️</div><div style="font-size:20px;font-weight:700;margin-top:16px">خطأ في التحميل</div><div style="font-size:13px;color:#94a3b8;margin-top:8px;max-width:300px">' + msg + '</div></div>';
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runJSX);
+        } else {
+            runJSX();
+        }
+    })();
+    </script>
+
     <!-- ══ Service Worker Registration ══ -->
     <script>
     if ('serviceWorker' in navigator) {
@@ -9644,7 +9545,7 @@ const ASSETS = [
     'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap',
     'https://unpkg.com/react@18/umd/react.production.min.js',
     'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-    'https://unpkg.com/@babel/standalone/babel.min.js'
+    'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js'
 ];
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
