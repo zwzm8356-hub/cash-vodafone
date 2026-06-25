@@ -650,6 +650,29 @@
             catch(e) { enqueueOffline(path, data); }
         }
 
+        // ⭐ Auto Archive — ينقل العمليات اللي مر عليها 30 يوم لـ Firebase archive
+        function autoArchive(transactions, db, auth, saveToLocalStorage, showToast) {
+            if (!db || !auth?.currentUser) return;
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 30);
+            const cutoffStr = cutoff.toISOString().slice(0, 10);
+            const toArchive = transactions.filter(t => (t.date || "") < cutoffStr && !t.archived);
+            if (!toArchive.length) return;
+            // كتابة كل عملية في archive collection
+            toArchive.forEach(t => {
+                try { db.ref(`archive/${t.id}`).set({ ...t, archived: true, archivedAt: new Date().toISOString() }); }
+                catch(e) {}
+            });
+            // حذفها من transactions الرئيسي
+            const remaining = transactions.filter(t => (t.date || "") >= cutoffStr || t.archived);
+            saveToLocalStorage('transactions', remaining);
+            try { db.ref('transactions').set(
+                Object.fromEntries(remaining.map(t => [t.id, t]))
+            ); } catch(e) {}
+            showToast(`📦 تم أرشفة ${toArchive.length} عملية قديمة تلقائياً`, "info");
+            return remaining;
+        }
+
         function pad(n) { return String(n).padStart(2, "0"); }
         function nowStr() {
             const d = new Date();
@@ -842,6 +865,16 @@
                 const tMonth = (t.date || "").slice(0, 7);
                 const isToday = t.date === todayStr;
                 const isMonth = tMonth === monthStr;
+
+                // ══ تظبيط يدوي للعداد الشهري (لمطابقة تطبيق الشركة) ══
+                if (t.type === "monthly_adjustment" && t.sourceId === sid) {
+                    if (isMonth) {
+                        if (t.adjustTarget === "transfer") usedMonthTransfer += (t.amount || 0);
+                        else if (t.adjustTarget === "receive") usedMonthReceive += (t.amount || 0);
+                    }
+                    continue;
+                }
+
                 const isOutgoing = t.type === "transfer" || t.type === "bank_withdraw" ||
                                    t.type === "fawri_withdraw" || t.type === "fawri_transfer" ||
                                    t.type === "internal_transfer";
@@ -857,7 +890,12 @@
                     if (isMonth) usedMonthReceive += (t.amount || 0);
                 }
             }
-            return { usedTodayTransfer, usedMonthTransfer, usedTodayReceive, usedMonthReceive };
+            // ⚠️ العداد ميرجعش تحت الصفر حتى لو التظبيط بالسالب أكبر من المُستهلك الفعلي
+            return {
+                usedTodayTransfer, usedTodayReceive,
+                usedMonthTransfer: Math.max(0, usedMonthTransfer),
+                usedMonthReceive:  Math.max(0, usedMonthReceive),
+            };
         }
 
         /** بناء قائمة المصادر الكاملة مع إحصائياتها */
@@ -889,6 +927,21 @@
             const available = sources.filter(s => s.available !== false);
             if (!available.length) return { suggestedId: null, allAtLimit: true };
             const WARN = 0.85;
+
+            // ⭐ نظام الترجيح — يوازن بين الرصيد والاستهلاك وعدد العمليات
+            function scoreSource(s, txns) {
+                const dailyPct  = s.dailyLimit  > 0 ? (s.usedToday || 0) / s.dailyLimit  : 0;
+                const monthPct  = s.monthlyLimit > 0 ? (s.usedMonth || 0) / s.monthlyLimit : 0;
+                // عدد عمليات اليوم على هذا الخط (يفضّل الخط الأقل استخداماً)
+                const todayStr  = new Date().toISOString().slice(0, 10);
+                const txnCount  = (txns || []).filter(t => t.sourceId === s.id && (t.date||"").startsWith(todayStr)).length;
+                // Score: رصيد عالي + استهلاك منخفض + عمليات أقل = أفضل
+                const balanceScore  = Math.min((s.balance || 0) / (amt * 3), 1);       // 0→1
+                const usageScore    = 1 - Math.max(dailyPct, monthPct);                // 0→1 (أقل استهلاك أحسن)
+                const countPenalty  = Math.max(0, 1 - txnCount * 0.08);               // كل عملية تنزل الأولوية 8%
+                return balanceScore * 0.4 + usageScore * 0.4 + countPenalty * 0.2;
+            }
+
             if (txnType === "receive" || txnType === "transfer") {
                 const eligible = available.filter(s => {
                     const bal = s.balance || 0;
@@ -901,10 +954,10 @@
                 if (!eligible.length) {
                     const fallback = available.filter(s => (s.balance || 0) >= amt);
                     if (!fallback.length) return { suggestedId: null, allAtLimit: true };
-                    fallback.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                    fallback.sort((a, b) => scoreSource(b) - scoreSource(a));
                     return { suggestedId: fallback[0].id, allAtLimit: false };
                 }
-                eligible.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                eligible.sort((a, b) => scoreSource(b) - scoreSource(a));
                 return { suggestedId: eligible[0].id, allAtLimit: false };
             } else {
                 const withSpace = available.map(s => {
@@ -915,9 +968,47 @@
                 });
                 const canAbsorb = withSpace.filter(s => s.canAbsorb);
                 if (!canAbsorb.length) return { suggestedId: null, allAtLimit: true };
-                canAbsorb.sort((a, b) => b.space - a.space);
+                canAbsorb.sort((a, b) => scoreSource(b) - scoreSource(a));
                 return { suggestedId: canAbsorb[0].id, allAtLimit: false };
             }
+        }
+
+        // ⭐ Fraud Detection — يكشف العمليات الغريبة قبل الحفظ
+        function detectPotentialFraud(newTxn, allTransactions) {
+            const warnings = [];
+            const amt = newTxn.amount || 0;
+            const type = newTxn.type;
+            const phone = newTxn.toNumber || newTxn.fromNumber || "";
+
+            // 1. مبلغ ضخم جداً (أكتر من 3x متوسط العمليات المتشابهة)
+            const sameTxns = allTransactions.filter(t => t.type === type && t.amount > 0);
+            if (sameTxns.length >= 5) {
+                const avg = sameTxns.reduce((s, t) => s + t.amount, 0) / sameTxns.length;
+                if (amt > avg * 3 && amt > 5000) {
+                    warnings.push(`💰 المبلغ (${amt.toLocaleString("ar-EG")} ج) أكبر بـ 3x من متوسطك المعتاد (${Math.round(avg).toLocaleString("ar-EG")} ج)`);
+                }
+            }
+
+            // 2. رقم هاتف غير مسبوق مع مبلغ كبير
+            if (phone && phone.length >= 10 && amt > 10000) {
+                const knownPhone = allTransactions.some(t =>
+                    (t.toNumber === phone || t.fromNumber === phone) && t.id !== newTxn.id
+                );
+                if (!knownPhone) {
+                    warnings.push(`📱 الرقم (${phone}) مش موجود في سجلك قبل كده — مبلغ كبير مع رقم جديد`);
+                }
+            }
+
+            // 3. نفس المبلغ اتكرر أكتر من 3 مرات في نفس اليوم
+            const todayStr = newTxn.date || "";
+            const sameAmtToday = allTransactions.filter(t =>
+                t.date === todayStr && t.amount === amt && t.type === type
+            ).length;
+            if (sameAmtToday >= 3) {
+                warnings.push(`🔁 نفس المبلغ (${amt.toLocaleString("ar-EG")} ج) اتكرر ${sameAmtToday} مرة النهارده`);
+            }
+
+            return warnings;
         }
 
         /** حساب خطة التقسيم الذكي على عدة خطوط */
@@ -2787,8 +2878,8 @@
 
             // ⭐ فلترة سجل العمليات المتقدمة
             const [operationsTab, setOperationsTab] = useState("all"); // 'all' | 'withdraw' | 'deposit'
-            const [opStartDate, setOpStartDate]     = useState("");
-            const [opEndDate,   setOpEndDate]       = useState("");
+            const [opStartDate, setOpStartDate]     = useState(today()); // ⭐ افتراضي = النهارده
+            const [opEndDate,   setOpEndDate]       = useState(today()); // ⭐ افتراضي = النهارده
             
             const [form, setForm] = useState({ 
                 type: "transfer",
@@ -2828,6 +2919,10 @@
 
             // ══ Performance Tracking ══
             const [txnStartTime, setTxnStartTime] = useState(null);
+
+            // ══ تظبيط الرصيد الشهري (Monthly Adjustment) ══
+            const [adjustModal, setAdjustModal] = useState(null); // {sourceId, sourceName, sourceType}
+            const [adjustForm, setAdjustForm] = useState({ target: "transfer", amount: "", reason: "" });
 
             // ⭐ Privacy Mask Mode — وضع الشارع
             const [privacyMode, setPrivacyMode] = useState(() => loadFromLocalStorage('privacyMode', false));
@@ -2966,6 +3061,7 @@
             const touchEndX = useRef(0);
             const capitalWriting = useRef(false); // ⭐ منع الـ listener من يـoverwrite التعديل المحلي
             const abuAdiWriting  = useRef(false); // ⭐ إصلاح 1 — منع الـ loop اللانهائي في أبو عدي
+            const abuAdiFromFirebase = useRef(false); // ⭐ إصلاح — لا نكتب لـ Firebase قبل تحميل بياناته
             const transactionsFromFirebase = useRef(false); // ⭐ إصلاح — منع الكتابة على Firebase قبل تحميله
             const linesFromFirebase = useRef(false);       // ⭐ نفس الحماية للخطوط
             const visasFromFirebase = useRef(false);       // ⭐ نفس الحماية للفيزا
@@ -3038,6 +3134,14 @@
                             if (arr.length > 0) {
                                 setTransactions(arr);
                                 saveToLocalStorage('transactions', arr); // ⭐ نحدّث الكاش بأحدث بيانات Firebase
+                                // ⭐ Auto Archive — مرة واحدة عند التحميل الأول
+                                if (!autoArchive._ran) {
+                                    autoArchive._ran = true;
+                                    setTimeout(() => {
+                                        const archived = autoArchive(arr, db, auth, saveToLocalStorage, showToast);
+                                        if (archived) setTransactions(archived);
+                                    }, 5000); // تأخير 5 ثواني بعد التحميل
+                                }
                             }
                         } else {
                             // Firebase خالي — نصفر الـ state (لا نعتمد على localStorage القديم)
@@ -3093,6 +3197,7 @@
                     db.ref('abuAdi').on('value', (snapshot) => {
                         if (abuAdiWriting.current) return; // ⭐ إصلاح 1 — تجاهل التحديث أثناء الكتابة المحلية
                         const data = snapshot.val();
+                        abuAdiFromFirebase.current = true; // ⭐ إصلاح — سجّل أن Firebase حمّل بيانات أبو عدي
                         if (data) {
                             if (data.target !== undefined) setAbuadiTarget(data.target);
                             if (data.date !== undefined) setAbuadiDate(data.date);
@@ -3271,7 +3376,8 @@
                 saveToLocalStorage('abuadiTarget', abuadiTarget);
                 saveToLocalStorage('abuadiPayments', abuadiPayments);
                 saveToLocalStorage('abuadiDate', abuadiDate);
-                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady) {
+                // ⭐ إصلاح: لا نكتب لـ Firebase إلا بعد ما يحمّل بياناته أولاً — منع مسح الدفعات
+                if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && abuAdiFromFirebase.current) {
                     try {
                         abuAdiWriting.current = true; // ⭐ إصلاح 1 — رفع الراية قبل الكتابة
                         db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate })
@@ -3956,6 +4062,41 @@ ${knownNumbersText}`;
                 return calcCommissionPure(type, amount, commissionSettings);
             }
 
+            // ══ تظبيط الرصيد الشهري — لمطابقة تطبيق الشركة عند وجود فرق ══
+            function submitMonthlyAdjustment() {
+                if (!adjustModal) return;
+                const diff = parseFloat(adjustForm.amount);
+                if (isNaN(diff) || diff === 0) { showToast("اكتب فرق صحيح (موجب أو سالب)", "error"); return; }
+
+                const adjTxn = {
+                    id: Date.now(),
+                    type: "monthly_adjustment",
+                    adjustTarget: adjustForm.target, // "transfer" أو "receive"
+                    date: today(),
+                    dateTime: nowStr(),
+                    sourceId: adjustModal.sourceId,
+                    sourceType: adjustModal.sourceType,
+                    sourceName: adjustModal.sourceName,
+                    amount: diff, // ممكن تكون سالبة لتقليل العداد
+                    notes: adjustForm.reason || "تظبيط يدوي لمطابقة تطبيق الشركة",
+                    createdAt: nowStr(),
+                    addedBy: firebaseUser?.displayName || firebaseUser?.email || userRole || "غير محدد",
+                    addedAt: new Date().toISOString(),
+                    reversed: false,
+                };
+
+                setTransactions(prev => {
+                    const updated = [...prev, adjTxn];
+                    saveToLocalStorage('transactions', updated);
+                    return updated;
+                });
+                if (auth.currentUser && firebaseReady) safeFirebaseSet(db, `transactions/${adjTxn.id}`, adjTxn);
+
+                showToast(`✓ تم تظبيط ${adjustForm.target === "transfer" ? "التحويل" : "الاستلام"} الشهري (${diff > 0 ? "+" : ""}${diff} ج)`);
+                setAdjustModal(null);
+                setAdjustForm({ target: "transfer", amount: "", reason: "" });
+            }
+
             async function addTransaction() {
                 // ⭐ منع الضغط المتكرر — Race Condition Protection
                 if (isSubmitting) return;
@@ -4044,6 +4185,17 @@ ${knownNumbersText}`;
                     inputDurationSec: txnStartTime ? Math.round((Date.now() - txnStartTime) / 1000) : null,
                     reversed: false,
                 };
+
+                // ⭐ Fraud Detection — فحص العملية قبل الحفظ
+                const fraudWarnings = detectPotentialFraud({
+                    amount, type: form.type,
+                    toNumber: autoToNumber, fromNumber: autoFromNumber,
+                    date: form.date
+                }, transactions);
+                if (fraudWarnings.length > 0) {
+                    const msg = `⚠️ تحذير أمني:\n${fraudWarnings.join("\n")}\n\nتأكد إن العملية صح قبل الحفظ — هل تكمل؟`;
+                    if (!window.confirm(msg)) return;
+                }
 
                 // ⭐ Local-First: نحفظ فوراً محلياً علشان الهاتف ما يتأخرش
                 setTransactions(prev => {
@@ -4830,7 +4982,30 @@ ${knownNumbersText}`;
                         </div>
                     </div>
 
-                    {toast && <div className="toast-animate" style={{position:"fixed",top:68,left:"50%",transform:"translateX(-50%)",background:toast.type==="error"?"#ef4444":"#10b981",color:"#fff",padding:"10px 24px",borderRadius:30,fontSize:14,fontWeight:600,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.6)",whiteSpace:"nowrap"}}>{toast.msg}</div>}
+                    {toast && (() => {
+                        const styles = {
+                            success: { bg:"#10b981", icon:"✅", border:"#10b98160" },
+                            error:   { bg:"#ef4444", icon:"❌", border:"#ef444460" },
+                            warning: { bg:"#f59e0b", icon:"⚠️", border:"#f59e0b60" },
+                            info:    { bg:"#22d3ee", icon:"ℹ️", border:"#22d3ee60" },
+                        };
+                        const s = styles[toast.type] || styles.success;
+                        return (
+                            <div className="toast-animate" style={{
+                                position:"fixed", top:68, left:"50%", transform:"translateX(-50%)",
+                                background:`${s.bg}ee`, color:"#fff",
+                                padding:"10px 20px", borderRadius:30,
+                                fontSize:14, fontWeight:700, zIndex:9999,
+                                boxShadow:`0 4px 24px rgba(0,0,0,0.7), 0 0 0 1px ${s.border}`,
+                                whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8,
+                                backdropFilter:"blur(8px)", maxWidth:"90vw", overflow:"hidden",
+                                textOverflow:"ellipsis",
+                            }}>
+                                <span>{s.icon}</span>
+                                <span style={{maxWidth:260,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{toast.msg}</span>
+                            </div>
+                        );
+                    })()}
 
                     {/* ══ Street Mode Overlay ══ */}
                     {streetMode && (
@@ -5387,7 +5562,51 @@ ${knownNumbersText}`;
                                     );
                                 })()}
 
-                                {/* ══ فلتر التواريخ ══ */}
+                                {/* ══ أزرار التاريخ السريعة ══ */}
+                                {(()=>{
+                                    function pad2(n){return String(n).padStart(2,"0");}
+                                    function localStr(d){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;}
+                                    const todayD   = new Date();
+                                    const todayS   = localStr(todayD);
+                                    const yesterD  = new Date(todayD); yesterD.setDate(yesterD.getDate()-1);
+                                    const yesterS  = localStr(yesterD);
+                                    const weekStartD = new Date(todayD); weekStartD.setDate(weekStartD.getDate() - weekStartD.getDay());
+                                    const weekStartS = localStr(weekStartD);
+                                    const monthStartS = `${todayD.getFullYear()}-${pad2(todayD.getMonth()+1)}-01`;
+                                    const isToday   = opStartDate===todayS   && opEndDate===todayS;
+                                    const isYester  = opStartDate===yesterS  && opEndDate===yesterS;
+                                    const isWeek    = opStartDate===weekStartS && opEndDate===todayS;
+                                    const isMonth   = opStartDate===monthStartS && opEndDate===todayS;
+                                    const isAll     = !opStartDate && !opEndDate;
+                                    const quickBtns = [
+                                        { label:"النهارده", active:isToday,  onClick:()=>{setOpStartDate(todayS);   setOpEndDate(todayS);},    color:"#22d3ee" },
+                                        { label:"إمبارح",   active:isYester, onClick:()=>{setOpStartDate(yesterS);  setOpEndDate(yesterS);},   color:"#a78bfa" },
+                                        { label:"الأسبوع",  active:isWeek,   onClick:()=>{setOpStartDate(weekStartS);setOpEndDate(todayS);},   color:"#f59e0b" },
+                                        { label:"الشهر",    active:isMonth,  onClick:()=>{setOpStartDate(monthStartS);setOpEndDate(todayS);},  color:"#10b981" },
+                                        { label:"الكل",     active:isAll,    onClick:()=>{setOpStartDate("");        setOpEndDate("");},         color:"#64748b" },
+                                    ];
+                                    return (
+                                        <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:2}}>
+                                            {quickBtns.map(btn=>(
+                                                <button key={btn.label} onClick={btn.onClick} style={{
+                                                    flexShrink:0,
+                                                    background: btn.active ? `${btn.color}22` : "#0a0c16",
+                                                    border: `1px solid ${btn.active ? btn.color : "#1e3a5f"}`,
+                                                    borderRadius:20, padding:"7px 16px",
+                                                    color: btn.active ? btn.color : "#475569",
+                                                    fontSize:13, fontWeight: btn.active ? 700 : 500,
+                                                    cursor:"pointer", fontFamily:"'Tajawal',sans-serif",
+                                                    transition:"all 0.15s",
+                                                    boxShadow: btn.active ? `0 0 10px ${btn.color}30` : "none",
+                                                }}>
+                                                    {btn.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* ══ فلتر التواريخ (يدوي) ══ */}
                                 <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
                                     <div style={{flex:1,minWidth:120}}>
                                         <div style={{fontSize:10,color:"#3d4f65",marginBottom:4,fontWeight:600}}>من تاريخ</div>
@@ -5980,6 +6199,7 @@ ${knownNumbersText}`;
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                         {isAdmin && <button onClick={()=>setLines(p=>p.map(x=>x.id===l.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
                                                         {isAdmin && <button onClick={()=>{setEditLineId(l.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                        {isAdmin && <button onClick={()=>{setAdjustModal({sourceId:l.id, sourceName:l.name, sourceType:"line"}); setAdjustForm({target:"transfer", amount:"", reason:""});}} title="تظبيط الرصيد الشهري" style={{background:"#a78bfa15",border:"1px solid #a78bfa30",borderRadius:8,padding:"3px 8px",color:"#a78bfa",cursor:"pointer",fontSize:11}}>⚖️</button>}
                                                         {isAdmin && <button onClick={()=>{
                                                             if(window.confirm(`هل تريد حذف "${l.name}" نهائياً؟`)){
                                                                 setLines(prev=>prev.filter(x=>x.id!==l.id));
@@ -6067,6 +6287,7 @@ ${knownNumbersText}`;
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                                                         {isAdmin && <button onClick={()=>setVisas(p=>p.map(x=>x.id===v.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
                                                         {isAdmin && <button onClick={()=>{setEditLineId(v.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
+                                                        {isAdmin && <button onClick={()=>{setAdjustModal({sourceId:v.id, sourceName:v.name, sourceType:"visa"}); setAdjustForm({target:"transfer", amount:"", reason:""});}} title="تظبيط الرصيد الشهري" style={{background:"#a78bfa15",border:"1px solid #a78bfa30",borderRadius:8,padding:"3px 8px",color:"#a78bfa",cursor:"pointer",fontSize:11}}>⚖️</button>}
                                                         {isAdmin && <button onClick={()=>{
                                                             if(window.confirm(`هل تريد حذف "${v.name}" نهائياً؟`)){
                                                                 setVisas(prev=>prev.filter(x=>x.id!==v.id));
@@ -7416,14 +7637,91 @@ ${knownNumbersText}`;
                     )}
 
                     {/* MODAL: Edit Line */}
+                    {/* ══ مودال تظبيط الرصيد الشهري ══ */}
+                    {adjustModal && (()=>{
+                        // الأرقام الحالية من sources
+                        const src = sources.find(s=>s.id===adjustModal.sourceId) || {};
+                        const curTransfer = src.usedMonthTransfer || src.usedMonth || 0;
+                        const curReceive  = src.usedMonthReceive  || 0;
+                        const curVal = adjustForm.target==="transfer" ? curTransfer : curReceive;
+                        const newVal = parseFloat(adjustForm.amount);
+                        const diff   = isNaN(newVal) ? null : newVal - curVal;
+                        return (
+                        <div className="glass-overlay" onClick={()=>setAdjustModal(null)}>
+                            <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg-card)",border:"1px solid #a78bfa30",borderRadius:18,padding:20,maxWidth:380,width:"92%",fontFamily:"'Tajawal',sans-serif",direction:"rtl"}}>
+                                <div style={{fontSize:16,fontWeight:800,color:"#a78bfa",marginBottom:4}}>⚖️ تظبيط الرصيد الشهري</div>
+                                <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>{adjustModal.sourceName}</div>
+
+                                {/* اختيار نوع التظبيط */}
+                                <div style={{marginBottom:12}}>
+                                    <div style={{fontSize:12,color:"#94a3b8",marginBottom:6}}>تظبيط:</div>
+                                    <div style={{display:"flex",gap:8}}>
+                                        <button onClick={()=>setAdjustForm(f=>({...f,target:"transfer",amount:""}))}
+                                            style={{flex:1,background:adjustForm.target==="transfer"?"linear-gradient(135deg,#ef4444,#dc2626)":"#1e293b",border:"none",borderRadius:10,padding:"9px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                                            ⬇️ خارج شهري
+                                        </button>
+                                        <button onClick={()=>setAdjustForm(f=>({...f,target:"receive",amount:""}))}
+                                            style={{flex:1,background:adjustForm.target==="receive"?"linear-gradient(135deg,#10b981,#059669)":"#1e293b",border:"none",borderRadius:10,padding:"9px 0",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                                            ⬆️ استلام شهري
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* الرقم الحالي */}
+                                <div style={{background:"#0a0f1e",borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                    <span style={{fontSize:12,color:"#64748b"}}>الرقم الحالي في التطبيق</span>
+                                    <span style={{fontSize:15,fontWeight:700,color:"#94a3b8"}}>{formatNum(curVal)} ج</span>
+                                </div>
+
+                                {/* الرقم الصح */}
+                                <div style={{marginBottom:12}}>
+                                    <div style={{fontSize:12,color:"#94a3b8",marginBottom:6}}>اكتب الرقم الصح (من تطبيق فودافون)</div>
+                                    <input type="number" value={adjustForm.amount}
+                                        onChange={e=>setAdjustForm(f=>({...f,amount:e.target.value}))}
+                                        placeholder={`مثال: ${Math.round(curVal * 0.9)}`}
+                                        style={{width:"100%",background:"#0d1120",border:"1px solid #a78bfa50",borderRadius:10,padding:"10px 12px",color:"#e2e8f0",fontSize:16,outline:"none",fontFamily:"'Tajawal',sans-serif",direction:"ltr",textAlign:"right",boxSizing:"border-box",fontWeight:700}}/>
+                                </div>
+
+                                {/* معاينة الفرق */}
+                                {diff !== null && (
+                                    <div style={{background: diff<0?"#ef444415":"#10b98115", border:`1px solid ${diff<0?"#ef444430":"#10b98130"}`, borderRadius:10,padding:"8px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <span style={{fontSize:12,color:"#94a3b8"}}>الفرق اللي هيتسجل</span>
+                                        <span style={{fontSize:14,fontWeight:700,color:diff<0?"#ef4444":"#10b981"}}>{diff>0?"+":""}{formatNum(diff)} ج</span>
+                                    </div>
+                                )}
+
+                                <div style={{display:"flex",gap:8}}>
+                                    <button onClick={()=>setAdjustModal(null)} style={{flex:1,background:"#1e293b",border:"none",borderRadius:10,padding:11,color:"#94a3b8",fontSize:13,fontWeight:700,cursor:"pointer"}}>إلغاء</button>
+                                    <button onClick={()=>{
+                                        if (diff === null || diff === 0) { showToast("اكتب رقم مختلف عن الحالي", "error"); return; }
+                                        setAdjustForm(f=>({...f, amount: String(diff)}));
+                                        setTimeout(submitMonthlyAdjustment, 0);
+                                    }} style={{flex:2,background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:10,padding:11,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>✓ تظبيط</button>
+                                </div>
+                            </div>
+                        </div>
+                        );
+                    })()}
+
                     {modal==="editLine" && editLineId && (
                         <EditSourceModal
                             source={[...lines,...visas,...instaPays].find(s=>s.id===editLineId)}
                             isVisa={editLineId.startsWith("visa")}
                             onSave={updated=>{
-                                if (editLineId.startsWith("visa")) setVisas(p=>p.map(v=>v.id===editLineId?{...v,...updated}:v));
-                                else if (editLineId.startsWith("instapay")) setInstaPays(p=>p.map(v=>v.id===editLineId?{...v,...updated}:v));
-                                else setLines(p=>p.map(l=>l.id===editLineId?{...l,...updated}:l));
+                                if (editLineId.startsWith("visa")) {
+                                    const newVisas = visas.map(v=>v.id===editLineId?{...v,...updated}:v);
+                                    setVisas(newVisas);
+                                    if (auth.currentUser) safeFirebaseSet(db, 'visas', newVisas);
+                                } else if (editLineId.startsWith("instapay")) {
+                                    const newIPs = instaPays.map(v=>v.id===editLineId?{...v,...updated}:v);
+                                    setInstaPays(newIPs);
+                                    if (auth.currentUser) safeFirebaseSet(db, 'instapays', newIPs);
+                                } else {
+                                    const newLines = lines.map(l=>l.id===editLineId?{...l,...updated}:l);
+                                    setLines(newLines);
+                                    // ⭐ إصلاح: نكتب التعديل في Firebase فوراً عشان مايترجعش للقديم
+                                    if (auth.currentUser) safeFirebaseSet(db, 'lines', newLines);
+                                }
                                 setModal(null); showToast("تم التحديث ✓");
                             }}
                             onClose={()=>setModal(null)}
@@ -7542,9 +7840,15 @@ ${knownNumbersText}`;
             setActiveAbuAdiReceipt = null
         }) {
             // ── حسابات اليوم الحالي ──────────────────────────────────
-            const todayStr = new Date().toISOString().slice(0, 10);
+            // ⭐ إصلاح: نستخدم التوقيت المحلي (مش UTC) لتجنب اختفاء الدفعات بسبب فرق التوقيت
+            function localDateStr(ts) {
+                const d = ts ? new Date(ts) : new Date();
+                const pad2 = n => String(n).padStart(2,"0");
+                return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+            }
+            const todayStr = localDateStr();
             const todayPayments = [...payments]
-                .filter(p => new Date(p.ts).toISOString().slice(0, 10) === todayStr)
+                .filter(p => localDateStr(p.ts) === todayStr)
                 .sort((a, b) => b.ts - a.ts);
             const totalPaid = todayPayments.reduce((s, p) => s + p.amount, 0);
             const remaining = Math.max(0, target - totalPaid);
@@ -7620,7 +7924,7 @@ ${knownNumbersText}`;
                 const noteToSave = dayNote.trim();
                 archiveToday(() => {
                     // تصفير دفعات اليوم فقط — الدفعات السابقة (لو موجودة) تفضل
-                    setPayments(prev => prev.filter(p => new Date(p.ts).toISOString().slice(0, 10) !== todayStr));
+                    setPayments(prev => prev.filter(p => localDateStr(p.ts) !== todayStr));
                     setTarget(0);
                     setTargetInput("");
                     setDayNote("");
@@ -7632,7 +7936,7 @@ ${knownNumbersText}`;
             // ── تصفير اليوم بدون أرشفة (طلب صريح من الأدمن) ─────────
             function clearTodayNoArchive() {
                 if (!window.confirm("هيتم مسح دفعات اليوم والمستهدف بدون أرشفة. متأكد؟")) return;
-                setPayments(prev => prev.filter(p => new Date(p.ts).toISOString().slice(0, 10) !== todayStr));
+                setPayments(prev => prev.filter(p => localDateStr(p.ts) !== todayStr));
                 setTarget(0);
                 setTargetInput("");
                 showToast("تم التصفير بدون أرشفة");
@@ -7731,7 +8035,7 @@ ${knownNumbersText}`;
 
             // ── إحصائيات آخر 7 أيام والشهر الحالي ──────────────────
             const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-            const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0,10);
+            const sevenDaysAgoStr = localDateStr(sevenDaysAgo);
             const currentMonthPrefix = todayStr.slice(0,7); // YYYY-MM
             const last7List   = historyList.filter(h => h.dateStr >= sevenDaysAgoStr);
             const thisMonthList = historyList.filter(h => h.dateStr.startsWith(currentMonthPrefix));
@@ -7807,7 +8111,7 @@ ${knownNumbersText}`;
                                         onClick={()=>{
                                             const v=parseFloat(targetInput);
                                             if(!v||v<=0){showToast("أدخل مبلغ صحيح","error");return;}
-                                            setTarget(v); if(setAbuadiDate) setAbuadiDate(new Date().toISOString().slice(0,10)); showToast("✓ تم تحديد المبلغ المستهدف");
+                                            setTarget(v); if(setAbuadiDate) setAbuadiDate(localDateStr()); showToast("✓ تم تحديد المبلغ المستهدف");
                                         }}
                                         style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"10px 18px",color:"#0a0f1e",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}
                                     >تحديد</button>
