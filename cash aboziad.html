@@ -31,7 +31,7 @@
     <meta property="og:description" content="تتبع التحويلات والأرصدة بذكاء">
     <meta property="og:type" content="website">
 
-    <title>الحوكر — فودافون كاش</title>
+    <title>الحوكر v23 — فودافون كاش Premium</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -389,6 +389,229 @@
             @page { margin: 0; size: 80mm auto; }
         }
         #thermal-receipt-print { display: none; }
+
+        /* ══════════════════════════════════════════
+           ✨  PREMIUM v23 — Ultra Enterprise Design
+        ══════════════════════════════════════════ */
+
+        /* ── Ambient Background Animation ── */
+        @keyframes ambientShift {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* ── Shimmer / Loading Skeleton ── */
+        @keyframes shimmer {
+            0%   { background-position: -200% center; }
+            100% { background-position:  200% center; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg,
+                var(--bg-card2) 25%,
+                rgba(255,255,255,0.06) 50%,
+                var(--bg-card2) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s ease infinite;
+            border-radius: 8px;
+        }
+
+        /* ── Premium Glow Badges ── */
+        @keyframes glowPulse {
+            0%,100% { box-shadow: 0 0 6px currentColor, 0 0 12px transparent; }
+            50%      { box-shadow: 0 0 14px currentColor, 0 0 24px currentColor; opacity:.8; }
+        }
+        .glow-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px; border-radius: 20px; font-size: 10px;
+            font-weight: 700; letter-spacing: 0.3px;
+            animation: glowPulse 2.5s ease-in-out infinite;
+        }
+        .glow-badge.green  { color:#10b981; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.35); }
+        .glow-badge.red    { color:#ef4444; background:rgba(239,68,68,.12);  border:1px solid rgba(239,68,68,.35);  }
+        .glow-badge.cyan   { color:#22d3ee; background:rgba(34,211,238,.12); border:1px solid rgba(34,211,238,.35); }
+        .glow-badge.gold   { color:#f59e0b; background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35); }
+
+        /* ── Premium KPI Card ── */
+        .kpi-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card2) 100%);
+            border: 1px solid var(--border-dim);
+            border-radius: 16px;
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+            transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+        }
+        .kpi-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+            opacity: 0;
+            transition: opacity .3s ease;
+        }
+        .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.5); border-color: var(--border-glow); }
+        .kpi-card:hover::before { opacity: .6; }
+
+        /* ── Ripple Effect ── */
+        .ripple-btn {
+            position: relative; overflow: hidden;
+        }
+        .ripple-btn::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.18);
+            transform: scale(0);
+            animation: rippleAnim .5s linear;
+            pointer-events: none;
+        }
+        @keyframes rippleAnim {
+            to { transform: scale(4); opacity: 0; }
+        }
+
+        /* ── Success Animation ── */
+        @keyframes successPop {
+            0%   { transform: scale(0) rotate(-10deg); opacity: 0; }
+            60%  { transform: scale(1.15) rotate(3deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .success-icon { animation: successPop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+
+        /* ── Premium Number Display ── */
+        .premium-amount {
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+            letter-spacing: -0.5px;
+        }
+
+        /* ── Glass Card Enhanced ── */
+        .glass-card-premium {
+            background: linear-gradient(135deg,
+                rgba(13,17,32,0.95) 0%,
+                rgba(17,24,39,0.9) 100%);
+            backdrop-filter: blur(20px) saturate(1.5);
+            -webkit-backdrop-filter: blur(20px) saturate(1.5);
+            border: 1px solid rgba(34,211,238,0.08);
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+
+        /* ── Floating Action Button ── */
+        .fab-premium {
+            position: fixed;
+            bottom: calc(70px + var(--sab, 0px));
+            left: 20px;
+            width: 52px; height: 52px;
+            background: linear-gradient(135deg, #e40000, #cc0000);
+            border-radius: 50%;
+            border: none;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 4px 20px rgba(228,0,0,0.5), 0 0 0 0 rgba(228,0,0,0.3);
+            cursor: pointer;
+            transition: transform .2s cubic-bezier(0.34,1.56,0.64,1), box-shadow .2s ease;
+            z-index: 100;
+        }
+        .fab-premium:active {
+            transform: scale(0.92);
+            box-shadow: 0 2px 10px rgba(228,0,0,0.4);
+        }
+        .fab-premium:hover {
+            transform: scale(1.06);
+            box-shadow: 0 6px 28px rgba(228,0,0,0.6), 0 0 0 8px rgba(228,0,0,0.08);
+        }
+
+        /* ── Progress Ring (SVG) ── */
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1);
+            transform-origin: 50% 50%;
+            transform: rotate(-90deg);
+        }
+
+        /* ── Slide-in from right (for tabs) ── */
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(16px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-16px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        .tab-enter { animation: slideInRight 0.22s ease; }
+
+        /* ── Pull to Refresh ── */
+        @keyframes ptfSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ── Abu Adi Premium Styles ── */
+        .abuadi-payment-item {
+            transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+        }
+        .abuadi-payment-item:active { transform: scale(0.98); }
+
+        /* ── Number Counter Animation ── */
+        @keyframes countUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .count-animate { animation: countUp 0.3s ease; }
+
+        /* ── Gradient Text ── */
+        .gradient-text-cyan {
+            background: linear-gradient(135deg, #22d3ee, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .gradient-text-gold {
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ── Neumorphic Input ── */
+        .neuro-input {
+            background: var(--bg-input);
+            border: 1px solid var(--border-dim);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.03);
+            transition: all 0.2s ease;
+        }
+        .neuro-input:focus {
+            border-color: rgba(34,211,238,0.4);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4), 0 0 0 3px rgba(34,211,238,0.08);
+        }
+
+        /* ── Micro-interaction: button press ── */
+        .btn-premium {
+            position: relative;
+            overflow: hidden;
+            transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+        }
+        .btn-premium:active { transform: scale(0.97); filter: brightness(0.9); }
+        .btn-premium:hover  { filter: brightness(1.08); }
+
+        /* ── Empty State ── */
+        @keyframes floatEmpty {
+            0%,100% { transform: translateY(0px); }
+            50%      { transform: translateY(-6px); }
+        }
+        .empty-state-icon { animation: floatEmpty 3s ease-in-out infinite; }
+
+        /* ── Status Dot Live ── */
+        @keyframes liveDot {
+            0%,100% { transform: scale(1); opacity: 1; }
+            50%      { transform: scale(1.4); opacity: 0.6; }
+        }
+        .live-dot { animation: liveDot 1.5s ease infinite; }
+
+        /* ── Card Entry Animation ── */
+        @keyframes cardEntry {
+            from { opacity: 0; transform: translateY(10px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .card-entry { animation: cardEntry 0.25s ease forwards; }
         /* ══════════════════════════════════════════
            📱  iOS / PWA — تحسينات الجوال المتقدمة
         ══════════════════════════════════════════ */
@@ -762,8 +985,12 @@
 
         .nav-tab-btn.active {
             color: #22d3ee !important;
-            background: rgba(34, 211, 238, 0.1) !important;
+            background: rgba(34, 211, 238, 0.08) !important;
             font-weight: 700 !important;
+        }
+
+        .nav-tab-btn:active {
+            transform: scale(0.92) !important;
         }
 
         .nav-tab-btn .nav-icon {
@@ -1081,7 +1308,22 @@
 
         const initialInstaPays = [];
 
-        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "settings"];
+        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "jard", "settings"];
+
+        // ══════════════════════════════════════════════════════════════════
+        //  🔑  generateUniqueId — ID فريد 100% لا يتكرر أبداً حتى في نفس الـ ms
+        //  يعتمد على: timestamp (13 رقم) + counter متصاعد + random string
+        //  ✅ آمن من Race Conditions ✅ آمن من التوازي ✅ Lexicographically sortable
+        // ══════════════════════════════════════════════════════════════════
+        const _idCounter = { v: 0 };
+        function generateUniqueId(prefix) {
+            const ts = Date.now();
+            _idCounter.v = (_idCounter.v + 1) % 99999;
+            const cnt = String(_idCounter.v).padStart(5, '0');
+            const rnd = Math.random().toString(36).slice(2, 8);
+            const p = prefix ? `${prefix}-` : '';
+            return `${p}${ts}-${cnt}-${rnd}`;
+        }
 
         // ⭐ Safe Storage (localStorage مع fallback لـ in-memory لو مش متاح)
         const _memStore = {};
@@ -2723,7 +2965,7 @@
                     toNumber, personName: toNumber || "—",
                     sourceId, sourceType: src?.type || "line",
                     date: getToday(), time: getTime(), notes: "عملية سريعة", image: null,
-                    id: "txn-" + Date.now()
+                    id: generateUniqueId("txn")
                 });
                 onClose();
             }
@@ -3248,6 +3490,7 @@
             const [transactions, setTransactions] = useState(() => loadFromLocalStorage('transactions', []));
             const [people, setPeople] = useState(() => loadFromLocalStorage('people', []));
             const [capital, setCapital] = useState(() => loadFromLocalStorage('capital', 0));
+            const [inventory, setInventory] = useState(() => loadFromLocalStorage('inventory', { cash: 0, owedToOthers: 0, note: "" }));
             const [financeLogs, setFinanceLogs] = useState(() => loadFromLocalStorage('financeLogs', []));
             const [fawriBalance, setFawriBalance] = useState(() => loadFromLocalStorage('fawriBalance', 0));
             
@@ -3260,9 +3503,9 @@
                 setIsRefreshing(true);
                 setSyncStatus("⏳ جاري التحديث...");
                 try {
-                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings'];
+                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings','inventory'];
                     const snapshots = await Promise.all(keys.map(k => db.ref(k).once('value')));
-                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap] = snapshots;
+                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap, invSnap] = snapshots;
 
                     // transactions
                     const txnData = txnSnap.val();
@@ -3304,6 +3547,12 @@
                     if (capData !== null) {
                         setCapital(capData);
                         saveToLocalStorage('capital', capData);
+                    }
+                    // inventory
+                    const invData = invSnap.val();
+                    if (invData !== null) {
+                        setInventory(invData);
+                        saveToLocalStorage('inventory', invData);
                     }
                     // financeLogs
                     const logsData = logsSnap.val();
@@ -3542,6 +3791,7 @@
             const capitalWriting = useRef(false); // ⭐ منع الـ listener من يـoverwrite التعديل المحلي
             const abuAdiWriting  = useRef(false); // ⭐ إصلاح 1 — منع الـ loop اللانهائي في أبو عدي
             const abuAdiFromFirebase = useRef(false); // ⭐ إصلاح — لا نكتب لـ Firebase قبل تحميل بياناته
+            const abuAdiWriteVersion = useRef(0); // ✅ FIX v23: version counter لمنع stale write
             const transactionsFromFirebase = useRef(false); // ⭐ إصلاح — منع الكتابة على Firebase قبل تحميله
             const linesFromFirebase = useRef(false);       // ⭐ نفس الحماية للخطوط
             const visasFromFirebase = useRef(false);       // ⭐ نفس الحماية للفيزا
@@ -3658,6 +3908,12 @@
                         if (data !== null && !capitalWriting.current) setTimeout(() => setCapital(data), 0);
                     });
 
+                    db.ref('inventory').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        firebaseLoaded.current = true;
+                        if (data !== null) setTimeout(() => setInventory(data), 0);
+                    });
+
                     db.ref('financeLogs').on('value', (snapshot) => {
                         const data = snapshot.val();
                         firebaseLoaded.current = true;
@@ -3673,7 +3929,7 @@
                         checkAllFirebaseFetched();
                     });
 
-                    // ⭐ Real-time listener لأبو عدي — يزامن بين الأدمن والمساعد والمشاهد فورياً
+                    // ✅ FIX v23: Real-time listener لأبو عدي — يزامن بين الأدمن والمساعد والمشاهد فورياً
                     db.ref('abuAdi').on('value', (snapshot) => {
                         if (abuAdiWriting.current) return; // ⭐ إصلاح 1 — تجاهل التحديث أثناء الكتابة المحلية
                         const data = snapshot.val();
@@ -3685,7 +3941,21 @@
                                 const arr = Array.isArray(data.payments)
                                     ? data.payments.filter(Boolean)
                                     : Object.values(data.payments).filter(Boolean);
-                                setAbuadiPayments(arr);
+                                // ✅ FIX v23: Merge بدل Replace — نضيف الدفعات الجديدة من Firebase
+                                // ولا نحذف الدفعات الموجودة في الـ state المحلي
+                                setAbuadiPayments(localPayments => {
+                                    if (!localPayments || localPayments.length === 0) return arr;
+                                    // Merge: نجمع الـ payments من Firebase والـ local ونزيل المكررات بالـ id
+                                    const merged = [...localPayments];
+                                    const localIds = new Set(localPayments.map(p => String(p.id)));
+                                    arr.forEach(p => {
+                                        if (!localIds.has(String(p.id))) {
+                                            merged.push(p);
+                                        }
+                                    });
+                                    merged.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+                                    return merged;
+                                });
                             }
                         }
                     });
@@ -3739,6 +4009,7 @@
                     db.ref('transactions').off();
                     db.ref('customers').off();
                     db.ref('capital').off();
+                    db.ref('inventory').off();
                     db.ref('financeLogs').off();
                     db.ref('abuAdi').off();
                     db.ref('abuAdi_history').off();
@@ -3784,6 +4055,11 @@
                 saveToLocalStorage('capital', capital);
                 if (isAdmin && auth.currentUser && firebaseReady) { safeFirebaseSet(db, 'capital', capital); }
             }, [capital]);
+
+            useEffect(() => { 
+                saveToLocalStorage('inventory', inventory);
+                if (isAdmin && auth.currentUser && firebaseReady) { safeFirebaseSet(db, 'inventory', inventory); }
+            }, [inventory]);
 
             useEffect(() => { saveToLocalStorage('fawriBalance', fawriBalance); }, [fawriBalance]);
 
@@ -3851,7 +4127,7 @@
                 if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
             }, [financeLogs]);
 
-            // ⭐ Real-time sync لأبو عدي — الأدمن والمساعد يكتبون، الكل يقرأ
+            // ✅ FIX v23: Real-time sync لأبو عدي — محمي من Race Condition بـ version counter
             useEffect(() => {
                 saveToLocalStorage('abuadiTarget', abuadiTarget);
                 saveToLocalStorage('abuadiPayments', abuadiPayments);
@@ -3859,9 +4135,25 @@
                 // ⭐ إصلاح: لا نكتب لـ Firebase إلا بعد ما يحمّل بياناته أولاً — منع مسح الدفعات
                 if ((isAdmin || isAssistant) && auth.currentUser && firebaseReady && abuAdiFromFirebase.current) {
                     try {
+                        // ✅ FIX v23: version counter يمنع stale Firebase listener من يـoverwrite
+                        abuAdiWriteVersion.current += 1;
+                        const myVersion = abuAdiWriteVersion.current;
                         abuAdiWriting.current = true; // ⭐ إصلاح 1 — رفع الراية قبل الكتابة
-                        db.ref('abuAdi').set({ target: abuadiTarget, payments: abuadiPayments, date: abuadiDate })
-                            .finally(() => { setTimeout(() => { abuAdiWriting.current = false; }, 1000); });
+                        db.ref('abuAdi').set({ 
+                            target: abuadiTarget, 
+                            payments: abuadiPayments, 
+                            date: abuadiDate,
+                            _v: myVersion,         // ✅ version للتحقق
+                            _ts: Date.now(),       // ✅ timestamp للترتيب
+                        })
+                            .finally(() => { 
+                                // ✅ FIX v23: نبقي الراية مرفوعة 2 ثانية بدل 1 للأمان
+                                setTimeout(() => { 
+                                    if (abuAdiWriteVersion.current === myVersion) {
+                                        abuAdiWriting.current = false; 
+                                    }
+                                }, 2000); 
+                            });
                     } catch(e){ abuAdiWriting.current = false; }
                 }
             }, [abuadiTarget, abuadiPayments, abuadiDate]);
@@ -4026,7 +4318,14 @@
                 setTab("dashboard");
             }
 
-            function showToast(msg, type="success") { setToast({msg,type}); setTimeout(()=>setToast(null),3000); }
+            function showToast(msg, type="success") { 
+                if (navigator.vibrate) { 
+                    if (type === "error") navigator.vibrate([50,30,50]); 
+                    else navigator.vibrate(20); 
+                }
+                setToast({msg, type, id: generateUniqueId('toast')}); 
+                setTimeout(()=>setToast(null), 3200); 
+            }
 
             // ══ Voice-to-Accounting ══
             function startVoiceInput() {
@@ -4549,7 +4848,7 @@ ${knownNumbersText}`;
                 if (isNaN(diff) || diff === 0) { showToast("اكتب فرق صحيح (موجب أو سالب)", "error"); return; }
 
                 const adjTxn = {
-                    id: Date.now(),
+                    id: generateUniqueId(),
                     type: "monthly_adjustment",
                     adjustTarget: adjustForm.target, // "transfer" أو "receive"
                     date: today(),
@@ -4643,7 +4942,7 @@ ${knownNumbersText}`;
                 const autoToNumber   = form.toNumber   || (form.type === "receive" ? actualLineNumber : "");
 
                 const newTxn = {
-                    id: Date.now(),
+                    id: generateUniqueId(),
                     type: form.type,
                     date: form.date,
                     dateTime: fullDateTime,
@@ -4750,7 +5049,7 @@ ${knownNumbersText}`;
                         if (p.id !== existingPerson.id) return p;
                         const typeLabel = form.type === "transfer" ? "تحويل" : form.type === "receive" ? "استلام" : form.type === "bank_withdraw" ? "سحب بنك" : form.type === "fawri_transfer" ? "تحويل إلى فوري" : "سحب فوري";
                         const newRecord = {
-                            id: Date.now(),
+                            id: generateUniqueId(),
                             type: form.type,
                             amount: amount,
                             date: fullDateTime,
@@ -4832,7 +5131,7 @@ ${knownNumbersText}`;
 
                 splitPlan.steps.forEach((step, idx) => {
                     const src = sources.find(s => s.id === step.sourceId);
-                    const txnId = Date.now() + idx;
+                    const txnId = generateUniqueId('txn');
                     const autoFromNumber = form.type === "transfer" ? (form.fromNumber || src?.number || "") : "";
                     const autoToNumber   = form.type === "transfer" ? (form.toNumber   || "") : (src?.number || "");
 
@@ -5006,7 +5305,7 @@ ${knownNumbersText}`;
                     showToast("العميل موجود بالفعل", "error"); return;
                 }
                 const newCust = {
-                    id: Date.now(),
+                    id: generateUniqueId(),
                     personName: name,
                     moves: [],
                     createdAt: nowStr(),
@@ -5026,7 +5325,7 @@ ${knownNumbersText}`;
                 const amt = parseFloat(custMoveForm.amount);
                 if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
                 const move = {
-                    id: Date.now(),
+                    id: generateUniqueId(),
                     type: custMoveForm.type,        // "debit" حوّل مني | "credit" أعطاني
                     amount: amt,
                     note: custMoveForm.note.trim() || (custMoveForm.type === "debit" ? "تحويل كاش" : "سداد دفعة"),
@@ -5083,7 +5382,7 @@ ${knownNumbersText}`;
                 }
 
                 const newLog = {
-                    id: Date.now(),
+                    id: generateUniqueId(),
                     type: financeForm.type,
                     amount: amt,
                     desc: financeForm.desc,
@@ -5353,7 +5652,7 @@ ${knownNumbersText}`;
 
             // التبويبات المتاحة لعمر
             const omarTabs = ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
-            const allTabs  = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "settings"];
+            const allTabs  = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "jard", "settings"];
 
             const tabs = isAdmin ? allTabs : isOmar ? omarTabs : ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
 
@@ -5365,6 +5664,7 @@ ${knownNumbersText}`;
                 {id:"finance",     icon:"💰", label:"المالية",  adminOnly: true},
                 {id:"abuadi",      icon:"🤝", label:"أبو عدي"},
                 {id:"ai",          icon:"✨", label:"AI"},
+                {id:"jard",        icon:"📊", label:"الجرد",   adminOnly: true},
                 {id:"settings",    icon:"⚙️", label:"إعدادات", adminOnly: true}
             ].filter(t => tabs.includes(t.id) && (!t.adminOnly || isAdmin));
 
@@ -5417,13 +5717,20 @@ ${knownNumbersText}`;
                     {/* Header */}
                     <div className="hawker-header-inner" style={{paddingTop:"calc(14px + env(safe-area-inset-top, 0px))",paddingBottom:14,paddingLeft:20,paddingRight:20,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
-                            <div style={{width:38,height:38,borderRadius:10,background:"linear-gradient(135deg,#e40000,#cc0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:900,color:"#fff",boxShadow:"0 0 16px #e4000055"}}>V</div>
+                            {/* Premium Logo */}
+                            <div style={{width:40,height:40,borderRadius:12,background:"linear-gradient(135deg,#e40000,#cc0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:900,color:"#fff",boxShadow:"0 0 20px rgba(228,0,0,0.5), 0 2px 8px rgba(0,0,0,0.4)",position:"relative",overflow:"hidden"}}>
+                                <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent)"}}/>
+                                V
+                            </div>
                             <div>
-                                <div style={{fontSize:16,fontWeight:700,color:"#fff"}}>فودافون كاش</div>
-                                <div style={{fontSize:11,color: isAdmin?"#f59e0b":isOmar?"#22d3ee":isAssistant?"#10b981":"#64748b",fontWeight:isAdmin||isOmar||isAssistant?700:400}}>{getRoleName()}</div>
+                                <div style={{fontSize:16,fontWeight:800,color:"#fff",letterSpacing:"-0.3px"}}>الحوكر</div>
+                                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                    <span className="live-dot" style={{width:5,height:5,borderRadius:"50%",background:syncStatus.includes("✓")||syncStatus.includes("🟢")?"#10b981":"#f59e0b",display:"inline-block"}}/>
+                                    <span style={{fontSize:10,color:isAdmin?"#f59e0b":isOmar?"#22d3ee":isAssistant?"#10b981":"#64748b",fontWeight:700}}>{getRoleName()}</span>
+                                </div>
                             </div>
                         </div>
-                        <div style={{display:"flex", gap:10, alignItems:"center"}}>
+                        <div style={{display:"flex", gap:8, alignItems:"center"}}>
                             <div style={{fontSize:10,color:"#10b981"}}>{syncStatus}</div>
                             {/* ⭐ زر التحديث الإجباري من Firebase */}
                             <button
@@ -5495,24 +5802,26 @@ ${knownNumbersText}`;
 
                     {toast && (() => {
                         const styles = {
-                            success: { bg:"#10b981", icon:"✅", border:"#10b98160" },
-                            error:   { bg:"#ef4444", icon:"❌", border:"#ef444460" },
-                            warning: { bg:"#f59e0b", icon:"⚠️", border:"#f59e0b60" },
-                            info:    { bg:"#22d3ee", icon:"ℹ️", border:"#22d3ee60" },
+                            success: { bg:"linear-gradient(135deg,#059669,#10b981)", icon:"✅", glow:"rgba(16,185,129,0.4)" },
+                            error:   { bg:"linear-gradient(135deg,#dc2626,#ef4444)", icon:"❌", glow:"rgba(239,68,68,0.4)"  },
+                            warning: { bg:"linear-gradient(135deg,#d97706,#f59e0b)", icon:"⚠️", glow:"rgba(245,158,11,0.4)" },
+                            info:    { bg:"linear-gradient(135deg,#0891b2,#22d3ee)", icon:"ℹ️", glow:"rgba(34,211,238,0.4)"  },
                         };
                         const s = styles[toast.type] || styles.success;
                         return (
-                            <div className="toast-animate" style={{
-                                position:"fixed", top:68, left:"50%", transform:"translateX(-50%)",
-                                background:`${s.bg}ee`, color:"#fff",
-                                padding:"10px 20px", borderRadius:30,
+                            <div key={toast.id} className="toast-animate" style={{
+                                position:"fixed", top:72, left:"50%", transform:"translateX(-50%)",
+                                background:s.bg,
+                                color:"#fff",
+                                padding:"11px 22px", borderRadius:36,
                                 fontSize:14, fontWeight:700, zIndex:9999,
-                                boxShadow:`0 4px 24px rgba(0,0,0,0.7), 0 0 0 1px ${s.border}`,
+                                boxShadow:`0 6px 30px ${s.glow}, 0 2px 8px rgba(0,0,0,0.5)`,
                                 whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8,
-                                backdropFilter:"blur(8px)", maxWidth:"90vw", overflow:"hidden",
-                                textOverflow:"ellipsis",
+                                backdropFilter:"blur(12px)",
+                                maxWidth:"88vw",
+                                letterSpacing:"0.2px",
                             }}>
-                                <span>{s.icon}</span>
+                                <span style={{fontSize:16}}>{s.icon}</span>
                                 <span style={{maxWidth:260,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{toast.msg}</span>
                             </div>
                         );
@@ -5724,25 +6033,40 @@ ${knownNumbersText}`;
                             <div>
                                 {/* ⭐ FIX: Loading indicator — يمنع عرض صفر قبل Firebase */}
                                 {dashboardLoading && (
-                                    <div style={{textAlign:"center",padding:"32px 0",color:"#22d3ee"}}>
-                                        <div className="loading-spinner" style={{margin:"0 auto 12px"}}></div>
-                                        <div style={{fontSize:14,fontWeight:700,color:"#22d3ee"}}>⏳ جاري تحميل البيانات من Firebase...</div>
-                                        <div style={{fontSize:11,color:"#64748b",marginTop:4}}>انتظر لحظة — سيظهر الداشبورد تلقائياً</div>
+                                    <div style={{textAlign:"center",padding:"40px 0",color:"#22d3ee"}}>
+                                        {/* Premium Loading Skeleton */}
+                                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                                            {[1,2,3,4].map(i=>(
+                                                <div key={i} className="skeleton" style={{height:80,borderRadius:14}}/>
+                                            ))}
+                                        </div>
+                                        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:8}}>
+                                            <div className="loading-spinner"/>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#22d3ee"}}>جاري تحميل البيانات...</div>
+                                        </div>
                                     </div>
                                 )}
                                 {!dashboardLoading && (
-                                <div>
+                                <div className="tab-enter">
+                                {/* ══ KPI Cards — Premium ══ */}
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
                                     {[
-                                        {label:"عمليات اليوم",value:todayTxns.length,icon:"📊",color:"#22d3ee"},
-                                        {label:"رأس المال",value:maskNum(capital, privacyMode)+" ج",icon:"👑",color:"#f59e0b"},
-                                        {label:"الديون الباقية",value:maskNum(totalDebt, privacyMode)+" ج",icon:"💳",color:"#ef4444"},
-                                        {label:"صافي الشهر",value:maskNum(netMonthProfit, privacyMode)+" ج",icon:"📈",color:"#a78bfa"},
+                                        {label:"عمليات اليوم",value:todayTxns.length,icon:"📊",color:"#22d3ee",sub:"عملية منجزة",grad:"135deg,#0d1e3a,#0f2747"},
+                                        {label:"رأس المال",value:maskNum(capital, privacyMode)+" ج",icon:"👑",color:"#f59e0b",sub:"إجمالي",grad:"135deg,#1a1200,#1f1800"},
+                                        {label:"الديون الباقية",value:maskNum(totalDebt, privacyMode)+" ج",icon:"💳",color:"#ef4444",sub:"مستحقة",grad:"135deg,#1a0505,#200808"},
+                                        {label:"صافي الشهر",value:maskNum(netMonthProfit, privacyMode)+" ج",icon:"📈",color:"#a78bfa",sub:"أرباح",grad:"135deg,#0e0a1f,#130d25"},
                                     ].map((c,i)=>(
-                                        <div key={i} style={{background:"var(--bg-card)",border:`1px solid ${c.color}25`,borderRadius:14,padding:"14px 16px"}}>
-                                            <div style={{fontSize:22}}>{c.icon}</div>
-                                            <div style={{fontSize:16,fontWeight:700,color:c.color,marginTop:4}}>{c.value}</div>
-                                            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>{c.label}</div>
+                                        <div key={i} className="kpi-card card-entry" style={{
+                                            background:`linear-gradient(${c.grad})`,
+                                            border:`1px solid ${c.color}20`,
+                                            animationDelay:`${i*0.05}s`
+                                        }}>
+                                            {/* Top accent line */}
+                                            <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${c.color}60,transparent)`,borderRadius:"14px 14px 0 0"}}/>
+                                            <div style={{fontSize:24,marginBottom:6}}>{c.icon}</div>
+                                            <div className="premium-amount" style={{fontSize:17,fontWeight:900,color:c.color,lineHeight:1.2}}>{c.value}</div>
+                                            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:4,fontWeight:600}}>{c.label}</div>
+                                            <div style={{fontSize:10,color:`${c.color}60`,marginTop:2}}>{c.sub}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -6668,7 +6992,7 @@ ${knownNumbersText}`;
                                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                                             {isAdmin && (
                                                 <button onClick={e=>{e.stopPropagation();
-                                                    const newId = `line-${Date.now()}`;
+                                                    const newId = generateUniqueId("line");
                                                     const newLine = {id:newId, name:`خط ${lines.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
                                                     setLines(prev=>[...prev, newLine]);
                                                     showToast("تم إضافة خط جديد ✓");
@@ -6758,7 +7082,7 @@ ${knownNumbersText}`;
                                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                                             {isAdmin && (
                                                 <button onClick={e=>{e.stopPropagation();
-                                                    const newId = `visa-${Date.now()}`;
+                                                    const newId = generateUniqueId("visa");
                                                     const newVisa = {id:newId, name:`فيزا فوري ${visas.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
                                                     setVisas(prev=>[...prev, newVisa]);
                                                     showToast("تم إضافة فيزا فوري جديدة ✓");
@@ -6844,7 +7168,7 @@ ${knownNumbersText}`;
                                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                                             {isAdmin && (
                                                 <button onClick={e=>{e.stopPropagation();
-                                                    const newId = `instapay-${Date.now()}`;
+                                                    const newId = generateUniqueId("instapay");
                                                     const newIP = {id:newId, name:`إنستا باي ${instaPays.length+1}`, number:"", usedTodayTransfer:0, usedMonthTransfer:0, usedTodayReceive:0, usedMonthReceive:0, balance:0, available:true};
                                                     setInstaPays(prev=>[...prev, newIP]);
                                                     showToast("تم إضافة إنستا باي جديدة ✓");
@@ -6994,6 +7318,100 @@ ${knownNumbersText}`;
                             </div>
                         )}
 
+                        {/* ════════════════════════════════════════════════════════
+                            📊  JARD TAB — الجرد: صافي الفلوس الحقيقية (أدمن فقط)
+                            ════════════════════════════════════════════════════════ */}
+                        {tab==="jard" && isAdmin && (() => {
+                            const linesTotal     = lines.reduce((s,l)=>s+(l.balance||0),0);
+                            const visasTotal     = visas.reduce((s,v)=>s+(v.balance||0),0);
+                            const instaPaysTotal = instaPays.reduce((s,ip)=>s+(ip.balance||0),0);
+                            const peopleOwedToMe = people.reduce((s,p)=>s+Math.max(0,getPersonBalance(p)),0);
+                            const peopleIOwe     = people.reduce((s,p)=>s+Math.max(0,-getPersonBalance(p)),0);
+                            const abuAdiIOwe     = abuadiTarget || 0;
+                            const cashOnHand     = inventory.cash || 0;
+                            const owedToOthers   = inventory.owedToOthers || 0;
+
+                            const totalAssets = cashOnHand + linesTotal + visasTotal + instaPaysTotal + peopleOwedToMe;
+                            const totalLiabilities = abuAdiIOwe + owedToOthers + peopleIOwe;
+                            const netWorth = totalAssets - totalLiabilities;
+
+                            const Row = ({icon, label, value, color, sub}) => (
+                                <div style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                        <span style={{fontSize:18}}>{icon}</span>
+                                        <div>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{label}</div>
+                                            {sub && <div style={{fontSize:10,color:"#475569",marginTop:2}}>{sub}</div>}
+                                        </div>
+                                    </div>
+                                    <div style={{fontSize:15,fontWeight:800,color:color||"#e2e8f0"}}>{formatNum(value)} ج</div>
+                                </div>
+                            );
+
+                            return (
+                                <div>
+                                    {/* صافي الفلوس — البطاقة الكبيرة */}
+                                    <div style={{background:`linear-gradient(135deg,${netWorth>=0?"#0f3d1e":"#3d0f0f"},#0a1628)`,border:`1px solid ${netWorth>=0?"#10b98140":"#ef444440"}`,borderRadius:18,padding:20,marginBottom:18,textAlign:"center"}}>
+                                        <div style={{fontSize:13,color:"#94a3b8"}}>💎 صافي فلوسك الحقيقية</div>
+                                        <div style={{fontSize:32,fontWeight:900,color:netWorth>=0?"#10b981":"#ef4444",margin:"10px 0"}}>{formatNum(netWorth)} ج</div>
+                                        <div style={{fontSize:11,color:"#64748b"}}>إجمالي اللي معاك ناقص إجمالي اللي عليك</div>
+                                    </div>
+
+                                    {/* إدخال الكاش الفعلي واللي عليك لناس برة النظام */}
+                                    <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:14,padding:14,marginBottom:18}}>
+                                        <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:10}}>✏️ تحديث يدوي</div>
+                                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                                            <div>
+                                                <label style={{fontSize:11,color:"#64748b"}}>💵 الكاش معاك (فلوس)</label>
+                                                <input type="number" value={inventory.cash||0}
+                                                    onChange={e=>setInventory(p=>({...p, cash: parseFloat(e.target.value)||0}))}
+                                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:8,padding:"8px 10px",color:"#fff",fontSize:14,marginTop:4}}/>
+                                            </div>
+                                            <div>
+                                                <label style={{fontSize:11,color:"#64748b"}}>📤 ديون عليك لناس برة (مش أبو عدي)</label>
+                                                <input type="number" value={inventory.owedToOthers||0}
+                                                    onChange={e=>setInventory(p=>({...p, owedToOthers: parseFloat(e.target.value)||0}))}
+                                                    style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:8,padding:"8px 10px",color:"#fff",fontSize:14,marginTop:4}}/>
+                                            </div>
+                                        </div>
+                                        <div style={{marginTop:10}}>
+                                            <label style={{fontSize:11,color:"#64748b"}}>📝 ملاحظات (اختياري)</label>
+                                            <input type="text" value={inventory.note||""}
+                                                onChange={e=>setInventory(p=>({...p, note: e.target.value}))}
+                                                placeholder="مثلاً: تفاصيل الديون البرانية..."
+                                                style={{width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:8,padding:"8px 10px",color:"#fff",fontSize:13,marginTop:4}}/>
+                                        </div>
+                                    </div>
+
+                                    {/* الأصول — اللي معاك */}
+                                    <div style={{fontSize:14,fontWeight:700,color:"#10b981",marginBottom:10}}>✅ اللي معاك (الأصول)</div>
+                                    <Row icon="💵" label="الكاش الفعلي" value={cashOnHand} color="#10b981" />
+                                    <Row icon="📱" label="أرصدة الخطوط" value={linesTotal} color="#10b981" sub={`${lines.filter(l=>l.available).length} خط شغال`} />
+                                    <Row icon="💳" label="أرصدة الفيزا فوري" value={visasTotal} color="#10b981" />
+                                    <Row icon="🔄" label="أرصدة إنستا باي" value={instaPaysTotal} color="#10b981" />
+                                    <Row icon="🤲" label="ديون ليك على الناس" value={peopleOwedToMe} color="#10b981" sub="من شاشة الأشخاص" />
+                                    <div style={{background:"#10b98115",border:"1px solid #10b98140",borderRadius:12,padding:"10px 14px",marginBottom:18,display:"flex",justifyContent:"space-between"}}>
+                                        <span style={{fontSize:13,fontWeight:700,color:"#10b981"}}>إجمالي الأصول</span>
+                                        <span style={{fontSize:16,fontWeight:900,color:"#10b981"}}>{formatNum(totalAssets)} ج</span>
+                                    </div>
+
+                                    {/* الخصوم — اللي عليك */}
+                                    <div style={{fontSize:14,fontWeight:700,color:"#ef4444",marginBottom:10}}>⚠️ اللي عليك (الخصوم)</div>
+                                    <Row icon="🤝" label="مطلوب لأبو عدي" value={abuAdiIOwe} color="#ef4444" sub="من شاشة أبو عدي" />
+                                    {peopleIOwe > 0 && <Row icon="↩️" label="دفعت زيادة لناس (عليك ترجعها)" value={peopleIOwe} color="#ef4444" />}
+                                    <Row icon="📤" label="ديون عليك لناس برة النظام" value={owedToOthers} color="#ef4444" />
+                                    <div style={{background:"#ef444415",border:"1px solid #ef444440",borderRadius:12,padding:"10px 14px",marginBottom:18,display:"flex",justifyContent:"space-between"}}>
+                                        <span style={{fontSize:13,fontWeight:700,color:"#ef4444"}}>إجمالي الخصوم</span>
+                                        <span style={{fontSize:16,fontWeight:900,color:"#ef4444"}}>{formatNum(totalLiabilities)} ج</span>
+                                    </div>
+
+                                    <div style={{fontSize:10,color:"#475569",textAlign:"center",marginTop:10}}>
+                                        ⏱️ آخر تحديث يدوي محسوب لحظياً مع باقي بيانات النظام
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {/* ABU ADI SCREEN */}
                         {tab==="abuadi" && (
                             <AbuAdiScreen
@@ -7068,6 +7486,7 @@ ${knownNumbersText}`;
                             lines={lines} visas={visas} instaPays={instaPays}
                             transactions={transactions} people={people}
                             capital={capital} financeLogs={financeLogs}
+                            inventory={inventory} setInventory={setInventory}
                             abuadiTarget={abuadiTarget} abuadiPayments={abuadiPayments}
                             abuadiDate={abuadiDate} abuadiHistory={abuadiHistory}
                             setLines={setLines} setVisas={setVisas} setInstaPays={setInstaPays}
@@ -7091,11 +7510,24 @@ ${knownNumbersText}`;
 
                     {/* Bottom Nav — Mobile Only (hidden on desktop via CSS) */}
                     <div className="hawker-bottom-nav">
-                        {displayTabs.map(item=>(
-                            <button key={item.id} onClick={()=>setTab(item.id)} className={`nav-tab-btn${tab===item.id?" active":""}`}>
-                                <span className="nav-icon" style={{filter: tab===item.id?"drop-shadow(0 0 5px rgba(34,211,238,0.7))":"none",transition:"filter 0.2s"}}>{item.icon}</span>
+                        {displayTabs.map((item,i)=>(
+                            <button key={item.id} onClick={()=>setTab(item.id)} className={`nav-tab-btn${tab===item.id?" active":""}`}
+                                style={{position:"relative"}}>
+                                <span className="nav-icon" style={{
+                                    filter: tab===item.id?"drop-shadow(0 0 6px rgba(34,211,238,0.8))":"none",
+                                    transition:"filter 0.25s ease, transform 0.2s ease",
+                                    transform: tab===item.id?"scale(1.15)":"scale(1)",
+                                    display:"inline-block"
+                                }}>{item.icon}</span>
                                 <span className="nav-label">{item.label}</span>
-                                {tab===item.id && <div style={{width:3,height:3,borderRadius:99,background:"#22d3ee",boxShadow:"0 0 5px #22d3ee",marginTop:1}}/>}
+                                {tab===item.id && (
+                                    <div style={{
+                                        position:"absolute",bottom:-1,left:"50%",transform:"translateX(-50%)",
+                                        width:20,height:2,borderRadius:2,
+                                        background:"linear-gradient(90deg,transparent,#22d3ee,transparent)",
+                                        boxShadow:"0 0 6px #22d3ee"
+                                    }}/>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -8259,7 +8691,7 @@ ${knownNumbersText}`;
                             showToast={showToast}
                             onClose={()=>setShowQuickAdd(false)}
                             onSave={(txnData)=>{
-                                const newTxn = { ...txnData, id: "txn-"+Date.now() };
+                                const newTxn = { ...txnData, id: generateUniqueId("txn") };
                                 const updated = [newTxn, ...transactions];
                                 setTransactions(updated);
                                 saveToLocalStorage("transactions", updated);
@@ -8373,6 +8805,8 @@ ${knownNumbersText}`;
             const [historyDetailDate, setHistoryDetailDate] = useState(null); // dateStr لعرض التفاصيل
             const [dayNote, setDayNote] = useState(""); // ملاحظات اليوم قبل الأرشفة
             const [historyFilter, setHistoryFilter] = useState(""); // فلتر التاريخ YYYY-MM-DD
+            // ✅ FIX v23: منع الضغط المزدوج على "تسجيل الدفعة"
+            const [isAdding, setIsAdding] = useState(false);
 
             function nowMsStr() {
                 const d = new Date();
@@ -8509,22 +8943,38 @@ ${knownNumbersText}`;
             }
 
             function addPayment() {
+                if (isAdding) return; // ✅ FIX v23: منع الضغط المزدوج
                 const amt = parseFloat(amountInput);
                 if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح","error"); return; }
                 // ⭐ Haptic feedback — iOS
                 if (navigator.vibrate) navigator.vibrate(15);
+                setIsAdding(true); // ✅ قفل فوري لمنع الضغط المزدوج
+                // ✅ FIX: generateUniqueId يضمن ID فريد حتى لو ضغطت 100 مرة في نفس الـ ms
+                const uniqueId = generateUniqueId('pmt');
+                const nowTs = Date.now();
                 const newP = {
-                    id: Date.now(),
+                    id: uniqueId,          // ✅ FIXED: كان Date.now() يسبب تكرار
                     amount: amt,
-                    ts: Date.now(),
+                    ts: nowTs,
                     label: nowMsStr(),
                     audio: pendingAudio || null,
+                    createdAt: new Date().toISOString(), // ✅ timestamp بشري للـ debugging
                 };
-                setPayments(prev => [newP, ...prev]);
+                // ✅ FIX: نستخدم functional update لضمان أحدث state (منع race condition)
+                setPayments(prev => {
+                    // ✅ Double-check: تأكد مفيش دفعة بنفس الـ ID (دفاع إضافي)
+                    if (prev.some(p => p.id === uniqueId)) {
+                        console.warn('Duplicate ID detected and prevented:', uniqueId);
+                        return prev;
+                    }
+                    return [newP, ...prev];
+                });
                 setAmountInput("");
                 setPendingAudio(null);
                 setRecordingState("idle");
                 showToast(`✓ تم تسجيل دفعة ${maskNum(amt, privacyMode)} ج`);
+                // ✅ فك القفل بعد 800ms
+                setTimeout(() => setIsAdding(false), 800);
             }
 
             function deletePayment(id) {
@@ -8577,16 +9027,18 @@ ${knownNumbersText}`;
             return (
                 <div style={{paddingBottom:20}}>
 
-                    {/* ══ Header ══ */}
-                    <div style={{background:"linear-gradient(135deg,#0f1e3d,#162545)",border:"1px solid #22d3ee30",borderRadius:16,padding:18,marginBottom:16,textAlign:"center",position:"relative",overflow:"hidden"}}>
-                        <div style={{position:"absolute",top:0,right:0,width:4,height:"100%",background:"linear-gradient(to bottom,#22d3ee,#0891b2)",borderRadius:"0 16px 16px 0"}}/>
-                        <div style={{fontSize:28,marginBottom:4}}>🤝</div>
-                        <div style={{fontSize:20,fontWeight:900,color:"#22d3ee"}}>حسابات أبو عدي</div>
-                        <div style={{fontSize:11,color:"#475569",marginTop:4}}>نظام تراكمي تاريخي • {fmtDate(todayStr)}</div>
-                        {/* شارة عدد الأيام المؤرشفة */}
+                    {/* ══ Header — Premium ══ */}
+                    <div style={{background:"linear-gradient(135deg,#071028,#0c1a38,#071528)",border:"1px solid #22d3ee25",borderRadius:20,padding:22,marginBottom:16,textAlign:"center",position:"relative",overflow:"hidden"}}>
+                        {/* Ambient glow */}
+                        <div style={{position:"absolute",top:-30,left:"50%",transform:"translateX(-50%)",width:200,height:100,background:"radial-gradient(ellipse,rgba(34,211,238,0.15),transparent 70%)",pointerEvents:"none"}}/>
+                        <div style={{position:"absolute",top:0,right:0,width:3,height:"100%",background:"linear-gradient(to bottom,#22d3ee,transparent)",borderRadius:"0 20px 20px 0"}}/>
+                        <div style={{fontSize:32,marginBottom:6}}>🤝</div>
+                        <div className="gradient-text-cyan" style={{fontSize:22,fontWeight:900}}>حسابات أبو عدي</div>
+                        <div style={{fontSize:11,color:"#475569",marginTop:5,letterSpacing:"0.5px"}}>نظام تراكمي تاريخي • {fmtDate(todayStr)}</div>
                         {historyList.length > 0 && (
-                            <div style={{display:"inline-flex",alignItems:"center",gap:5,background:"#10b98115",border:"1px solid #10b98130",borderRadius:20,padding:"3px 12px",fontSize:11,color:"#10b981",marginTop:8}}>
-                                📚 {historyList.length} يوم مؤرشف
+                            <div style={{display:"inline-flex",alignItems:"center",gap:5,background:"#10b98112",border:"1px solid #10b98130",borderRadius:20,padding:"4px 14px",fontSize:11,color:"#10b981",marginTop:10,fontWeight:700}}>
+                                <span className="live-dot" style={{width:6,height:6,borderRadius:"50%",background:"#10b981",display:"inline-block"}}/>
+                                {historyList.length} يوم مؤرشف
                             </div>
                         )}
                     </div>
@@ -8649,14 +9101,42 @@ ${knownNumbersText}`;
                                             <div style={{fontSize:15,fontWeight:700,color:settled?"#10b981":"#ef4444"}}>{settled?"✓ صُفِّي":formatNum(remaining)}</div>
                                         </div>
                                     </div>
-                                    {/* Progress Bar */}
-                                    <div style={{background:"#1e293b",borderRadius:99,height:12,overflow:"hidden"}}>
-                                        <div style={{width:`${pct}%`,height:"100%",background: settled?"linear-gradient(90deg,#10b981,#059669)":"linear-gradient(90deg,#22d3ee,#0891b2)",borderRadius:99,transition:"width 0.5s ease",boxShadow: settled?"0 0 12px #10b98180":"0 0 12px #22d3ee80"}}/>
+                                    {/* ── Premium Progress Bar with Ring ── */}
+                                    <div style={{display:"flex",alignItems:"center",gap:16,marginTop:12}}>
+                                        {/* SVG Ring */}
+                                        <div style={{flexShrink:0,position:"relative",width:72,height:72}}>
+                                            <svg width="72" height="72" viewBox="0 0 72 72">
+                                                <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="7"/>
+                                                <circle cx="36" cy="36" r="30" fill="none"
+                                                    stroke={settled?"#10b981":"#22d3ee"}
+                                                    strokeWidth="7"
+                                                    strokeLinecap="round"
+                                                    strokeDasharray={`${2*Math.PI*30}`}
+                                                    strokeDashoffset={`${2*Math.PI*30*(1-pct/100)}`}
+                                                    className="progress-ring-circle"
+                                                    style={{filter:`drop-shadow(0 0 6px ${settled?"#10b981":"#22d3ee"})`}}
+                                                />
+                                            </svg>
+                                            <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                                <div className="premium-amount" style={{fontSize:13,fontWeight:900,color:settled?"#10b981":"#22d3ee",textAlign:"center",lineHeight:1}}>{pct.toFixed(0)}%</div>
+                                            </div>
+                                        </div>
+                                        {/* Bar */}
+                                        <div style={{flex:1}}>
+                                            <div style={{background:"rgba(255,255,255,0.04)",borderRadius:99,height:10,overflow:"hidden",boxShadow:"inset 0 2px 4px rgba(0,0,0,0.4)"}}>
+                                                <div style={{width:`${pct}%`,height:"100%",background:settled?"linear-gradient(90deg,#059669,#10b981)":"linear-gradient(90deg,#0891b2,#22d3ee)",borderRadius:99,transition:"width 0.6s cubic-bezier(0.4,0,0.2,1)",boxShadow:settled?"0 0 10px #10b98170":"0 0 10px #22d3ee70"}}/>
+                                            </div>
+                                            <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+                                                <span style={{fontSize:10,color:"#64748b"}}>تم تسليم {formatNum(totalPaid)} ج</span>
+                                                <span style={{fontSize:10,color:"#64748b"}}>من {formatNum(target)} ج</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div style={{textAlign:"center",fontSize:11,color:"#64748b",marginTop:5}}>{pct.toFixed(1)}% تم تسليمه</div>
                                     {settled && (
-                                        <div style={{background:"#10b98115",border:"1px solid #10b98140",borderRadius:10,padding:10,textAlign:"center",marginTop:10}}>
-                                            <div style={{fontSize:16,fontWeight:900,color:"#10b981"}}>✅ تم تصفية الحساب بالكامل!</div>
+                                        <div style={{background:"linear-gradient(135deg,#05180f,#071a0d)",border:"1px solid #10b98145",borderRadius:14,padding:"12px 16px",textAlign:"center",marginTop:12,position:"relative",overflow:"hidden"}}>
+                                            <div style={{position:"absolute",top:-20,left:"50%",transform:"translateX(-50%)",width:120,height:60,background:"radial-gradient(ellipse,rgba(16,185,129,0.2),transparent 70%)"}}/>
+                                            <div className="success-icon" style={{fontSize:28}}>✅</div>
+                                            <div style={{fontSize:15,fontWeight:900,color:"#10b981",marginTop:4}}>تم تصفية الحساب بالكامل!</div>
                                         </div>
                                     )}
                                 </div>
@@ -8693,37 +9173,44 @@ ${knownNumbersText}`;
 
                         {/* ADD PAYMENT FORM — للأدمن والمساعد فقط */}
                         {canEdit && (
-                        <div style={{background:"linear-gradient(135deg,#0a1628,#0f1e3d)",border:"1px solid #a78bfa40",borderRadius:14,padding:16,marginBottom:14}}>
-                            <div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:12}}>➕ إضافة دفعة كاش جديدة</div>
+                        <div style={{background:"linear-gradient(135deg,#0b1020,#0f1830)",border:"1px solid #a78bfa30",borderRadius:18,padding:18,marginBottom:14,position:"relative",overflow:"hidden"}}>
+                            {/* Ambient glow */}
+                            <div style={{position:"absolute",top:-20,right:"30%",width:120,height:80,background:"radial-gradient(ellipse,rgba(167,139,250,0.12),transparent 70%)",pointerEvents:"none"}}/>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                                <div style={{width:6,height:6,borderRadius:"50%",background:"#a78bfa",boxShadow:"0 0 8px #a78bfa"}}/>
+                                <div style={{fontSize:13,color:"#a78bfa",fontWeight:700}}>تسجيل دفعة كاش جديدة</div>
+                            </div>
 
-                            <div style={{display:"flex",gap:8,marginBottom:12}}>
+                            {/* Input Row */}
+                            <div style={{display:"flex",gap:10,marginBottom:14}}>
                                 <input
                                     type="number"
                                     value={amountInput}
                                     onChange={e=>setAmountInput(e.target.value)}
                                     onKeyPress={e=>e.key==="Enter"&&addPayment()}
-                                    placeholder="المبلغ (مثلاً: 50000)"
-                                    style={{flex:1,background:"#0a0f1e",border:"1px solid #a78bfa50",borderRadius:10,padding:"12px 14px",color:"#e2e8f0",fontSize:15,outline:"none",textAlign:"right",fontFamily:"'Tajawal',sans-serif"}}
+                                    placeholder="المبلغ بالجنيه..."
+                                    className="neuro-input"
+                                    style={{flex:1,borderRadius:12,padding:"13px 16px",color:"#e2e8f0",fontSize:16,outline:"none",textAlign:"right",fontFamily:"'Tajawal',sans-serif",fontWeight:700}}
                                 />
                             </div>
 
                             {/* Voice Recorder */}
-                            <div style={{background:"#0a0f1e",borderRadius:10,padding:12,marginBottom:12,border:`1px solid ${recordingState==="recording"?"#ef4444":"#1e293b"}`}}>
-                                <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}}>🎙️ تسجيل صوتي (اختياري — إثبات التسليم)</div>
+                            <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,padding:12,marginBottom:14,border:`1px solid ${recordingState==="recording"?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.05)"}`}}>
+                                <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}}>🎙️ تسجيل صوتي — إثبات التسليم (اختياري)</div>
                                 {recordingState === "idle" && (
                                     <button onClick={startRecording}
-                                        style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:10,color:"#94a3b8",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                        style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,color:"#64748b",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",transition:"all .2s"}}>
                                         🎙️ ابدأ التسجيل
                                     </button>
                                 )}
                                 {recordingState === "recording" && (
                                     <div style={{display:"flex",gap:8}}>
                                         <button onClick={stopRecording}
-                                            style={{flex:1,background:"linear-gradient(135deg,#ef4444,#dc2626)",border:"none",borderRadius:8,padding:10,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",animation:"blink 1s infinite",fontFamily:"'Tajawal',sans-serif"}}>
+                                            style={{flex:1,background:"linear-gradient(135deg,#dc2626,#ef4444)",border:"none",borderRadius:10,padding:10,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",animation:"blink 1s infinite",fontFamily:"'Tajawal',sans-serif"}}>
                                             ⏹ إيقاف التسجيل
                                         </button>
                                         <button onClick={cancelRecording}
-                                            style={{background:"#1e293b",border:"none",borderRadius:8,padding:"10px 14px",color:"#94a3b8",fontSize:13,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                            style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:10,padding:"10px 14px",color:"#64748b",fontSize:13,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
                                             ✕
                                         </button>
                                     </div>
@@ -8733,16 +9220,19 @@ ${knownNumbersText}`;
                                         <div style={{fontSize:11,color:"#10b981",marginBottom:8,fontWeight:600}}>✅ تم التسجيل — استمع للمراجعة:</div>
                                         <audio controls src={pendingAudio} style={{width:"100%",height:36,marginBottom:8}}/>
                                         <button onClick={()=>{setPendingAudio(null);setRecordingState("idle");}}
-                                            style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:8,color:"#94a3b8",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:8,color:"#64748b",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
                                             🔄 إعادة التسجيل
                                         </button>
                                     </div>
                                 )}
                             </div>
 
+                            {/* Submit Button - Premium */}
                             <button onClick={addPayment}
-                                style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:"0 4px 15px #7c3aed40"}}>
-                                ✓ تسجيل الدفعة
+                                disabled={isAdding}
+                                className="btn-premium"
+                                style={{width:"100%",background:isAdding?"linear-gradient(135deg,#4a3a6a,#352a4f)":"linear-gradient(135deg,#7c3aed,#a78bfa)",border:"none",borderRadius:14,padding:"15px 0",color:"#fff",fontSize:15,fontWeight:800,cursor:isAdding?"not-allowed":"pointer",fontFamily:"'Tajawal',sans-serif",boxShadow:isAdding?"none":"0 4px 20px rgba(124,58,237,0.4), 0 1px 0 rgba(255,255,255,0.15) inset",letterSpacing:"0.3px",opacity:isAdding?0.7:1,transition:"all .2s"}}>
+                                {isAdding ? "⏳ جاري الحفظ..." : "✓ تسجيل الدفعة"}
                             </button>
                         </div>
                         )}
@@ -8760,21 +9250,23 @@ ${knownNumbersText}`;
                             </div>
 
                             {todayPayments.length === 0 ? (
-                                <div style={{textAlign:"center",color:"#334155",padding:"30px 20px",background:"#0f1e3d",borderRadius:14,border:"1px dashed #1e3a5f"}}>
-                                    <div style={{fontSize:32,marginBottom:8}}>💸</div>
-                                    <div style={{fontSize:13}}>لا توجد دفعات مسجلة اليوم</div>
+                                <div style={{textAlign:"center",color:"#334155",padding:"36px 20px",background:"linear-gradient(135deg,#060d1f,#0a1020)",borderRadius:16,border:"1px dashed rgba(34,211,238,0.15)"}}>
+                                    <div className="empty-state-icon" style={{fontSize:40,marginBottom:12}}>💸</div>
+                                    <div style={{fontSize:14,fontWeight:700,color:"#475569",marginBottom:4}}>لا توجد دفعات اليوم</div>
+                                    <div style={{fontSize:11,color:"#334155"}}>سجّل أول دفعة من الأعلى</div>
                                 </div>
                             ) : (
                                 todayPayments.map((p, idx) => (
-                                    <div key={p.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:12,padding:14,marginBottom:10,position:"relative"}}>
-                                        <div style={{position:"absolute",top:12,left:12,background:"#1e293b",borderRadius:99,width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#64748b"}}>
+                                    <div key={p.id} className="abuadi-payment-item card-entry" style={{background:"linear-gradient(135deg,#0c1428,#0e1830)",border:"1px solid rgba(34,211,238,0.08)",borderRadius:14,padding:14,marginBottom:10,position:"relative",animationDelay:`${idx*0.04}s`}}>
+                                        {/* Rank Badge */}
+                                        <div style={{position:"absolute",top:12,left:12,background:"linear-gradient(135deg,#1e293b,#0f172a)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#64748b"}}>
                                             {todayPayments.length - idx}
                                         </div>
-                                        <div style={{paddingLeft:32}}>
+                                        <div style={{paddingLeft:36}}>
                                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                                                 <div>
-                                                    <div style={{fontSize:20,fontWeight:900,color:"#10b981"}}>{formatNum(p.amount)} ج</div>
-                                                    <div style={{fontSize:10,color:"#475569",marginTop:2}}>{p.label}</div>
+                                                    <div className="premium-amount" style={{fontSize:22,fontWeight:900,color:"#10b981",lineHeight:1}}>{formatNum(p.amount)} ج</div>
+                                                    <div style={{fontSize:10,color:"#334155",marginTop:4}}>{p.label}</div>
                                                 </div>
                                                 <div style={{display:"flex",gap:6}}>
                                                     {canEdit && (
@@ -9710,7 +10202,7 @@ ${debtors.slice(0,5).map(p => {
 
         function BackupRestoreScreen({
             lines, visas, instaPays, transactions, people,
-            capital, financeLogs, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
+            capital, financeLogs, inventory, setInventory, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
             setLines, setVisas, setInstaPays, setTransactions, setPeople,
             setCapital, setFinanceLogs, setAbuadiTarget, setAbuadiPayments, setAbuadiDate, setAbuadiHistory,
             db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage,
@@ -9768,6 +10260,7 @@ ${debtors.slice(0,5).map(p => {
                     people,
                     capital,
                     financeLogs,
+                    inventory: inventory || { cash: 0, owedToOthers: 0, note: "" },
                     abuAdi: { target: abuadiTarget, payments: abuadiPayments, date: abuadiDate },
                     abuAdiHistory: abuadiHistory || [],
                     settings: {
@@ -9912,6 +10405,7 @@ ${debtors.slice(0,5).map(p => {
                     setPeople(obj.people || []);
                     setCapital(typeof obj.capital === "number" ? obj.capital : 0);
                     setFinanceLogs(obj.financeLogs || []);
+                    setInventory(obj.inventory || { cash: 0, owedToOthers: 0, note: "" });
                     if (obj.abuAdi) {
                         setAbuadiTarget(obj.abuAdi.target || 0);
                         setAbuadiPayments(obj.abuAdi.payments || []);
