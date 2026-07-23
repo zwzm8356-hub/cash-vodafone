@@ -147,6 +147,69 @@
         [data-theme="light"] ::-webkit-scrollbar-track { background: #e8edf3; }
         [data-theme="light"] ::-webkit-scrollbar-thumb { background: #93c5fd; }
 
+        /* ══════════════════════════════════════════
+           🌌  Neon 2090 Mode — data-theme="neon2090"
+        ══════════════════════════════════════════ */
+        [data-theme="neon2090"] {
+            --bg-void:     #030308;
+            --bg-deep:     #06060f;
+            --bg-card:     #0a0a18;
+            --bg-card2:    #0e0e20;
+            --bg-input:    #08081420;
+            --border-dim:  #1f2a4a;
+            --border-glow: #00f0ff;
+            --text-bright: #e8f6ff;
+            --text-mid:    #8fa8c8;
+            --text-dim:    #45527a;
+            --accent-red:  #ff2d6d;
+            --accent-cyan: #00f0ff;
+            --accent-green:#00ffa3;
+            --accent-gold: #ffd23f;
+            --accent-violet:#c86bff;
+            --accent-blue: #4d7fff;
+            --glass-bg:    rgba(8, 8, 20, 0.78);
+            --shadow-deep: 0 8px 32px rgba(0,240,255,0.12);
+        }
+        [data-theme="neon2090"] body {
+            background:
+                radial-gradient(ellipse 800px 500px at 15% -5%, rgba(0,240,255,0.10), transparent 60%),
+                radial-gradient(ellipse 700px 500px at 100% 10%, rgba(200,107,255,0.10), transparent 60%),
+                radial-gradient(ellipse 600px 600px at 50% 100%, rgba(255,45,109,0.06), transparent 60%),
+                #030308;
+        }
+        [data-theme="neon2090"] ::-webkit-scrollbar-track { background: #030308; }
+        [data-theme="neon2090"] ::-webkit-scrollbar-thumb { background: #00f0ff50; }
+        [data-theme="neon2090"] .kpi-card,
+        [data-theme="neon2090"] .card-entry {
+            position: relative;
+            box-shadow: 0 0 0 1px rgba(0,240,255,0.06), 0 6px 24px rgba(0,240,255,0.08);
+        }
+        [data-theme="neon2090"] .hawker-bottom-nav {
+            box-shadow: 0 -2px 20px rgba(0,240,255,0.15);
+        }
+        @keyframes neonPulse2090 {
+            0%, 100% { opacity: 0.55; filter: brightness(1); }
+            50%      { opacity: 1;    filter: brightness(1.35); }
+        }
+        @keyframes neonScan2090 {
+            0%   { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .neon2090-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 9px; font-weight: 900; letter-spacing: 0.5px;
+            padding: 2px 7px; border-radius: 20px;
+            background: linear-gradient(135deg,#00f0ff25,#c86bff25);
+            border: 1px solid #00f0ff50; color: #00f0ff;
+            animation: neonPulse2090 2.4s ease-in-out infinite;
+        }
+        .scan-line-2090 {
+            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, #00f0ff, transparent);
+            animation: neonScan2090 3s linear infinite;
+            pointer-events: none;
+        }
+
         * { box-sizing: border-box; }
 
         body {
@@ -1207,7 +1270,7 @@
         // ══════════════════════════════════════════════════════════════
         (function initTheme() {
             const saved = (() => { try { return localStorage.getItem("hawker_theme"); } catch(e) { return null; } })();
-            if (saved === "light") document.documentElement.setAttribute("data-theme", "light");
+            if (saved === "light" || saved === "neon2090") document.documentElement.setAttribute("data-theme", saved);
         })();
 
         // ══════════════════════════════════════════════════════════════════
@@ -1319,6 +1382,37 @@
         //  ✅ آمن من Race Conditions ✅ آمن من التوازي ✅ Lexicographically sortable
         // ══════════════════════════════════════════════════════════════════
         const _idCounter = { v: 0 };
+        // ── PIN الأمان 2090 — محفوظ محلياً بتشفير بسيط (obfuscation)
+        function _pinObfuscate(pin) {
+            try { return btoa(unescape(encodeURIComponent("hwk2090_" + pin))); } catch(e) { return pin; }
+        }
+        function getAppPin() {
+            try { return localStorage.getItem("hawker_app_pin_hash") || ""; } catch(e) { return ""; }
+        }
+        function setAppPin(pin) {
+            try {
+                if (!pin) { localStorage.removeItem("hawker_app_pin_hash"); return; }
+                localStorage.setItem("hawker_app_pin_hash", _pinObfuscate(pin));
+            } catch(e) {}
+        }
+        function verifyAppPin(pin) {
+            return getAppPin() === _pinObfuscate(pin);
+        }
+        // ── سجل النشاط (Audit Log) 2090
+        function logAudit(action, details = "") {
+            try {
+                const log = JSON.parse(localStorage.getItem("hawker_audit_log") || "[]");
+                log.unshift({ action, details, at: new Date().toISOString() });
+                localStorage.setItem("hawker_audit_log", JSON.stringify(log.slice(0, 300)));
+            } catch(e) {}
+        }
+        function getAuditLog() {
+            try { return JSON.parse(localStorage.getItem("hawker_audit_log") || "[]"); } catch(e) { return []; }
+        }
+        function clearAuditLog() {
+            try { localStorage.removeItem("hawker_audit_log"); } catch(e) {}
+        }
+
         function generateUniqueId(prefix) {
             const ts = Date.now();
             _idCounter.v = (_idCounter.v + 1) % 99999;
@@ -1945,6 +2039,87 @@
                 sourceAlerts,   // خطوط ستنفد غداً
                 dayData,
             };
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🧠  الرادار الذكي — Smart Insights Engine (pure, rule-based)
+        // ══════════════════════════════════════════════════════════════
+        /** يحلل حالة اليوم ويطلع أهم 3-5 ملاحظات/توصيات ذكية مرتبة بالأولوية */
+        function generateSmartInsights({ todayTxns, warningSources, alertSources, oldDebtors, totalDebt, netMonthProfit, liquidityForecast, performanceBoard, capital }) {
+            const insights = [];
+
+            // 🚨 أولوية قصوى: خطوط وصلت الحد أو هتنفد غداً
+            if (alertSources && alertSources.length > 0) {
+                insights.push({ level: "critical", icon: "🚨", text: `${alertSources.length} خط وصل لحد السحب/الاستلام الشهري — يحتاج تدخل فوري` });
+            }
+            if (liquidityForecast?.sourceAlerts?.length > 0) {
+                insights.push({ level: "critical", icon: "⛽", text: `${liquidityForecast.sourceAlerts.length} خط متوقع ينفد غداً بناءً على معدل الاستهلاك الحالي` });
+            }
+            // ⚠️ تحذيرات متوسطة
+            if (warningSources && warningSources.length > 0) {
+                insights.push({ level: "warning", icon: "⚠️", text: `${warningSources.length} خط اقترب من الحد اليومي (80%+) — راقبه خلال الساعات الجايه` });
+            }
+            if (oldDebtors && oldDebtors.length > 0) {
+                const topDebtor = oldDebtors[0];
+                insights.push({ level: "warning", icon: "🕐", text: `${oldDebtors.length} عميل متأخر في السداد أكتر من 3 أيام، أكبرهم دين "${topDebtor.personName}"` });
+            }
+            // 📈 اتجاه السيولة
+            if (liquidityForecast) {
+                if (liquidityForecast.trend >= 15) {
+                    insights.push({ level: "info", icon: "📈", text: `الطلب على السحب في ارتفاع (+${liquidityForecast.trend}%) — جهّز سيولة إضافية` });
+                } else if (liquidityForecast.trend <= -15) {
+                    insights.push({ level: "positive", icon: "📉", text: `السحب في انخفاض (${liquidityForecast.trend}%) مقارنة بالمتوسط — استقرار جيد` });
+                }
+            }
+            // 🏆 أفضل أداء
+            if (performanceBoard && performanceBoard.length > 0) {
+                const top = performanceBoard[0];
+                if (top.count >= 3) {
+                    insights.push({ level: "positive", icon: "🏆", text: `"${top.name}" الأكثر نشاطاً اليوم بكفاءة ${top.efficiency}%` });
+                }
+            }
+            // 💰 صافي الشهر
+            if (typeof netMonthProfit === "number") {
+                if (netMonthProfit > 0) {
+                    insights.push({ level: "positive", icon: "💰", text: `صافي ربح الشهر إيجابي حتى الآن — استمر على نفس الوتيرة` });
+                } else if (netMonthProfit < 0) {
+                    insights.push({ level: "warning", icon: "📉", text: `المصاريف تجاوزت الدخل هذا الشهر — راجع بنود الصرف` });
+                }
+            }
+            // 🌙 لا نشاط
+            if (todayTxns && todayTxns.length === 0) {
+                insights.push({ level: "info", icon: "🌙", text: `لسه مفيش عمليات النهاردة — ابدأ أول عملية` });
+            }
+            // ✅ كل حاجة تمام
+            if (insights.length === 0) {
+                insights.push({ level: "positive", icon: "✅", text: `كل المؤشرات مستقرة، مفيش تنبيهات حرجة دلوقتي` });
+            }
+
+            // ترتيب حسب الأولوية
+            const order = { critical: 0, warning: 1, info: 2, positive: 3 };
+            insights.sort((a, b) => order[a.level] - order[b.level]);
+            return insights.slice(0, 5);
+        }
+
+        /** مقارنة الشهر الحالي بالشهر اللي فات — نمو/تراجع الأرباح والنشاط */
+        function calcMonthComparison(transactions, financeLogs) {
+            function monthStr(offset) {
+                const d = new Date();
+                d.setMonth(d.getMonth() + offset);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            }
+            const curM = monthStr(0), prevM = monthStr(-1);
+            function statsFor(m) {
+                const logs = financeLogs.filter(l => (l.monthDate || (l.date ? String(l.date).slice(0,7) : null)) === m);
+                const income  = logs.filter(l => l.type === "income").reduce((s,l)=>s+l.amount,0);
+                const expense = logs.filter(l => l.type === "expense").reduce((s,l)=>s+l.amount,0);
+                const txns = transactions.filter(t => (t.date||"").startsWith(m));
+                return { income, expense, net: income - expense, count: txns.length };
+            }
+            const cur = statsFor(curM), prev = statsFor(prevM);
+            const netChangePct = prev.net !== 0 ? Math.round(((cur.net - prev.net) / Math.abs(prev.net)) * 100) : (cur.net > 0 ? 100 : 0);
+            const countChangePct = prev.count !== 0 ? Math.round(((cur.count - prev.count) / prev.count) * 100) : (cur.count > 0 ? 100 : 0);
+            return { cur, prev, netChangePct, countChangePct };
         }
 
         /** رصيد العميل (مجموع الديون - المدفوعات) */
@@ -2835,6 +3010,81 @@
             );
         }
 
+        /** ══ بطاقة الرادار الذكي — Smart Insights UI ══ */
+        function SmartInsightsCard({ insights }) {
+            const levelStyle = {
+                critical: { bg: "#ef444412", border: "#ef444445", color: "#ef4444" },
+                warning:  { bg: "#f59e0b12", border: "#f59e0b45", color: "#f59e0b" },
+                info:     { bg: "#22d3ee12", border: "#22d3ee45", color: "#22d3ee" },
+                positive: { bg: "#10b98112", border: "#10b98145", color: "#10b981" },
+            };
+            return (
+                <div style={{
+                    position: "relative", overflow: "hidden",
+                    background: "linear-gradient(135deg,#0a0e1f,#0d1428)",
+                    border: "1px solid #00f0ff30", borderRadius: 14, padding: 14, marginBottom: 16
+                }}>
+                    <div className="scan-line-2090" />
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                        <div style={{fontSize:16}}>🧠</div>
+                        <div style={{fontSize:13,fontWeight:800,color:"#00f0ff"}}>الرادار الذكي</div>
+                        <span className="neon2090-badge">AI · LIVE</span>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {insights.map((ins, i) => {
+                            const s = levelStyle[ins.level] || levelStyle.info;
+                            return (
+                                <div key={i} style={{
+                                    display:"flex", alignItems:"flex-start", gap:8,
+                                    background: s.bg, border: `1px solid ${s.border}`,
+                                    borderRadius: 10, padding: "8px 10px"
+                                }}>
+                                    <span style={{fontSize:14}}>{ins.icon}</span>
+                                    <span style={{fontSize:12,color:"var(--text-bright)",lineHeight:1.5,flex:1}}>{ins.text}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        /** ══ بطاقة المقارنة الشهرية الذكية ══ */
+        function MonthComparisonCard({ comparison, formatNum, privacyMode }) {
+            if (!comparison) return null;
+            const { cur, prev, netChangePct, countChangePct } = comparison;
+            const netUp = netChangePct >= 0;
+            const countUp = countChangePct >= 0;
+            return (
+                <div style={{
+                    background: "linear-gradient(135deg,#0d0a1f,#140d28)",
+                    border: "1px solid #c86bff30", borderRadius: 14, padding: 14, marginBottom: 16
+                }}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#c86bff",marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                        📊 مقارنة الأداء الشهري
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                        <div style={{background:"#c86bff10",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                            <div style={{fontSize:16,fontWeight:900,color: netUp ? "#10b981" : "#ef4444"}}>
+                                {netUp ? "▲" : "▼"} {Math.abs(netChangePct)}%
+                            </div>
+                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>صافي الربح مقابل الشهر السابق</div>
+                        </div>
+                        <div style={{background:"#c86bff10",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                            <div style={{fontSize:16,fontWeight:900,color: countUp ? "#10b981" : "#ef4444"}}>
+                                {countUp ? "▲" : "▼"} {Math.abs(countChangePct)}%
+                            </div>
+                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>عدد العمليات مقابل الشهر السابق</div>
+                        </div>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:11,color:"#8fa8c8"}}>
+                        <span>الشهر الحالي: {formatNum(cur.net)} ج ({cur.count} عملية)</span>
+                        <span>السابق: {formatNum(prev.net)} ج ({prev.count} عملية)</span>
+                    </div>
+                </div>
+            );
+        }
+
         function LoginPage({ onLogin }) {
             const [email, setEmail] = useState("");
             const [password, setPassword] = useState("");
@@ -2928,6 +3178,215 @@
                                 للوصول تواصل مع المدير الرئيسي
                             </div>
                         </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  ⌘  Command Palette 2090 — أوامر سريعة بالبحث
+        // ══════════════════════════════════════════════════════════════
+        function CommandPalette({ actions, onClose }) {
+            const [q, setQ] = useState("");
+            const [activeIdx, setActiveIdx] = useState(0);
+            const inputRef = useRef(null);
+
+            useEffect(() => {
+                setTimeout(() => inputRef.current?.focus(), 30);
+            }, []);
+
+            const filtered = React.useMemo(() => {
+                const query = q.trim().toLowerCase();
+                if (!query) return actions;
+                return actions.filter(a =>
+                    a.label.toLowerCase().includes(query) ||
+                    (a.keywords || "").toLowerCase().includes(query)
+                );
+            }, [q, actions]);
+
+            useEffect(() => { setActiveIdx(0); }, [q]);
+
+            function runAction(a) {
+                if (!a) return;
+                onClose();
+                setTimeout(() => a.run(), 10);
+            }
+
+            function handleKeyDown(e) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, filtered.length - 1)); }
+                else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+                else if (e.key === "Enter") { e.preventDefault(); runAction(filtered[activeIdx]); }
+                else if (e.key === "Escape") { onClose(); }
+            }
+
+            return (
+                <div onClick={onClose} style={{
+                    position:"fixed", inset:0, background:"rgba(3,3,8,0.75)", backdropFilter:"blur(6px)",
+                    zIndex:9998, display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:"12vh"
+                }}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        width:"min(92vw,480px)", background:"linear-gradient(135deg,#0a0a18,#0d0d20)",
+                        border:"1px solid #00f0ff40", borderRadius:16, boxShadow:"0 20px 60px rgba(0,240,255,0.15)",
+                        overflow:"hidden", direction:"rtl"
+                    }}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,padding:"14px 16px",borderBottom:"1px solid #1f2a4a"}}>
+                            <span style={{fontSize:16,color:"#00f0ff"}}>⌘</span>
+                            <input
+                                ref={inputRef}
+                                value={q}
+                                onChange={e => setQ(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="اكتب أمر أو ابحث عن أي حاجة..."
+                                style={{
+                                    flex:1, background:"transparent", border:"none", outline:"none",
+                                    color:"#e8f6ff", fontSize:15, fontFamily:"'Tajawal',sans-serif"
+                                }}
+                            />
+                            <span className="neon2090-badge">2090</span>
+                        </div>
+                        <div style={{maxHeight:"50vh",overflowY:"auto",padding:8}}>
+                            {filtered.length === 0 && (
+                                <div style={{padding:20,textAlign:"center",color:"#45527a",fontSize:13}}>مفيش نتائج مطابقة</div>
+                            )}
+                            {filtered.map((a, i) => (
+                                <div key={a.id} onClick={() => runAction(a)} onMouseEnter={() => setActiveIdx(i)}
+                                    style={{
+                                        display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:10,
+                                        cursor:"pointer", marginBottom:2,
+                                        background: activeIdx === i ? "linear-gradient(135deg,#00f0ff15,#c86bff15)" : "transparent",
+                                        border: activeIdx === i ? "1px solid #00f0ff30" : "1px solid transparent"
+                                    }}>
+                                    <span style={{fontSize:16}}>{a.icon}</span>
+                                    <span style={{flex:1,fontSize:13,color:"#e8f6ff",fontWeight:600}}>{a.label}</span>
+                                    {a.hint && <span style={{fontSize:10,color:"#45527a"}}>{a.hint}</span>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  🔒  PIN Lock Screen 2090
+        // ══════════════════════════════════════════════════════════════
+        function PinLockScreen({ hasPin, onUnlock }) {
+            const [pin, setPin] = useState("");
+            const [error, setError] = useState(false);
+
+            function press(d) {
+                if (pin.length >= 6) return;
+                const next = pin + d;
+                setPin(next);
+                setError(false);
+                if (next.length >= 4) {
+                    setTimeout(() => {
+                        if (verifyAppPin(next)) {
+                            logAudit("unlock_success", "فتح التطبيق بنجاح");
+                            onUnlock();
+                        } else if (next.length >= 6) {
+                            setError(true);
+                            logAudit("unlock_failed", "محاولة فتح فاشلة");
+                            setTimeout(() => setPin(""), 400);
+                        }
+                    }, 80);
+                }
+            }
+            function del() { setPin(p => p.slice(0, -1)); setError(false); }
+
+            if (!hasPin) {
+                return (
+                    <div style={{minHeight:"100vh",background:"#05070f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Tajawal',sans-serif",direction:"rtl"}}>
+                        <div style={{fontSize:64,marginBottom:16}}>🔒</div>
+                        <div style={{fontSize:20,fontWeight:800,color:"#e2e8f0",marginBottom:8}}>التطبيق مقفول</div>
+                        <div style={{fontSize:13,color:"#64748b",marginBottom:32}}>غادرت التطبيق — اضغط للعودة</div>
+                        <button onClick={onUnlock}
+                            style={{background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:14,padding:"14px 40px",color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 20px rgba(228,0,0,0.4)"}}>
+                            🔓 فتح التطبيق
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div style={{minHeight:"100vh",background:"radial-gradient(ellipse 700px 500px at 50% 0%, rgba(0,240,255,0.10), transparent 60%), #05070f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Tajawal',sans-serif",direction:"rtl"}}>
+                    <div style={{fontSize:48,marginBottom:10}}>🔐</div>
+                    <div style={{fontSize:18,fontWeight:800,color:"#e8f6ff",marginBottom:4}}>مقفول بـ PIN الأمان</div>
+                    <div style={{fontSize:12,color:"#64748b",marginBottom:24}}>ادخل الرقم السري للمتابعة</div>
+                    <div style={{display:"flex",gap:10,marginBottom:28}}>
+                        {[0,1,2,3,4,5].map(i => (
+                            <div key={i} style={{
+                                width:14,height:14,borderRadius:99,
+                                background: i < pin.length ? (error ? "#ef4444" : "#00f0ff") : "#1a2235",
+                                border: "1px solid " + (i < pin.length ? (error ? "#ef4444" : "#00f0ff") : "#1a2235"),
+                                transition:"all 0.15s"
+                            }}/>
+                        ))}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,64px)",gap:14}}>
+                        {["1","2","3","4","5","6","7","8","9","del","0","ok"].map((d,i) => {
+                            if (d === "del") return (
+                                <button key={i} onClick={del} style={{width:64,height:64,borderRadius:99,background:"#0d1120",border:"1px solid #1a2235",color:"#7a8fa8",fontSize:18,cursor:"pointer"}}>⌫</button>
+                            );
+                            if (d === "ok") return <div key={i}/>;
+                            return (
+                                <button key={i} onClick={() => press(d)} style={{width:64,height:64,borderRadius:99,background:"#0d1120",border:"1px solid #1a2235",color:"#e8f6ff",fontSize:22,fontWeight:700,cursor:"pointer"}}>{d}</button>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  📝  Audit Log Modal 2090 — سجل النشاط
+        // ══════════════════════════════════════════════════════════════
+        function AuditLogModal({ onClose }) {
+            const [log, setLog] = useState(() => getAuditLog());
+            function fmtTime(iso) {
+                try { return new Date(iso).toLocaleString("ar-EG"); } catch(e) { return iso; }
+            }
+            const actionLabels = {
+                unlock_success: { icon:"🔓", label:"فتح التطبيق" },
+                unlock_failed:  { icon:"⛔", label:"محاولة فتح فاشلة" },
+                pin_set:        { icon:"🔑", label:"تعيين PIN جديد" },
+                pin_removed:    { icon:"🗝️", label:"إزالة PIN" },
+                login:          { icon:"👋", label:"تسجيل دخول" },
+                add_txn:        { icon:"➕", label:"إضافة عملية" },
+                delete_txn:     { icon:"🗑️", label:"حذف عملية" },
+                refresh:        { icon:"🔄", label:"تحديث البيانات" },
+            };
+            return (
+                <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9997,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+                    <div onClick={e=>e.stopPropagation()} style={{width:"min(94vw,480px)",maxHeight:"80vh",background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",direction:"rtl"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:16,borderBottom:"1px solid var(--border-dim)"}}>
+                            <div style={{fontSize:15,fontWeight:800,color:"var(--text-bright)"}}>📝 سجل النشاط</div>
+                            <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text-mid)",fontSize:18,cursor:"pointer"}}>✕</button>
+                        </div>
+                        <div style={{overflowY:"auto",padding:12,flex:1}}>
+                            {log.length === 0 && <div style={{textAlign:"center",color:"var(--text-dim)",padding:30,fontSize:13}}>لا يوجد نشاط مسجل بعد</div>}
+                            {log.map((l, i) => {
+                                const meta = actionLabels[l.action] || { icon:"•", label:l.action };
+                                return (
+                                    <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 6px",borderBottom:"1px solid var(--border-dim)"}}>
+                                        <span style={{fontSize:16}}>{meta.icon}</span>
+                                        <div style={{flex:1}}>
+                                            <div style={{fontSize:12,fontWeight:700,color:"var(--text-bright)"}}>{meta.label}</div>
+                                            {l.details && <div style={{fontSize:11,color:"var(--text-mid)",marginTop:1}}>{l.details}</div>}
+                                        </div>
+                                        <span style={{fontSize:10,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{fmtTime(l.at)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {log.length > 0 && (
+                            <div style={{padding:12,borderTop:"1px solid var(--border-dim)"}}>
+                                <button onClick={()=>{ clearAuditLog(); setLog([]); }}
+                                    style={{width:"100%",background:"#ef444410",border:"1px solid #ef444425",borderRadius:10,padding:10,color:"#ef4444",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                    🗑️ مسح السجل
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             );
@@ -3682,6 +4141,7 @@
                     setDashboardLoading(false);
                     setSyncStatus("✓ محدّث الآن");
                     showToast("🔄 تم تحديث جميع البيانات من Firebase");
+                    logAudit("refresh", "تحديث يدوي لكل البيانات من Firebase");
                     setTimeout(() => setSyncStatus("✓ جاهز"), 4000);
                 } catch(err) {
                     setSyncStatus("✗ فشل التحديث");
@@ -3835,7 +4295,7 @@
             // نظام الحساب الجاري
             const [custModal, setCustModal] = useState(null); // null | "newCustomer" | "addMove"
             const [custMoveForm, setCustMoveForm] = useState({ type: "debit", amount: "", note: "", isOld: false });
-            const [custNewForm, setCustNewForm] = useState({ name: "" });
+            const [custNewForm, setCustNewForm] = useState({ name: "", accountType: "debt" });
             const [viewerNote, setViewerNote] = useState(null); // {txnId, text}
 
             // ⭐ حسابات أبو عدي
@@ -3877,6 +4337,19 @@
             // ⭐ FEATURE STATES
             const [showQuickAdd, setShowQuickAdd] = useState(false);
             const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+            const [showCommandPalette, setShowCommandPalette] = useState(false);
+            const [showAuditLog, setShowAuditLog] = useState(false);
+            // ⌘K / Ctrl+K لفتح لوحة الأوامر السريعة 2090
+            useEffect(() => {
+                function onKeyDown(e) {
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+                        e.preventDefault();
+                        setShowCommandPalette(v => !v);
+                    }
+                }
+                window.addEventListener("keydown", onKeyDown);
+                return () => window.removeEventListener("keydown", onKeyDown);
+            }, []);
             const [showDailyReport, setShowDailyReport] = useState(false);
             const [showDailyClose,  setShowDailyClose]  = useState(false);
 
@@ -3944,6 +4417,15 @@
             const transactionsFromFirebase = useRef(false); // ⭐ إصلاح — منع الكتابة على Firebase قبل تحميله
             const linesFromFirebase = useRef(false);       // ⭐ نفس الحماية للخطوط
             const visasFromFirebase = useRef(false);       // ⭐ نفس الحماية للفيزا
+            // ⭐ إصلاح سباق الكتابة (race condition): كل مرة الـ listener يستقبل تحديث من Firebase
+            // (حتى لو التحديث ده جاي من جهازنا احنا نفسه)، الكود القديم كان بيعمل setLines/setTransactions
+            // ومعاها useEffect بيرفع كل الـ array تاني لـ Firebase — الرفعة دي ممكن تكون بقيمة قديمة
+            // (قبل ما نتيجة .transaction() الذرّية ترجع لنا) فتمسح فوقها، أو تمسح عملية جهاز تاني
+            // لسه ما وصلتش لينا وقت ما إحنا رفعنا. الـ refs دي بتمنع "صدى" التحديث من إنه يترفع تاني.
+            const skipLinesPush = useRef(false);
+            const skipVisasPush = useRef(false);
+            const skipInstaPaysPush = useRef(false);
+            const skipTransactionsPush = useRef(false);
 
             // ⭐ Firebase Auth Listener
             useEffect(() => {
@@ -3987,6 +4469,7 @@
                         setFirebaseReady(true);
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                            skipLinesPush.current = true; // ⭐ إصلاح السباق — البيانات دي جايه من Firebase، منرفعهاش تاني
                             setLines(arr);
                         }
                     });
@@ -3997,6 +4480,7 @@
                         visasFromFirebase.current = true; // ⭐ إصلاح
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                            skipVisasPush.current = true; // ⭐ إصلاح السباق
                             setVisas(arr);
                         }
                     });
@@ -4011,6 +4495,7 @@
                                 : Object.values(data).filter(Boolean);
                             // ⭐ FIX: Force update — نتجاهل localStorage ونستخدم Firebase مباشرة
                             if (arr.length > 0) {
+                                skipTransactionsPush.current = true; // ⭐ إصلاح السباق — البيانات دي جايه من Firebase، منرفعهاش تاني
                                 setTransactions(arr);
                                 saveToLocalStorage('transactions', arr); // ⭐ نحدّث الكاش بأحدث بيانات Firebase
                                 // ⭐ Auto Archive — مرة واحدة عند التحميل الأول
@@ -4036,6 +4521,7 @@
                         firebaseLoaded.current = true;
                         if (data) {
                             const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                            skipInstaPaysPush.current = true; // ⭐ إصلاح السباق
                             setInstaPays(arr);
                         } else {
                             setInstaPays([]);
@@ -4187,16 +4673,20 @@
             // ⭐ Auto-save to localStorage AND Firebase — محمي من الكتابة قبل اكتمال تحميل Firebase
             useEffect(() => { 
                 saveToLocalStorage('lines', lines);
+                // ⭐ إصلاح السباق: لو التحديث ده صدى راجع من Firebase نفسه، متترفعش تاني
+                if (skipLinesPush.current) { skipLinesPush.current = false; return; }
                 if (isAdmin && auth.currentUser && firebaseReady && linesFromFirebase.current) { safeFirebaseSet(db, 'lines', lines); }
             }, [lines]);
 
             useEffect(() => { 
                 saveToLocalStorage('visas', visas);
+                if (skipVisasPush.current) { skipVisasPush.current = false; return; }
                 if (isAdmin && auth.currentUser && firebaseReady && visasFromFirebase.current) { safeFirebaseSet(db, 'visas', visas); }
             }, [visas]);
 
             useEffect(() => { 
                 saveToLocalStorage('instaPays', instaPays);
+                if (skipInstaPaysPush.current) { skipInstaPaysPush.current = false; return; }
                 if (isAdmin && auth.currentUser && firebaseReady) { safeFirebaseSet(db, 'instaPays', instaPays); }
             }, [instaPays]);
 
@@ -4204,6 +4694,7 @@
                 if (transactionsFromFirebase.current) {
                     saveToLocalStorage('transactions', transactions);
                 }
+                if (skipTransactionsPush.current) { skipTransactionsPush.current = false; return; }
                 if (isAdmin && auth.currentUser && firebaseReady && transactionsFromFirebase.current) {
                     safeFirebaseSet(db, 'transactions', transactions);
                 }
@@ -4242,6 +4733,24 @@
                 };
                 document.addEventListener('visibilitychange', handleVisibility);
                 return () => document.removeEventListener('visibilitychange', handleVisibility);
+            }, [userRole]);
+
+            // ══ 🔒 Inactivity Auto-Lock 2090 — قفل تلقائي بعد فترة خمول (لو مفعّل PIN) ══
+            useEffect(() => {
+                if (!userRole || !getAppPin()) return;
+                let idleTimer = null;
+                const IDLE_MS = 3 * 60 * 1000; // 3 دقايق خمول
+                function resetIdleTimer() {
+                    if (idleTimer) clearTimeout(idleTimer);
+                    idleTimer = setTimeout(() => setPageLocked(true), IDLE_MS);
+                }
+                const events = ["mousemove","mousedown","keydown","touchstart","scroll"];
+                events.forEach(ev => window.addEventListener(ev, resetIdleTimer, { passive: true }));
+                resetIdleTimer();
+                return () => {
+                    if (idleTimer) clearTimeout(idleTimer);
+                    events.forEach(ev => window.removeEventListener(ev, resetIdleTimer));
+                };
             }, [userRole]);
 
             // ══ Offline Queue Flush: نفّذ العمليات المعلّقة لما يرجع الإنترنت ══
@@ -4466,8 +4975,14 @@
                 if (plan === null) setSplitConfirmed(false); // reset لو المبلغ صغير يكفي خط واحد
             }, [form.amount, form.type, modal, lines, visas, instaPays, transactions]);
 
+            // ⭐ إصلاح React error #310 (Rendered more hooks than during the previous render):
+            // بدل return مبكر (اللي كان بيوقف تنفيذ الـ Hooks اللي جايه بعده زي
+            // monthComparison / smartInsights)، بنجهز الشاشة البديلة في متغيّر ونأجل
+            // الـ return الفعلي لحد ما كل الـ Hooks تتنفذ بنفس العدد والترتيب في كل رندر.
+            let __earlyReturn = null;
+
             if (authLoading) {
-                return (
+                __earlyReturn = (
                     <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center"}}>
                         <div style={{textAlign:"center"}}>
                             <div style={{width:60,height:60,borderRadius:15,background:"linear-gradient(135deg,#e40000,#cc0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,fontWeight:900,color:"#fff",margin:"0 auto 20px"}}>V</div>
@@ -4475,28 +4990,19 @@
                         </div>
                     </div>
                 );
-            }
-
-            if (!userRole) {
-                return <LoginPage onLogin={(role, user) => {
+            } else if (!userRole) {
+                __earlyReturn = <LoginPage onLogin={(role, user) => {
                     setUserRole(role);
                     setFirebaseUser(user);
+                    logAudit("login", `دخول بصلاحية: ${role}${user?.email ? " — " + user.email : ""}`);
                 }} />;
-            }
-
-            // ══ Page Lock Screen ══
-            if (pageLocked) {
-                return (
-                    <div style={{minHeight:"100vh",background:"#05070f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Tajawal',sans-serif",direction:"rtl"}}>
-                        <div style={{fontSize:64,marginBottom:16}}>🔒</div>
-                        <div style={{fontSize:20,fontWeight:800,color:"#e2e8f0",marginBottom:8}}>التطبيق مقفول</div>
-                        <div style={{fontSize:13,color:"#64748b",marginBottom:32}}>غادرت التطبيق — اضغط للعودة</div>
-                        <button onClick={()=>setPageLocked(false)}
-                            style={{background:"linear-gradient(135deg,#e40000,#cc0000)",border:"none",borderRadius:14,padding:"14px 40px",color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 20px rgba(228,0,0,0.4)"}}>
-                            🔓 فتح التطبيق
-                        </button>
-                        <div style={{marginTop:16,fontSize:11,color:"#1e3a5f"}}>v17 • Hawker Cash</div>
-                    </div>
+            } else if (pageLocked) {
+                // ══ Page Lock Screen 2090 — PIN Security ══
+                __earlyReturn = (
+                    <PinLockScreen
+                        hasPin={!!getAppPin()}
+                        onUnlock={() => setPageLocked(false)}
+                    />
                 );
             }
 
@@ -5458,6 +5964,7 @@ ${knownNumbersText}`;
                 applySourceUpdate(txn, effectiveAmount, setLines, setVisas, setInstaPays, true);
                 setConfirmDelete(null);
                 showToast("تم حذف العملية ✓");
+                logAudit("delete_txn", `حذف عملية بمبلغ ${effectiveAmount} ج${txn.personName ? " — " + txn.personName : ""}`);
                 cleanupUnusedImages();
             }
 
@@ -5516,6 +6023,7 @@ ${knownNumbersText}`;
                 const newCust = {
                     id: generateUniqueId(),
                     personName: name,
+                    accountType: custNewForm.accountType === "gameya" ? "gameya" : "debt",
                     moves: [],
                     createdAt: nowStr(),
                     lastUpdated: nowStr()
@@ -5525,19 +6033,36 @@ ${knownNumbersText}`;
                 if ((isAdmin || isAssistant) && auth.currentUser) {
                     try { db.ref('customers').child(String(newCust.id)).set(newCust); } catch(e){}
                 }
-                setCustNewForm({ name: "" });
+                setCustNewForm({ name: "", accountType: "debt" });
                 setCustModal(null);
                 showToast(`تم إضافة ${name} ✓`);
+            }
+
+            function toggleAccountType(customerId) {
+                setPeople(prev => prev.map(p => {
+                    if (p.id !== customerId) return p;
+                    const updated = { ...p, accountType: p.accountType === "gameya" ? "debt" : "gameya", lastUpdated: nowStr() };
+                    if ((isAdmin || isAssistant) && auth.currentUser) {
+                        try { db.ref('customers').child(String(p.id)).set(updated); } catch(e){}
+                    }
+                    return updated;
+                }));
+                showToast("✓ تم تغيير نوع الحساب");
             }
 
             function addCustomerMove(customerId) {
                 const amt = parseFloat(custMoveForm.amount);
                 if (!amt || amt <= 0) { showToast("أدخل مبلغ صحيح", "error"); return; }
+                const targetPerson = people.find(p => p.id === customerId);
+                const isGameya = targetPerson?.accountType === "gameya";
+                const defaultNote = isGameya
+                    ? (custMoveForm.type === "debit" ? "سحب/استرجاع من الجمعية" : "دفعة جمعية يومية")
+                    : (custMoveForm.type === "debit" ? "تحويل كاش" : "سداد دفعة");
                 const move = {
                     id: generateUniqueId(),
                     type: custMoveForm.type,        // "debit" حوّل مني | "credit" أعطاني
                     amount: amt,
-                    note: custMoveForm.note.trim() || (custMoveForm.type === "debit" ? "تحويل كاش" : "سداد دفعة"),
+                    note: custMoveForm.note.trim() || defaultNote,
                     isOld: custMoveForm.isOld || false,
                     date: nowStr()
                 };
@@ -5818,6 +6343,12 @@ ${knownNumbersText}`;
             // ══ Liquidity Forecast ══
             const liquidityForecast = (isAdmin || isOmar) ? calcLiquidityForecast(transactions, sources) : null;
 
+            // ══ 📊 مقارنة شهرية ══
+            const monthComparison = React.useMemo(
+                () => (isAdmin || isOmar) ? calcMonthComparison(transactions, financeLogs) : null,
+                [isAdmin, isOmar, transactions, financeLogs]
+            );
+
             const thisMonth = currentMonthStr();
             // بعد الـ migration، كل السجلات عندها monthDate وlogType بشكل صح
             // احتياطياً: لو monthDate مش موجود، نستنتجه من date
@@ -5835,6 +6366,12 @@ ${knownNumbersText}`;
             const monthIncome = currentLogs.filter(l => l.type === "income").reduce((s, l) => s + l.amount, 0);
             const monthExpense = currentLogs.filter(l => l.type === "expense").reduce((s, l) => s + l.amount, 0);
             const netMonthProfit = monthIncome - monthExpense;
+
+            // ══ 🧠 الرادار الذكي — Smart Insights ══
+            const smartInsights = React.useMemo(() => generateSmartInsights({
+                todayTxns, warningSources, alertSources, oldDebtors, totalDebt,
+                netMonthProfit, liquidityForecast, performanceBoard, capital
+            }), [todayTxns, warningSources, alertSources, oldDebtors, totalDebt, netMonthProfit, liquidityForecast, performanceBoard, capital]);
 
             const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
 
@@ -5889,6 +6426,10 @@ ${knownNumbersText}`;
                 if (isViewer) return "👁️ مشاهد";
                 return "👁️ مشاهد";
             };
+
+            // كل الـ Hooks فوق دي اتنفذت بالفعل بنفس الترتيب والعدد — دلوقتي أمان
+            // نرجع الشاشة البديلة (تحميل / تسجيل دخول / قفل) لو لسه محتاجينها.
+            if (__earlyReturn) return __earlyReturn;
 
             return (
                 <div 
@@ -6262,6 +6803,9 @@ ${knownNumbersText}`;
                                 )}
                                 {!dashboardLoading && (
                                 <div className="tab-enter">
+                                {/* ══ 🧠 الرادار الذكي — Smart Insights 2090 ══ */}
+                                <SmartInsightsCard insights={smartInsights} />
+
                                 {/* ══ KPI Cards — Premium ══ */}
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
                                     {[
@@ -6423,6 +6967,9 @@ ${knownNumbersText}`;
                                         </div>
                                     </div>
                                 )}
+
+                                {/* ══ 📊 مقارنة شهرية ذكية ══ */}
+                                <MonthComparisonCard comparison={monthComparison} formatNum={formatNum} privacyMode={privacyMode} />
 
                                 {/* أزرار الإجراءات السريعة */}
                                 <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -6865,7 +7412,7 @@ ${knownNumbersText}`;
                                 </div>
 
                                 {canEditPeople && (
-                                    <button onClick={()=>{setCustNewForm({name:""});setCustModal("newCustomer");}}
+                                    <button onClick={()=>{setCustNewForm({name:"",accountType:"debt"});setCustModal("newCustomer");}}
                                         style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>
                                         ➕ عميل جديد
                                     </button>
@@ -6883,7 +7430,12 @@ ${knownNumbersText}`;
                                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                                                 {/* الاسم + آخر حركة */}
                                                 <div style={{cursor:"pointer",flex:1}} onClick={()=>setSelectedPersonId(person.id)}>
-                                                    <div style={{fontSize:16,fontWeight:800,color:"#e2e8f0"}}>{person.personName}</div>
+                                                    <div style={{fontSize:16,fontWeight:800,color:"#e2e8f0",display:"flex",alignItems:"center",gap:6}}>
+                                                        {person.personName}
+                                                        {person.accountType==="gameya" && (
+                                                            <span style={{fontSize:10,fontWeight:700,color:"#a78bfa",background:"#a78bfa20",border:"1px solid #a78bfa50",borderRadius:6,padding:"2px 6px"}}>🔄 جمعية</span>
+                                                        )}
+                                                    </div>
                                                     <div style={{fontSize:11,color:"#475569",marginTop:2}}>
                                                         {(person.moves||[]).length} حركة
                                                         {person.moves?.length > 0 && ` • آخر: ${formatDateOnly(person.moves[person.moves.length-1].date)}`}
@@ -6917,11 +7469,11 @@ ${knownNumbersText}`;
                                                 <div style={{display:"flex",gap:6}}>
                                                     <button onClick={()=>{setSelectedPersonId(person.id);setCustMoveForm({type:"debit",amount:"",note:""});setCustModal("addMove");}}
                                                         style={{flex:1,background:"#ef444420",border:"1px solid #ef444440",borderRadius:8,padding:"7px 0",color:"#ef4444",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                                                        ➕ حوّل منه
+                                                        {person.accountType==="gameya" ? "🔄 سحب/استرجاع" : "➕ حوّل منه"}
                                                     </button>
                                                     <button onClick={()=>{setSelectedPersonId(person.id);setCustMoveForm({type:"credit",amount:"",note:""});setCustModal("addMove");}}
                                                         style={{flex:1,background:"#10b98120",border:"1px solid #10b98140",borderRadius:8,padding:"7px 0",color:"#10b981",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                                                        💵 سدّد
+                                                        {person.accountType==="gameya" ? "➕ دفعة جمعية" : "💵 سدّد"}
                                                     </button>
                                                     <button onClick={()=>setSelectedPersonId(person.id)}
                                                         style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"7px 12px",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>
@@ -6968,7 +7520,16 @@ ${knownNumbersText}`;
                                         style={{background:"#1e293b",border:"none",borderRadius:10,padding:"10px 16px",color:"#94a3b8",cursor:"pointer",fontWeight:600,fontSize:13}}>
                                         ← رجوع
                                     </button>
-                                    <div style={{flex:1,fontSize:17,fontWeight:800,color:"#e2e8f0"}}>{selectedPerson.personName}</div>
+                                    <div style={{flex:1,fontSize:17,fontWeight:800,color:"#e2e8f0",display:"flex",alignItems:"center",gap:8}}>
+                                        {selectedPerson.personName}
+                                        {selectedPerson.accountType==="gameya" && (
+                                            <span style={{fontSize:10,fontWeight:700,color:"#a78bfa",background:"#a78bfa20",border:"1px solid #a78bfa50",borderRadius:6,padding:"2px 6px"}}>🔄 جمعية</span>
+                                        )}
+                                    </div>
+                                    {canEditPeople && <button onClick={()=>toggleAccountType(selectedPerson.id)}
+                                        style={{background:"#a78bfa20",border:"1px solid #a78bfa50",borderRadius:10,padding:"10px 12px",color:"#a78bfa",cursor:"pointer",fontSize:11,fontWeight:700}}>
+                                        {selectedPerson.accountType==="gameya" ? "👤 حوّل لعادي" : "🔄 حوّل لجمعية"}
+                                    </button>}
                                     {canEditPeople && <button onClick={()=>setConfirmDelete({type:"person",data:selectedPerson})}
                                         style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:10,padding:"10px 14px",color:"#ef4444",cursor:"pointer",fontSize:13}}>🗑️</button>}
                                 </div>
@@ -7007,11 +7568,11 @@ ${knownNumbersText}`;
                                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
                                         <button onClick={()=>{setCustMoveForm({type:"debit",amount:"",note:"",isOld:false});setCustModal("addMove");}}
                                             style={{background:"linear-gradient(135deg,#ef4444,#dc2626)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                                            ➕ حوّل مني
+                                            {selectedPerson.accountType==="gameya" ? "🔄 سحب/استرجاع" : "➕ حوّل مني"}
                                         </button>
                                         <button onClick={()=>{setCustMoveForm({type:"credit",amount:"",note:"",isOld:false});setCustModal("addMove");}}
                                             style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                                            💵 أعطاني / سدّد
+                                            {selectedPerson.accountType==="gameya" ? "➕ دفعة جمعية يومية" : "💵 أعطاني / سدّد"}
                                         </button>
                                     </div>
                                 )}
@@ -7049,14 +7610,16 @@ ${knownNumbersText}`;
                                 {(() => {
                                     const moves = [...(selectedPerson.moves||[])].sort((a,b)=>a.id-b.id);
 
-                                    // نقسّم الحركات لـ "دورات" — كل مرة يوصل الرصيد صفر تبدأ دورة جديدة
+                                    // نقسّم الحركات لـ "دورات" — دورة بتقفل بس لما الرصيد يرجع صفر بالظبط
+                                    // (لو الرصيد بينزل تحت الصفر — يعني بقى "له" — ده مش قفل دورة، ده رصيد متجمّع (زي الجمعية) ولازم يفضل في نفس الدورة المفتوحة)
                                     const sessions = [];
                                     let session = [];
                                     let running = 0;
                                     moves.forEach(m => {
                                         running += m.type==="debit" ? m.amount : -m.amount;
-                                        session.push({ ...m, running: Math.round(running*100)/100 });
-                                        if (running <= 0) {
+                                        running = Math.round(running*100)/100;
+                                        session.push({ ...m, running });
+                                        if (Math.abs(running) < 0.01) {
                                             sessions.push([...session]);
                                             session = [];
                                             running = 0;
@@ -7114,18 +7677,22 @@ ${knownNumbersText}`;
                                             {/* الدورات */}
                                             {reversedSessions.map((sess, sIdx) => {
                                                 const sessBalance = Math.round(sess.reduce((s,m)=>s+(m.type==="debit"?m.amount:-m.amount),0)*100)/100;
-                                                const isOpen = sIdx === 0 && sessBalance > 0;
-                                                const isClosed = sessBalance <= 0;
+                                                const isSettled = Math.abs(sessBalance) < 0.01;
+                                                const isOpen = sIdx === 0 && !isSettled;
+                                                const owesMe = sessBalance > 0;   // العميل عليه
+                                                const owedByMe = sessBalance < 0; // أنا عليّ (زي الجمعية)
                                                 const realIdx = reversedSessions.length - 1 - sIdx;
                                                 return (
                                                     <div key={sIdx} style={{marginBottom:16}}>
                                                         {/* هيدر الدورة */}
                                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                                                            <div style={{fontSize:11,fontWeight:700,color: isOpen?"#f59e0b":isClosed?"#10b981":"#64748b"}}>
-                                                                {isOpen ? "🔴 الدورة الحالية (مفتوحة)" : isClosed ? `✅ دورة ${realIdx+1} — مسوّاها` : `📂 دورة ${realIdx+1}`}
+                                                            <div style={{fontSize:11,fontWeight:700,color: isOpen?(owedByMe?"#10b981":"#f59e0b"):"#10b981"}}>
+                                                                {isOpen
+                                                                    ? (owedByMe ? "🟢 دورة مفتوحة — له عندك" : "🔴 الدورة الحالية (مفتوحة)")
+                                                                    : `✅ دورة ${realIdx+1} — مسوّاها`}
                                                             </div>
-                                                            <div style={{fontSize:11,color: sessBalance>0?"#ef4444":"#10b981",fontWeight:700}}>
-                                                                {sessBalance>0 ? `باقي ${formatNum(sessBalance)} ج` : "✓ صافي"}
+                                                            <div style={{fontSize:11,color: owesMe?"#ef4444":owedByMe?"#10b981":"#64748b",fontWeight:700}}>
+                                                                {owesMe ? `باقي ${formatNum(sessBalance)} ج` : owedByMe ? `له ${formatNum(Math.abs(sessBalance))} ج` : "✓ صافي"}
                                                             </div>
                                                         </div>
 
@@ -7139,7 +7706,9 @@ ${knownNumbersText}`;
                                                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                                                                     <div style={{flex:1}}>
                                                                         <div style={{fontSize:12,fontWeight:700,color:m.type==="debit"?"#fca5a5":"#6ee7b7"}}>
-                                                                            {m.type==="debit"?"💸 حوّل منه":"✅ سدّد"} — {maskNum(m.amount, privacyMode)} ج
+                                                                            {selectedPerson.accountType==="gameya"
+                                                                                ? (m.type==="debit" ? "🔄 سحب/استرجاع" : "➕ دفعة جمعية")
+                                                                                : (m.type==="debit" ? "💸 حوّل منه" : "✅ سدّد")} — {maskNum(m.amount, privacyMode)} ج
                                                                         </div>
                                                                         <div style={{fontSize:10,color:"#475569",marginTop:1}}>{m.note} • {formatDateOnly(m.date)}</div>
                                                                     </div>
@@ -7710,6 +8279,7 @@ ${knownNumbersText}`;
                             setAbuadiDate={setAbuadiDate} setAbuadiHistory={setAbuadiHistory}
                             db={db} auth={auth} firebaseReady={firebaseReady}
                             isAdmin={isAdmin} showToast={showToast}
+                            setShowAuditLog={setShowAuditLog}
                             saveToLocalStorage={saveToLocalStorage}
                             vodDailyLimit={vodDailyLimit}       setVodDailyLimit={setVodDailyLimit}
                             linesMonthlyLimit={linesMonthlyLimit}   setLinesMonthlyLimit={setLinesMonthlyLimit}
@@ -7721,6 +8291,21 @@ ${knownNumbersText}`;
                             formatNum={formatNum}
                         />
                     )}
+
+                    {/* ⌘ زرار عائم لفتح Command Palette 2090 */}
+                    <button
+                        onClick={() => setShowCommandPalette(true)}
+                        title="أوامر سريعة (Ctrl+K)"
+                        style={{
+                            position:"fixed", bottom:78, left:16, zIndex:60,
+                            width:46, height:46, borderRadius:99,
+                            background:"linear-gradient(135deg,#0a0a18,#0d1428)",
+                            border:"1px solid #00f0ff50", boxShadow:"0 4px 18px rgba(0,240,255,0.25)",
+                            color:"#00f0ff", fontSize:18, cursor:"pointer",
+                            display:"flex", alignItems:"center", justifyContent:"center"
+                        }}>
+                        ⌘
+                    </button>
 
                     {/* Bottom Nav — Mobile Only (hidden on desktop via CSS) */}
                     <div className="hawker-bottom-nav">
@@ -8708,6 +9293,23 @@ ${knownNumbersText}`;
                             <Field label="اسم العميل">
                                 <Input value={custNewForm.name} onChange={v=>setCustNewForm(f=>({...f,name:v}))} placeholder="مثلاً: عصام أبو ضيف"/>
                             </Field>
+                            <Field label="نوع الحساب">
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                                    <button onClick={()=>setCustNewForm(f=>({...f,accountType:"debt"}))}
+                                        style={{background:custNewForm.accountType!=="gameya"?"linear-gradient(135deg,#ef4444,#dc2626)":"#1e293b",border:"none",borderRadius:10,padding:12,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                                        👤 عميل عادي (دين)
+                                    </button>
+                                    <button onClick={()=>setCustNewForm(f=>({...f,accountType:"gameya"}))}
+                                        style={{background:custNewForm.accountType==="gameya"?"linear-gradient(135deg,#a78bfa,#9370db)":"#1e293b",border:"none",borderRadius:10,padding:12,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                                        🔄 جمعية
+                                    </button>
+                                </div>
+                                <div style={{fontSize:10,color:"#64748b",marginTop:6}}>
+                                    {custNewForm.accountType==="gameya"
+                                        ? "هيبقى بيدفعلك مبلغ كل يوم، وأنت هترجعهولّه في الآخر — الكشف هيفضّل يجمّع من غير ما يقفل كل يوم"
+                                        : "عميل بياخد منك (يدين) وبيسدد بعدين — زي المعتاد"}
+                                </div>
+                            </Field>
                             <button onClick={addCustomer}
                                 style={{width:"100%",background:"linear-gradient(135deg,#a78bfa,#9370db)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>
                                 ✓ إضافة العميل
@@ -8716,17 +9318,26 @@ ${knownNumbersText}`;
                     )}
 
                     {/* MODAL: إضافة حركة */}
-                    {custModal==="addMove" && selectedPerson && (
-                        <Modal title={custMoveForm.type==="debit" ? "➕ حوّل مني" : "💵 أعطاني / سدّد"} onClose={()=>setCustModal(null)}>
+                    {custModal==="addMove" && selectedPerson && (() => {
+                        const isGameya = selectedPerson.accountType === "gameya";
+                        const debitLabel  = isGameya ? "🔄 سحب/استرجاع" : "➕ حوّل مني";
+                        const creditLabel = isGameya ? "➕ دفعة جمعية"   : "💵 أعطاني";
+                        return (
+                        <Modal title={custMoveForm.type==="debit" ? debitLabel : (isGameya ? "➕ دفعة جمعية يومية" : "💵 أعطاني / سدّد")} onClose={()=>setCustModal(null)}>
+                            {isGameya && (
+                                <div style={{background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:10,padding:"8px 12px",marginBottom:12,fontSize:11,color:"#c4b5fd"}}>
+                                    🔄 حساب جمعية — الدفعة اليومية منه بتتسجل كـ "دفعة جمعية"، وأي استرجاع/سحب منك ليه بيتسجل كـ "سحب"
+                                </div>
+                            )}
                             {/* اختيار نوع الحركة */}
                             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
                                 <button onClick={()=>setCustMoveForm(f=>({...f,type:"debit"}))}
                                     style={{background:custMoveForm.type==="debit"?"linear-gradient(135deg,#ef4444,#dc2626)":"#1e293b",border:"none",borderRadius:10,padding:12,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                                    ➕ حوّل مني
+                                    {debitLabel}
                                 </button>
                                 <button onClick={()=>setCustMoveForm(f=>({...f,type:"credit"}))}
                                     style={{background:custMoveForm.type==="credit"?"linear-gradient(135deg,#10b981,#059669)":"#1e293b",border:"none",borderRadius:10,padding:12,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                                    💵 أعطاني
+                                    {creditLabel}
                                 </button>
                             </div>
                             <Field label="المبلغ (ج)">
@@ -8734,11 +9345,13 @@ ${knownNumbersText}`;
                             </Field>
                             <Field label="ملاحظة (اختياري)">
                                 <Input value={custMoveForm.note} onChange={v=>setCustMoveForm(f=>({...f,note:v}))}
-                                    placeholder={custMoveForm.type==="debit"?"تحويل كاش":"سداد دفعة"}/>
+                                    placeholder={isGameya
+                                        ? (custMoveForm.type==="debit" ? "سحب/استرجاع من الجمعية" : "دفعة جمعية يومية")
+                                        : (custMoveForm.type==="debit" ? "تحويل كاش" : "سداد دفعة")}/>
                             </Field>
 
                             {/* ⭐ تاج "قديم" — للديون المتراكمة من قبل */}
-                            {custMoveForm.type === "debit" && (
+                            {!isGameya && custMoveForm.type === "debit" && (
                                 <div
                                     onClick={()=>setCustMoveForm(f=>({...f, isOld: !f.isOld}))}
                                     style={{
@@ -8769,26 +9382,32 @@ ${knownNumbersText}`;
                             )}
 
                             {/* معاينة */}
-                            {custMoveForm.amount && parseFloat(custMoveForm.amount) > 0 && (
+                            {custMoveForm.amount && parseFloat(custMoveForm.amount) > 0 && (() => {
+                                const nextBalance = getPersonBalance(selectedPerson) + (custMoveForm.type==="debit"?1:-1)*(parseFloat(custMoveForm.amount)||0);
+                                return (
                                 <div style={{background:"#0f1e3d",borderRadius:10,padding:12,marginBottom:14,textAlign:"center"}}>
                                     <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>
-                                        {custMoveForm.type==="debit"?"ستضاف على مديونيته":"ستُخصم من مديونيته"}
+                                        {isGameya
+                                            ? (custMoveForm.type==="debit" ? "هيتخصم من رصيد الجمعية المتجمع له" : "هيتضاف على رصيد الجمعية المتجمع له")
+                                            : (custMoveForm.type==="debit"?"ستضاف على مديونيته":"ستُخصم من مديونيته")}
                                     </div>
                                     <div style={{fontSize:20,fontWeight:900,color:custMoveForm.type==="debit"?"#ef4444":"#10b981"}}>
                                         {custMoveForm.type==="debit"?"+ ":"- "}{formatNum(parseFloat(custMoveForm.amount)||0)} ج
                                     </div>
                                     <div style={{fontSize:11,color:"#475569",marginTop:4}}>
-                                        الرصيد بعد: {formatNum(Math.abs(getPersonBalance(selectedPerson) + (custMoveForm.type==="debit"?1:-1)*(parseFloat(custMoveForm.amount)||0)))} ج
-                                        {(getPersonBalance(selectedPerson) + (custMoveForm.type==="debit"?1:-1)*(parseFloat(custMoveForm.amount)||0)) > 0 ? " عليه" : " له"}
+                                        الرصيد بعد: {formatNum(Math.abs(nextBalance))} ج
+                                        {nextBalance > 0 ? " عليه" : nextBalance < 0 ? " له" : " صافي"}
                                     </div>
                                 </div>
-                            )}
+                                );
+                            })()}
                             <button onClick={()=>addCustomerMove(selectedPerson.id)}
                                 style={{width:"100%",background:custMoveForm.type==="debit"?"linear-gradient(135deg,#ef4444,#dc2626)":"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>
                                 ✓ تسجيل الحركة
                             </button>
                         </Modal>
-                    )}
+                        );
+                    })()}
 
                     {/* MODAL: Add Finance */}
                     {modal==="addFinance" && (
@@ -8963,6 +9582,38 @@ ${knownNumbersText}`;
                             instaPays={instaPays}
                             formatNum={formatNum}
                             onClose={()=>setActiveReceipt(null)}
+                        />
+                    )}
+
+                    {/* 📝 سجل النشاط 2090 */}
+                    {showAuditLog && (
+                        <AuditLogModal onClose={() => setShowAuditLog(false)} />
+                    )}
+
+                    {/* ⌘ Command Palette 2090 */}
+                    {showCommandPalette && (
+                        <CommandPalette
+                            onClose={() => setShowCommandPalette(false)}
+                            actions={[
+                                { id:"tab-dashboard", icon:"🏠", label:"الذهاب للرئيسية", keywords:"dashboard home", run:()=>setTab("dashboard") },
+                                { id:"tab-transactions", icon:"📋", label:"الذهاب لسجل العمليات", keywords:"transactions", run:()=>setTab("transactions") },
+                                { id:"tab-people", icon:"👥", label:"الذهاب للعملاء", keywords:"people customers", run:()=>setTab("people") },
+                                { id:"tab-lines", icon:"📱", label:"الذهاب للخطوط", keywords:"lines", run:()=>setTab("lines") },
+                                ...(isAdmin ? [{ id:"tab-finance", icon:"💰", label:"الذهاب للمالية", keywords:"finance", run:()=>setTab("finance") }] : []),
+                                { id:"tab-abuadi", icon:"📒", label:"الذهاب لدفتر أبو عدي", keywords:"abuadi", run:()=>setTab("abuadi") },
+                                { id:"tab-ai", icon:"🤖", label:"الذهاب للمساعد الذكي", keywords:"ai chat", run:()=>setTab("ai") },
+                                ...(isAdmin ? [{ id:"tab-jard", icon:"📦", label:"الذهاب للجرد", keywords:"jard inventory", run:()=>setTab("jard") }] : []),
+                                { id:"tab-settings", icon:"⚙️", label:"الذهاب للإعدادات", keywords:"settings", run:()=>setTab("settings") },
+                                ...(canAddTxn ? [{ id:"quick-add", icon:"⚡", label:"إضافة عملية سريعة", keywords:"add new transaction", hint:"سريع", run:()=>setShowQuickAdd(true) }] : []),
+                                { id:"global-search", icon:"🔍", label:"بحث شامل", keywords:"search find", run:()=>setShowGlobalSearch(true) },
+                                { id:"daily-close", icon:"🌙", label:"نهاية اليوم", keywords:"daily close", run:()=>setShowDailyClose(true) },
+                                { id:"toggle-privacy", icon: privacyMode ? "🙈" : "👁️", label: privacyMode ? "إظهار الأرقام (إيقاف وضع الشارع)" : "إخفاء الأرقام (وضع الشارع)", keywords:"privacy street mode hide", run:()=>setPrivacyMode(v=>!v) },
+                                { id:"theme-dark", icon:"🌙", label:"تفعيل الوضع المظلم", keywords:"theme dark", run:()=>applyTheme("dark") },
+                                { id:"theme-light", icon:"☀️", label:"تفعيل الوضع المضيء", keywords:"theme light", run:()=>applyTheme("light") },
+                                { id:"theme-neon", icon:"🌌", label:"تفعيل وضع نيون 2090", keywords:"theme neon2090 future", run:()=>applyTheme("neon2090") },
+                                { id:"refresh", icon:"🔄", label:"تحديث البيانات من Firebase", keywords:"refresh sync", run:()=>forceRefresh() },
+                                { id:"audit-log", icon:"📝", label:"عرض سجل النشاط", keywords:"audit log history", run:()=>setShowAuditLog(true) },
+                            ]}
                         />
                     )}
 
@@ -10490,7 +11141,7 @@ ${debtors.slice(0,5).map(p => {
             capital, financeLogs, inventory, setInventory, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
             setLines, setVisas, setInstaPays, setTransactions, setPeople,
             setCapital, setFinanceLogs, setAbuadiTarget, setAbuadiPayments, setAbuadiDate, setAbuadiHistory,
-            db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage,
+            db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage, setShowAuditLog,
             vodDailyLimit,    setVodDailyLimit,
             linesMonthlyLimit,  setLinesMonthlyLimit,
             visaDailyLimit,     setVisaDailyLimit,
@@ -10509,20 +11160,45 @@ ${debtors.slice(0,5).map(p => {
             const [confirmModal, setConfirmModal] = useState(null);
             const [encModal, setEncModal] = useState(null);
             const [pwInput, setPwInput] = useState("");
+            // 🔒 PIN الأمان 2090
+            const [hasAppPin, setHasAppPin] = useState(() => !!getAppPin());
+            const [pinSetupOpen, setPinSetupOpen] = useState(false);
+            const [pinNew, setPinNew] = useState("");
+            const [pinConfirm, setPinConfirm] = useState("");
+            const [pinMsg, setPinMsg] = useState("");
+            function savePinSetup() {
+                if (pinNew.length < 4 || pinNew.length > 6) { setPinMsg("الـ PIN لازم يكون من 4 لـ 6 أرقام"); return; }
+                if (pinNew !== pinConfirm) { setPinMsg("الرقمين مش متطابقين"); return; }
+                setAppPin(pinNew);
+                logAudit("pin_set", "تم تعيين PIN جديد");
+                setHasAppPin(true);
+                setPinSetupOpen(false);
+                setPinNew(""); setPinConfirm(""); setPinMsg("");
+                showToast && showToast("🔒 تم تفعيل PIN الأمان");
+            }
+            function removePinSetup() {
+                setAppPin("");
+                logAudit("pin_removed", "تم إزالة PIN الأمان");
+                setHasAppPin(false);
+                showToast && showToast("🔓 تم إلغاء PIN الأمان");
+            }
             const [showPw, setShowPw] = useState(false);
 
-            // ⭐ Light Mode Toggle — يحفظ في localStorage
+            // ⭐ Theme Mode — dark | light | neon2090 — يحفظ في localStorage
             const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute("data-theme") === "light");
-            function toggleTheme() {
-                const next = !isLight;
-                setIsLight(next);
-                if (next) {
-                    document.documentElement.setAttribute("data-theme", "light");
-                    try { localStorage.setItem("hawker_theme", "light"); } catch(e) {}
-                } else {
+            const [themeMode, setThemeMode] = useState(() => document.documentElement.getAttribute("data-theme") || "dark");
+            function applyTheme(mode) {
+                setThemeMode(mode);
+                setIsLight(mode === "light");
+                if (mode === "dark") {
                     document.documentElement.removeAttribute("data-theme");
-                    try { localStorage.setItem("hawker_theme", "dark"); } catch(e) {}
+                } else {
+                    document.documentElement.setAttribute("data-theme", mode);
                 }
+                try { localStorage.setItem("hawker_theme", mode); } catch(e) {}
+            }
+            function toggleTheme() {
+                applyTheme(isLight ? "dark" : "light");
             }
             const restoreFileRef = React.useRef();
             const encFileRef = React.useRef();
@@ -10774,32 +11450,96 @@ ${debtors.slice(0,5).map(p => {
                         )}
                     </div>
 
-                    {/* ⭐ Light Mode Toggle */}
+                    {/* ⭐ Theme Mode Switcher — dark | light | neon2090 */}
+                    <div style={{background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:14,padding:"14px 18px",marginBottom:14}}>
+                        <div style={{fontSize:14,fontWeight:700,color:"var(--text-bright)",marginBottom:2}}>
+                            🎨 مظهر التطبيق
+                        </div>
+                        <div style={{fontSize:11,color:"var(--text-mid)",marginBottom:12}}>
+                            اختار الوضع اللي يناسبك
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                            {[
+                                {id:"dark",     icon:"🌙", label:"مظلم"},
+                                {id:"light",    icon:"☀️", label:"مضيء"},
+                                {id:"neon2090", icon:"🌌", label:"نيون 2090"},
+                            ].map(t=>(
+                                <button key={t.id} onClick={()=>applyTheme(t.id)}
+                                    style={{
+                                        display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+                                        padding:"10px 6px",borderRadius:10,cursor:"pointer",
+                                        fontFamily:"'Tajawal',sans-serif",fontSize:11,fontWeight:700,
+                                        border: themeMode===t.id ? "1px solid #00f0ff70" : "1px solid var(--border-dim)",
+                                        background: themeMode===t.id ? "linear-gradient(135deg,#00f0ff15,#c86bff15)" : "transparent",
+                                        color: themeMode===t.id ? "#00f0ff" : "var(--text-mid)",
+                                        transition:"all 0.2s"
+                                    }}>
+                                    <span style={{fontSize:18}}>{t.icon}</span>
+                                    {t.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 🔒 PIN الأمان 2090 */}
+                    <div style={{background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:14,padding:"14px 18px",marginBottom:14}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom: (pinSetupOpen ? 12 : 0)}}>
+                            <div>
+                                <div style={{fontSize:14,fontWeight:700,color:"var(--text-bright)"}}>
+                                    🔒 قفل بـ PIN + قفل تلقائي
+                                </div>
+                                <div style={{fontSize:11,color:"var(--text-mid)",marginTop:2}}>
+                                    {hasAppPin ? "مفعّل — التطبيق هيقفل تلقائياً بعد 3 دقايق خمول" : "غير مفعّل — التطبيق بيقفل بس لما تسيب الصفحة بدون رقم سري"}
+                                </div>
+                            </div>
+                            <span className="neon2090-badge">{hasAppPin ? "ON" : "OFF"}</span>
+                        </div>
+                        {!pinSetupOpen && (
+                            <div style={{display:"flex",gap:8,marginTop:12}}>
+                                <button onClick={()=>{setPinSetupOpen(true); setPinMsg("");}}
+                                    style={{flex:1,background:"#00f0ff15",border:"1px solid #00f0ff40",borderRadius:10,padding:"9px 8px",color:"#00f0ff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                    {hasAppPin ? "تغيير الـ PIN" : "تفعيل PIN"}
+                                </button>
+                                {hasAppPin && (
+                                    <button onClick={removePinSetup}
+                                        style={{flex:1,background:"#ef444415",border:"1px solid #ef444440",borderRadius:10,padding:"9px 8px",color:"#ef4444",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                        إلغاء PIN
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {pinSetupOpen && (
+                            <div>
+                                <input type="password" inputMode="numeric" maxLength={6} value={pinNew} onChange={e=>setPinNew(e.target.value.replace(/\D/g,""))}
+                                    placeholder="رقم سري جديد (4-6 أرقام)"
+                                    style={{width:"100%",background:"var(--bg-input)",border:"1px solid var(--border-dim)",borderRadius:10,padding:"10px 12px",color:"var(--text-bright)",fontSize:14,marginBottom:8,textAlign:"center",letterSpacing:4}}/>
+                                <input type="password" inputMode="numeric" maxLength={6} value={pinConfirm} onChange={e=>setPinConfirm(e.target.value.replace(/\D/g,""))}
+                                    placeholder="تأكيد الرقم السري"
+                                    style={{width:"100%",background:"var(--bg-input)",border:"1px solid var(--border-dim)",borderRadius:10,padding:"10px 12px",color:"var(--text-bright)",fontSize:14,marginBottom:8,textAlign:"center",letterSpacing:4}}/>
+                                {pinMsg && <div style={{color:"#ef4444",fontSize:11,marginBottom:8,textAlign:"center"}}>{pinMsg}</div>}
+                                <div style={{display:"flex",gap:8}}>
+                                    <button onClick={savePinSetup}
+                                        style={{flex:1,background:"linear-gradient(135deg,#00f0ff,#4d7fff)",border:"none",borderRadius:10,padding:"9px 8px",color:"#031018",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                        حفظ
+                                    </button>
+                                    <button onClick={()=>{setPinSetupOpen(false); setPinNew(""); setPinConfirm(""); setPinMsg("");}}
+                                        style={{flex:1,background:"var(--bg-input)",border:"1px solid var(--border-dim)",borderRadius:10,padding:"9px 8px",color:"var(--text-mid)",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                        إلغاء
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 📝 سجل النشاط 2090 */}
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:14,padding:"14px 18px",marginBottom:14}}>
                         <div>
-                            <div style={{fontSize:14,fontWeight:700,color:"var(--text-bright)"}}>
-                                {isLight ? "☀️ الوضع المضيء" : "🌙 الوضع المظلم"}
-                            </div>
-                            <div style={{fontSize:11,color:"var(--text-mid)",marginTop:2}}>
-                                {isLight ? "اضغط للتبديل للوضع الداكن" : "اضغط للتبديل للوضع المضيء"}
-                            </div>
+                            <div style={{fontSize:14,fontWeight:700,color:"var(--text-bright)"}}>📝 سجل النشاط</div>
+                            <div style={{fontSize:11,color:"var(--text-mid)",marginTop:2}}>راجع كل عمليات الفتح والدخول المسجلة</div>
                         </div>
-                        <button
-                            onClick={toggleTheme}
-                            aria-label={isLight ? "تفعيل الوضع الداكن" : "تفعيل الوضع المضيء"}
-                            style={{
-                                width:52, height:28, borderRadius:99,
-                                background: isLight ? "linear-gradient(135deg,#f59e0b,#eab308)" : "#1e3a5f",
-                                border:"none", cursor:"pointer", position:"relative",
-                                transition:"background 0.3s ease"
-                            }}>
-                            <div style={{
-                                position:"absolute", top:4, left: isLight ? 28 : 4,
-                                width:20, height:20, borderRadius:99,
-                                background:"#fff",
-                                transition:"left 0.3s ease",
-                                boxShadow:"0 2px 6px rgba(0,0,0,0.3)"
-                            }}/>
+                        <button onClick={()=> setShowAuditLog && setShowAuditLog(true)}
+                            style={{background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:10,padding:"9px 16px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                            عرض السجل
                         </button>
                     </div>
 
