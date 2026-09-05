@@ -1318,7 +1318,11 @@
             try { return localStorage.getItem("anthropic_api_key") || ""; } catch(e) { return ""; }
         }
         function setAnthropicKey(k) {
-            try { localStorage.setItem("anthropic_api_key", k.trim()); } catch(e) {} 
+            try {
+                const v = (k || "").trim();
+                if (!v) { localStorage.removeItem("anthropic_api_key"); return; }
+                localStorage.setItem("anthropic_api_key", v);
+            } catch(e) {}
         }
 
         async function callClaudeChat(systemPrompt, history) {
@@ -1327,12 +1331,21 @@
                 content: m.text || m.content || ""
             })).filter(m => m.content);
 
-            // ── Claude.ai Built-in API (بدون API Key) ──
+            const apiKey = getAnthropicKey();
+            if (!apiKey) {
+                const err = new Error("محتاج تحط مفتاح Claude API الأول من إعدادات المساعد الذكي.");
+                err.code = "NO_API_KEY";
+                throw err;
+            }
+
+            // ── نداء مباشر لـ Anthropic API بمفتاح المستخدم (محفوظ محلياً على جهازه فقط) ──
             const res = await fetch("https://api.anthropic.com/v1/messages", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "anthropic-version": "2023-06-01",
+                    "x-api-key": apiKey,
+                    "anthropic-dangerous-direct-browser-access": "true",
                 },
                 body: JSON.stringify({
                     model: "claude-sonnet-4-6",
@@ -1342,7 +1355,11 @@
                 })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+            if (!res.ok) {
+                const msg = data?.error?.message || `HTTP ${res.status}`;
+                if (res.status === 401) throw new Error("مفتاح الـ API غلط أو منتهي. راجعه من الإعدادات.");
+                throw new Error(msg);
+            }
             const text = data?.content?.map(b => b.text || "").filter(Boolean).join("\n");
             if (!text) throw new Error("رد فارغ");
             return text;
@@ -3393,6 +3410,104 @@
         }
 
         // ══════════════════════════════════════════════════════════════
+        //  📊  DailyBalanceHistoryModal — سجل الرصيد اليومي عبر السنين
+        //  بيوريك كل يوم كان معاك فيه كام (رأس المال) + المكسب/المصروف بتاع اليوم،
+        //  مجموعين حسب السنة والشهر — البيانات دي متسجلة تلقائياً وما بتتمسحش أبداً.
+        // ══════════════════════════════════════════════════════════════
+        function DailyBalanceHistoryModal({ log = [], onClose, formatNum, maskNum, privacyMode }) {
+            const [openGroups, setOpenGroups] = useState({});
+
+            // تجميع حسب السنة → الشهر
+            const groups = React.useMemo(() => {
+                const byYear = {};
+                const sorted = [...log].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+                sorted.forEach(entry => {
+                    const year = (entry.date || "----").slice(0, 4);
+                    const month = entry.monthDate || (entry.date ? entry.date.slice(0, 7) : "");
+                    if (!byYear[year]) byYear[year] = {};
+                    if (!byYear[year][month]) byYear[year][month] = [];
+                    byYear[year][month].push(entry);
+                });
+                return byYear;
+            }, [log]);
+
+            const years = Object.keys(groups).sort().reverse();
+            const monthNames = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+            function monthLabel(m) {
+                if (!m) return "غير محدد";
+                const [y, mo] = m.split("-");
+                return `${monthNames[parseInt(mo,10)-1] || mo} ${y}`;
+            }
+            function toggle(key) {
+                setOpenGroups(p => ({ ...p, [key]: !p[key] }));
+            }
+
+            return (
+                <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9997,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+                    <div onClick={e=>e.stopPropagation()} style={{width:"min(94vw,520px)",maxHeight:"85vh",background:"var(--bg-card,#0a1628)",border:"1px solid var(--border-dim,#1e3a5f)",borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",direction:"rtl"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:16,borderBottom:"1px solid var(--border-dim,#1e3a5f)"}}>
+                            <div style={{fontSize:15,fontWeight:800,color:"var(--text-bright,#e2e8f0)"}}>📊 سجل الرصيد اليومي</div>
+                            <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text-mid,#94a3b8)",fontSize:18,cursor:"pointer"}}>✕</button>
+                        </div>
+                        <div style={{padding:"8px 16px",fontSize:11,color:"#64748b",borderBottom:"1px solid var(--border-dim,#1e3a5f)"}}>
+                            كل يوم بيتسجّل تلقائياً — رأس المال + المكسب والمصروف. البيانات دي متراكمة وما بتتمسحش أبداً.
+                        </div>
+                        <div style={{overflowY:"auto",padding:12,flex:1}}>
+                            {years.length === 0 && (
+                                <div style={{textAlign:"center",color:"var(--text-dim,#475569)",padding:30,fontSize:13}}>
+                                    لسه مفيش سجلات — هتتسجل تلقائياً أول ما يعدي أول يوم كامل على التطبيق
+                                </div>
+                            )}
+                            {years.map(year => {
+                                const months = Object.keys(groups[year]).sort().reverse();
+                                return (
+                                    <div key={year} style={{marginBottom:14}}>
+                                        <div style={{fontSize:13,fontWeight:800,color:"#3b82f6",marginBottom:8,paddingRight:4}}>📅 {year}</div>
+                                        {months.map(month => {
+                                            const entries = groups[year][month];
+                                            const key = `${year}-${month}`;
+                                            const isOpen = !!openGroups[key];
+                                            const monthNet = entries.reduce((s,e)=>s+(e.net||0),0);
+                                            const closingEntry = entries[0]; // الأحدث في الشهر ده (بعد الترتيب التنازلي)
+                                            return (
+                                                <div key={key} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,marginBottom:8,overflow:"hidden"}}>
+                                                    <div onClick={()=>toggle(key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",cursor:"pointer"}}>
+                                                        <div>
+                                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{monthLabel(month)}</div>
+                                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{entries.length} يوم مسجّل{closingEntry ? ` — آخر رصيد ${maskNum(closingEntry.capital, privacyMode)} ج` : ""}</div>
+                                                        </div>
+                                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                            <span style={{fontSize:13,fontWeight:700,color: monthNet >= 0 ? "#10b981" : "#ef4444"}}>{monthNet >= 0 ? "+" : ""}{maskNum(monthNet, privacyMode)} ج</span>
+                                                            <span style={{color:"#64748b",fontSize:12}}>{isOpen ? "▲" : "▼"}</span>
+                                                        </div>
+                                                    </div>
+                                                    {isOpen && (
+                                                        <div style={{borderTop:"1px solid #1e3a5f"}}>
+                                                            {entries.map(e => (
+                                                                <div key={e.date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid #14294a"}}>
+                                                                    <div style={{fontSize:12,color:"#94a3b8"}}>{e.date}</div>
+                                                                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                                                                        <span style={{fontSize:10,color:"#10b981"}}>+{maskNum(e.income||0, privacyMode)}</span>
+                                                                        <span style={{fontSize:10,color:"#ef4444"}}>-{maskNum(e.expense||0, privacyMode)}</span>
+                                                                        <span style={{fontSize:12,fontWeight:700,color:"#3b82f6"}}>💰 {maskNum(e.capital||0, privacyMode)} ج</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
         //  ⚡  QuickAddModal — إضافة عملية سريعة بـ 3 حقول
         // ══════════════════════════════════════════════════════════════
         function QuickAddModal({ sources, onSave, onClose, showToast, commissionSettings, transactions = [], people = [] }) {
@@ -4052,6 +4167,8 @@
             const [capital, setCapital] = useState(() => loadFromLocalStorage('capital', 0));
             const [inventory, setInventory] = useState(() => loadFromLocalStorage('inventory', { cash: 0, owedToOthers: 0, note: "" }));
             const [financeLogs, setFinanceLogs] = useState(() => loadFromLocalStorage('financeLogs', []));
+            // ⭐ سجل الرصيد اليومي — لقطة تلقائية كل يوم (تاريخ + رأس المال + مكسب/مصروف اليوم) تتراكم لسنين
+            const [dailyBalanceLog, setDailyBalanceLog] = useState(() => loadFromLocalStorage('dailyBalanceLog', []));
             const [fawriBalance, setFawriBalance] = useState(() => loadFromLocalStorage('fawriBalance', 0));
             
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
@@ -4063,9 +4180,9 @@
                 setIsRefreshing(true);
                 setSyncStatus("⏳ جاري التحديث...");
                 try {
-                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings','inventory'];
+                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings','inventory','dailyBalanceLog'];
                     const snapshots = await Promise.all(keys.map(k => db.ref(k).once('value')));
-                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap, invSnap] = snapshots;
+                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap, invSnap, dblSnap] = snapshots;
 
                     // transactions
                     const txnData = txnSnap.val();
@@ -4121,6 +4238,13 @@
                         setFinanceLogs(arr);
                         saveToLocalStorage('financeLogs', arr);
                     }
+                    // dailyBalanceLog
+                    const dblData = dblSnap.val();
+                    if (dblData) {
+                        const arr = Array.isArray(dblData) ? dblData.filter(Boolean) : Object.values(dblData).filter(Boolean);
+                        setDailyBalanceLog(arr);
+                        saveToLocalStorage('dailyBalanceLog', arr);
+                    }
                     // settings
                     const s = settSnap.val();
                     if (s) {
@@ -4165,6 +4289,8 @@
             const [searchQ, setSearchQ] = useState("");
             const [toast, setToast] = useState(null);
             const [financeTab, setFinanceTab] = useState("daily");
+            // ⭐ الشهر المعروض في سجل المالية — يسمح بتصفح كل الشهور اللي فاتت (مش بس الشهر الحالي)
+            const [financeViewMonth, setFinanceViewMonth] = useState(() => currentMonthStr());
 
             // ⭐ فلترة سجل العمليات المتقدمة
             const [operationsTab, setOperationsTab] = useState("all"); // 'all' | 'withdraw' | 'deposit'
@@ -4410,6 +4536,8 @@
 
             const touchStartX = useRef(0);
             const touchEndX = useRef(0);
+            const touchStartY = useRef(0);
+            const touchEndY = useRef(0);
             const capitalWriting = useRef(false); // ⭐ منع الـ listener من يـoverwrite التعديل المحلي
             const abuAdiWriting  = useRef(false); // ⭐ إصلاح 1 — منع الـ loop اللانهائي في أبو عدي
             const abuAdiFromFirebase = useRef(false); // ⭐ إصلاح — لا نكتب لـ Firebase قبل تحميل بياناته
@@ -4580,6 +4708,18 @@
                         // ⭐ FIX: علّم أن financeLogs وصلت
                         firebaseFetchedKeys.current.add('financeLogs');
                         checkAllFirebaseFetched();
+                    });
+
+                    db.ref('dailyBalanceLog').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        firebaseLoaded.current = true;
+                        if (data) {
+                            const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                            setDailyBalanceLog(arr);
+                            saveToLocalStorage('dailyBalanceLog', arr);
+                        } else {
+                            setDailyBalanceLog([]);
+                        }
                     });
 
                     // ✅ FIX v23: Real-time listener لأبو عدي — يزامن بين الأدمن والمساعد والمشاهد فورياً
@@ -4803,6 +4943,11 @@
                 if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('financeLogs').set(financeLogs); } catch(e){} }
             }, [financeLogs]);
 
+            useEffect(() => {
+                saveToLocalStorage('dailyBalanceLog', dailyBalanceLog);
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('dailyBalanceLog').set(dailyBalanceLog); } catch(e){} }
+            }, [dailyBalanceLog]);
+
             // ✅ FIX v23: Real-time sync لأبو عدي — محمي من Race Condition بـ version counter
             useEffect(() => {
                 saveToLocalStorage('abuadiTarget', abuadiTarget);
@@ -4839,6 +4984,30 @@
                 const lastResetDay = loadFromLocalStorage('lastResetDay', null);
                 const todayStr = today();
                 if (lastResetDay && lastResetDay !== todayStr) {
+                    // ⭐ سجل الرصيد اليومي — بنسجّل تلقائياً رصيد اليوم اللي فات (لأي عدد سنين)
+                    // قبل أي تصفير، عشان مايتفقدش أي يوم — الهدف: "كل يوم كان معايا كام"
+                    setDailyBalanceLog(prev => {
+                        if (prev.some(d => d.date === lastResetDay)) return prev; // مسجل بالفعل
+                        const dayLogs = financeLogs.filter(l => l.date && l.date.startsWith(lastResetDay));
+                        const dayIncome = dayLogs.filter(l => l.type === "income").reduce((s, l) => s + (l.amount||0), 0);
+                        const dayExpense = dayLogs.filter(l => l.type === "expense").reduce((s, l) => s + (l.amount||0), 0);
+                        const entry = {
+                            date: lastResetDay,
+                            monthDate: lastResetDay.slice(0, 7),
+                            capital: capital,
+                            income: dayIncome,
+                            expense: dayExpense,
+                            net: dayIncome - dayExpense,
+                            txnCount: dayLogs.length,
+                        };
+                        const updated = [entry, ...prev].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+                        if (auth.currentUser && db) {
+                            try { db.ref('dailyBalanceLog').set(updated); } catch(e) {}
+                        }
+                        saveToLocalStorage('dailyBalanceLog', updated);
+                        return updated;
+                    });
+
                     setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
                     setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
                     setInstaPays(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
@@ -4847,6 +5016,8 @@
 
                     // ⭐ AUTO-ARCHIVE: لو الشهر اتغير، حوّل كل السجلات اليومية من الشهر الفايت
                     // لـ logType="monthly" عشان تظهر في السجل الشهري لكل شهر
+                    // ملحوظة مهمة: السجلات دي بتفضل محفوظة في financeLogs للأبد ومش بتتمسح —
+                    // بس بتتحول لـ "monthly" عشان تتصنف صح. تصفح أي شهر فات بقى ممكن من سجل المالية.
                     const lastMonth = lastResetDay ? lastResetDay.slice(0, 7) : null;  // "2025-06"
                     const thisMonth = todayStr.slice(0, 7);                             // "2025-07"
                     if (lastMonth && lastMonth !== thisMonth) {
@@ -5179,8 +5350,8 @@
                     return;
                 }
 
-                // Regex فشل — استخدم Gemini AI
-                const keyMissing = !GEMINI_API_KEY || GEMINI_API_KEY === "CLAUDE_ACTIVE" || GEMINI_API_KEY === "ضع_مفتاح_الـ_API_هنا" || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE";
+                // Regex فشل — جرّب Claude AI لو فيه مفتاح محفوظ
+                const keyMissing = !getAnthropicKey();
                 if (keyMissing) {
                     // Fallback بدون AI — استخدم ما أمكن من الـ Regex
                     setForm(f => ({
@@ -5190,7 +5361,7 @@
                         type:     parsed.type         || f.type,
                     }));
                     setSmartPaste("");
-                    showToast("⚠️ بيانات جزئية (أضف Gemini API للاستخراج الكامل)", "error");
+                    showToast("⚠️ بيانات جزئية (أضف مفتاح Claude API من تاب المساعد الذكي للاستخراج الكامل)", "error");
                     return;
                 }
 
@@ -6280,19 +6451,26 @@ ${knownNumbersText}`;
             function handleTouchStart(e) {
                 if (modal || viewImg || e.target.closest('input') || e.target.closest('select')) return;
                 touchStartX.current = e.targetTouches[0]?.clientX;
+                touchStartY.current = e.targetTouches[0]?.clientY;
             }
 
             function handleTouchEnd(e) {
                 if (modal || viewImg || e.target.closest('input') || e.target.closest('select')) return;
                 touchEndX.current = e.changedTouches[0]?.clientX;
-                const swipeDistance = touchStartX.current - touchEndX.current;
+                touchEndY.current = e.changedTouches[0]?.clientY;
+                const swipeDistanceX = touchStartX.current - touchEndX.current;
+                const swipeDistanceY = touchStartY.current - touchEndY.current;
                 const minSwipeDistance = 60;
                 const currentIdx = TABS_ORDER.indexOf(tab);
 
-                if (swipeDistance > minSwipeDistance && currentIdx < TABS_ORDER.length - 1) {
+                // ⭐ لازم الحركة الأفقية تبقى أكبر بوضوح من الرأسية
+                // عشان ما نلخبطش سكرول عادي (فوق/تحت) مع السحب بين الصفحات
+                if (Math.abs(swipeDistanceX) <= Math.abs(swipeDistanceY) * 1.5) return;
+
+                if (swipeDistanceX > minSwipeDistance && currentIdx < TABS_ORDER.length - 1) {
                     setTab(TABS_ORDER[currentIdx + 1]);
                 }
-                if (swipeDistance < -minSwipeDistance && currentIdx > 0) {
+                if (swipeDistanceX < -minSwipeDistance && currentIdx > 0) {
                     setTab(TABS_ORDER[currentIdx - 1]);
                 }
             }
@@ -6350,11 +6528,14 @@ ${knownNumbersText}`;
             );
 
             const thisMonth = currentMonthStr();
+            // ⭐ الشهر المعروض حالياً في سجل المالية — قابل للتصفح، مش دايماً الشهر الحالي بس
+            // (الشهور اللي فاتت باقية محفوظة في financeLogs للأبد، هنا بس بنختار أنهي شهر نعرض)
+            const viewMonth = financeViewMonth || thisMonth;
             // بعد الـ migration، كل السجلات عندها monthDate وlogType بشكل صح
             // احتياطياً: لو monthDate مش موجود، نستنتجه من date
             const monthlyLogs = financeLogs.filter(l => {
                 const lMonth = l.monthDate || (l.date ? String(l.date).slice(0,7) : null);
-                return lMonth === thisMonth;
+                return lMonth === viewMonth;
             });
             
             // ⭐ فصل اليومي والشهري
@@ -6366,6 +6547,35 @@ ${knownNumbersText}`;
             const monthIncome = currentLogs.filter(l => l.type === "income").reduce((s, l) => s + l.amount, 0);
             const monthExpense = currentLogs.filter(l => l.type === "expense").reduce((s, l) => s + l.amount, 0);
             const netMonthProfit = monthIncome - monthExpense;
+
+            // ⭐ كل الشهور اللي فيها بيانات فعلاً (من السجلات + من سجل الرصيد اليومي) — لعرضها في التنقل
+            const availableFinanceMonths = React.useMemo(() => {
+                const set = new Set([thisMonth]);
+                financeLogs.forEach(l => { const m = l.monthDate || (l.date ? String(l.date).slice(0,7) : null); if (m) set.add(m); });
+                dailyBalanceLog.forEach(d => { if (d.monthDate) set.add(d.monthDate); });
+                return Array.from(set).sort().reverse(); // الأحدث الأول
+            }, [financeLogs, dailyBalanceLog, thisMonth]);
+
+            function shiftFinanceMonth(dir) {
+                const idx = availableFinanceMonths.indexOf(viewMonth);
+                let target;
+                if (idx === -1) {
+                    // احسب الشهر يدوياً لو مش موجود في القايمة
+                    const [y, m] = viewMonth.split("-").map(Number);
+                    const d = new Date(y, (m - 1) + dir, 1);
+                    target = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+                } else {
+                    const newIdx = idx - dir; // القايمة الأحدث أولاً، فـ "التالي" = idx-1
+                    target = availableFinanceMonths[newIdx] || viewMonth;
+                }
+                setFinanceViewMonth(target);
+            }
+            function monthLabel(m) {
+                if (!m) return "";
+                const [y, mo] = m.split("-");
+                const names = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+                return `${names[parseInt(mo,10)-1] || mo} ${y}`;
+            }
 
             // ══ 🧠 الرادار الذكي — Smart Insights ══
             const smartInsights = React.useMemo(() => generateSmartInsights({
@@ -8064,6 +8274,15 @@ ${knownNumbersText}`;
                                     <button onClick={()=>setFinanceTab("monthly")} style={{flex:1,background:financeTab==="monthly"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:12,padding:12,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>📆 شهري</button>
                                 </div>
 
+                                {/* ⭐ التنقل بين الشهور — كل شهر فات محفوظ ومتصفح، مفيش حاجة بتتمسح */}
+                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12,background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:"8px 12px"}}>
+                                    <button onClick={()=>shiftFinanceMonth(-1)} style={{background:"none",border:"none",color:"#3b82f6",fontSize:18,cursor:"pointer",padding:"4px 8px"}}>▶</button>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{monthLabel(viewMonth)}{viewMonth===thisMonth && <span style={{fontSize:10,color:"#64748b"}}> (الحالي)</span>}</div>
+                                    <button onClick={()=>shiftFinanceMonth(1)} disabled={viewMonth>=thisMonth} style={{background:"none",border:"none",color:viewMonth>=thisMonth?"#334155":"#3b82f6",fontSize:18,cursor:viewMonth>=thisMonth?"default":"pointer",padding:"4px 8px"}}>◀</button>
+                                </div>
+
+                                <button onClick={()=>setModal("dailyBalanceHistory")} style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:"10px 12px",color:"#94a3b8",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📊 سجل الرصيد اليومي (كل يوم كان معايا كام)</button>
+
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
                                     <div style={{background:"#10b9810a",border:"1px solid #10b98120",borderRadius:12,padding:12,textAlign:"center"}}>
                                         <div style={{fontSize:16,fontWeight:700,color:"#10b981"}}>{maskNum(monthIncome, privacyMode)} ج</div>
@@ -8269,6 +8488,7 @@ ${knownNumbersText}`;
                             lines={lines} visas={visas} instaPays={instaPays}
                             transactions={transactions} people={people}
                             capital={capital} financeLogs={financeLogs}
+                            dailyBalanceLog={dailyBalanceLog} setDailyBalanceLog={setDailyBalanceLog}
                             inventory={inventory} setInventory={setInventory}
                             abuadiTarget={abuadiTarget} abuadiPayments={abuadiPayments}
                             abuadiDate={abuadiDate} abuadiHistory={abuadiHistory}
@@ -9424,6 +9644,18 @@ ${knownNumbersText}`;
                             <button onClick={addFinanceLog} style={{width:"100%",background: financeForm.type === "income" ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>✓ حفظ</button>
                         </Modal>
                     )}
+
+                    {/* MODAL: سجل الرصيد اليومي */}
+                    {modal==="dailyBalanceHistory" && (
+                        <DailyBalanceHistoryModal
+                            log={dailyBalanceLog}
+                            onClose={()=>setModal(null)}
+                            formatNum={formatNum}
+                            maskNum={maskNum}
+                            privacyMode={privacyMode}
+                        />
+                    )}
+
 
                     {/* MODAL: Edit Capital */}
                     {modal==="editCapital" && (
@@ -11138,7 +11370,7 @@ ${debtors.slice(0,5).map(p => {
 
         function BackupRestoreScreen({
             lines, visas, instaPays, transactions, people,
-            capital, financeLogs, inventory, setInventory, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
+            capital, financeLogs, dailyBalanceLog, setDailyBalanceLog, inventory, setInventory, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
             setLines, setVisas, setInstaPays, setTransactions, setPeople,
             setCapital, setFinanceLogs, setAbuadiTarget, setAbuadiPayments, setAbuadiDate, setAbuadiHistory,
             db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage, setShowAuditLog,
@@ -11221,6 +11453,7 @@ ${debtors.slice(0,5).map(p => {
                     people,
                     capital,
                     financeLogs,
+                    dailyBalanceLog: dailyBalanceLog || [],
                     inventory: inventory || { cash: 0, owedToOthers: 0, note: "" },
                     abuAdi: { target: abuadiTarget, payments: abuadiPayments, date: abuadiDate },
                     abuAdiHistory: abuadiHistory || [],
@@ -11366,6 +11599,9 @@ ${debtors.slice(0,5).map(p => {
                     setPeople(obj.people || []);
                     setCapital(typeof obj.capital === "number" ? obj.capital : 0);
                     setFinanceLogs(obj.financeLogs || []);
+                    if (Array.isArray(obj.dailyBalanceLog) && setDailyBalanceLog) {
+                        setDailyBalanceLog(obj.dailyBalanceLog);
+                    }
                     setInventory(obj.inventory || { cash: 0, owedToOthers: 0, note: "" });
                     if (obj.abuAdi) {
                         setAbuadiTarget(obj.abuAdi.target || 0);
@@ -11377,7 +11613,7 @@ ${debtors.slice(0,5).map(p => {
                     }
 
                     // 2. تحديث localStorage
-                    const keys = ["lines","visas","instaPays","transactions","people","capital","financeLogs"];
+                    const keys = ["lines","visas","instaPays","transactions","people","capital","financeLogs","dailyBalanceLog"];
                     keys.forEach(k => { if (obj[k] !== undefined) saveToLocalStorage(k, obj[k]); });
                     if (obj.abuAdi) {
                         saveToLocalStorage("abuadiTarget", obj.abuAdi.target || 0);
@@ -11405,6 +11641,7 @@ ${debtors.slice(0,5).map(p => {
                             db.ref("instaPays").set(obj.instaPays || []),
                             db.ref("transactions").set(obj.transactions || []),
                             db.ref("financeLogs").set(obj.financeLogs || []),
+                            db.ref("dailyBalanceLog").set(obj.dailyBalanceLog || []),
                             db.ref("capital").set(typeof obj.capital === "number" ? obj.capital : 0),
                             db.ref("abuAdi").set(obj.abuAdi || {}),
                             ...historyWrites,
@@ -11849,6 +12086,7 @@ ${debtors.slice(0,5).map(p => {
                                         { label: "العملاء", val: (confirmModal.data.people||[]).length, icon: "👥" },
                                         { label: "رأس المال", val: `${(confirmModal.data.capital||0).toLocaleString()} ج`, icon: "💰" },
                                         { label: "السجلات المالية", val: (confirmModal.data.financeLogs||[]).length, icon: "📊" },
+                                        { label: "سجل الرصيد اليومي", val: (confirmModal.data.dailyBalanceLog||[]).length, icon: "📆" },
                                     ].map((item, i) => (
                                         <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#c8d6e8", paddingBottom: 4 }}>
                                             <span>{item.icon} {item.label}</span>
@@ -12154,6 +12392,7 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                     const final = [...newMsgs, aiMsg];
                     setMessages(final);
                     persist(final);
+                    if (err.code === "NO_API_KEY") setShowKeyInput(true);
                 } finally {
                     setThinking(false);
                 }
@@ -12175,17 +12414,22 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                 "ملخص عمليات اليوم؟",
             ];
 
-            const [orKey, setOrKey] = useState(() => getOpenRouterKey());
+            const [anthKey, setAnthKey] = useState(() => getAnthropicKey());
             const [showKeyInput, setShowKeyInput] = useState(false);
             const [keyDraft, setKeyDraft] = useState("");
-            const hasKey = !!orKey || !!((() => { try { return localStorage.getItem("anthropic_api_key"); } catch(e){ return ""; } })());
+            const hasKey = !!anthKey;
 
             function saveKey() {
-                setOpenRouterKey(keyDraft);
-                setOrKey(keyDraft.trim());
+                setAnthropicKey(keyDraft);
+                setAnthKey(keyDraft.trim());
                 setShowKeyInput(false);
                 setKeyDraft("");
-                showToast("✅ تم حفظ الـ API Key", "success");
+                showToast("✅ تم حفظ مفتاح Claude API", "success");
+            }
+            function removeKey() {
+                setAnthropicKey("");
+                setAnthKey("");
+                showToast("🗑️ تم حذف المفتاح", "success");
             }
 
             return (
@@ -12206,9 +12450,53 @@ ${txnSummary || "لا توجد عمليات مسجلة"}
                         <div style={{fontSize:34,marginBottom:6}}>✨</div>
                         <div style={{fontSize:20,fontWeight:900,color:"#a78bfa",letterSpacing:0.5}}>المساعد الذكي</div>
                         <div style={{fontSize:12,color:"#475569",marginTop:4}}>Claude Sonnet • يفهم بياناتك</div>
-                        <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#10b98120",border:"1px solid #10b98130",borderRadius:20,padding:"3px 12px",fontSize:10,color:"#10b981",marginTop:8,fontWeight:700}}>
-                            <div style={{width:6,height:6,borderRadius:99,background:"#10b981",animation:"blink 2s infinite"}}/>
-                            مُتصل تلقائياً ✓
+                        {hasKey ? (
+                            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#10b98120",border:"1px solid #10b98130",borderRadius:20,padding:"3px 12px",fontSize:10,color:"#10b981",marginTop:8,fontWeight:700}}>
+                                <div style={{width:6,height:6,borderRadius:99,background:"#10b981",animation:"blink 2s infinite"}}/>
+                                متصل ✓
+                            </div>
+                        ) : (
+                            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#ef444420",border:"1px solid #ef444430",borderRadius:20,padding:"3px 12px",fontSize:10,color:"#ef4444",marginTop:8,fontWeight:700}}>
+                                محتاج مفتاح API
+                            </div>
+                        )}
+
+                        <div style={{marginTop:12}}>
+                            {!showKeyInput ? (
+                                <button onClick={()=>{ setKeyDraft(anthKey||""); setShowKeyInput(true); }}
+                                    style={{background:"#0d1120",border:"1px solid #a78bfa30",borderRadius:10,padding:"8px 14px",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                    {hasKey ? "⚙️ تغيير المفتاح" : "🔑 إضافة مفتاح Claude API"}
+                                </button>
+                            ) : (
+                                <div style={{display:"flex",flexDirection:"column",gap:8,alignItems:"stretch",marginTop:6}}>
+                                    <input
+                                        type="password"
+                                        value={keyDraft}
+                                        onChange={e=>setKeyDraft(e.target.value)}
+                                        placeholder="sk-ant-..."
+                                        style={{background:"#0a0e1a",border:"1px solid #1a2235",borderRadius:10,padding:"10px 12px",color:"#c8d6e8",fontSize:13,fontFamily:"monospace",direction:"ltr",textAlign:"right"}}
+                                    />
+                                    <div style={{fontSize:10,color:"#3d4f65",textAlign:"right"}}>
+                                        بيتحفظ على جهازك بس (localStorage) — مبيتبعتش لأي سيرفر غير Anthropic مباشرة.
+                                    </div>
+                                    <div style={{display:"flex",gap:8}}>
+                                        <button onClick={saveKey} disabled={!keyDraft.trim()}
+                                            style={{flex:1,background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontSize:12,fontWeight:700,cursor:keyDraft.trim()?"pointer":"not-allowed",opacity:keyDraft.trim()?1:0.5,fontFamily:"'Tajawal',sans-serif"}}>
+                                            حفظ
+                                        </button>
+                                        {hasKey && (
+                                            <button onClick={removeKey}
+                                                style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:10,padding:"9px 14px",color:"#ef4444",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                                حذف
+                                            </button>
+                                        )}
+                                        <button onClick={()=>{ setShowKeyInput(false); setKeyDraft(""); }}
+                                            style={{background:"#1a223530",border:"1px solid #1a2235",borderRadius:10,padding:"9px 14px",color:"#7a8fa8",fontSize:12,cursor:"pointer",fontFamily:"'Tajawal',sans-serif"}}>
+                                            إلغاء
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -12490,4 +12778,3 @@ self.addEventListener('fetch', e => {
     </div>
 </body>
 </html>
-
