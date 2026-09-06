@@ -8,13 +8,13 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <meta name="background-color" content="#05070f">
-    <meta name="application-name" content="الحوكر">
+    <meta name="application-name" content="ماليه المر">
     <meta name="description" content="مدير التحويلات والمالية — فودافون كاش">
 
     <!-- ══ iOS PWA ══ -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="الحوكر">
+    <meta name="apple-mobile-web-app-title" content="ماليه المر">
     <!-- Apple Touch Icons (inline SVG-based PNG via data URI) -->
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="apple-touch-startup-image" href="icon-512.png">
@@ -27,11 +27,11 @@
     <meta name="msapplication-tap-highlight" content="no">
 
     <!-- ══ Open Graph (optional but helps share) ══ -->
-    <meta property="og:title" content="الحوكر — مدير فودافون كاش">
+    <meta property="og:title" content="ماليه المر — مدير فودافون كاش">
     <meta property="og:description" content="تتبع التحويلات والأرصدة بذكاء">
     <meta property="og:type" content="website">
 
-    <title>الحوكر v23 — فودافون كاش Premium</title>
+    <title>ماليه المر v23 — فودافون كاش Premium</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin
         onerror="this.onerror=null;this.src='https://unpkg.com/react@18/umd/react.production.min.js';this.onerror=function(){this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js';};"></script>
@@ -53,8 +53,8 @@
     (function() {
         // Inline manifest as blob — يشتغل حتى لو الملف مرفوع مباشرةً بدون web server
         const manifest = {
-            name: "الحوكر — مدير فودافون كاش",
-            short_name: "الحوكر",
+            name: "ماليه المر — مدير فودافون كاش",
+            short_name: "ماليه المر",
             description: "مدير التحويلات والمالية",
             start_url: "./",
             display: "standalone",
@@ -1223,7 +1223,7 @@
     </style>
 </head>
 <body>
-    <div id="root" role="main" aria-label="تطبيق الحوكر — مدير فودافون كاش"></div>
+    <div id="root" role="main" aria-label="تطبيق ماليه المر — مدير فودافون كاش"></div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
@@ -1391,7 +1391,7 @@
 
         const initialInstaPays = [];
 
-        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "jard", "settings"];
+        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "personalLedger", "abuadi", "ai", "jard", "settings"];
 
         // ══════════════════════════════════════════════════════════════════
         //  🔑  generateUniqueId — ID فريد 100% لا يتكرر أبداً حتى في نفس الـ ms
@@ -2726,7 +2726,7 @@
                                 <div style={{textAlign:"center",marginBottom:4}}>
                                     <div style={{fontSize:16,fontWeight:900,letterSpacing:1}}>✨ أبو زياد للكاش ✨</div>
                                     <div style={{fontSize:10,marginTop:2}}>مدير التحويلات والمالية الذكي</div>
-                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v13 — نظام متكامل</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>ماليه المر v13 — نظام متكامل</div>
                                 </div>
                                 <hr className="receipt-divider-solid"/>
 
@@ -2778,7 +2778,7 @@
                                 {/* ===== الفوتر ===== */}
                                 <div style={{textAlign:"center",fontSize:10,color:"#555",marginTop:4}}>
                                     <div>شكراً لتعاملك معنا! 🙏</div>
-                                    <div style={{marginTop:2,fontWeight:700}}>— الحوكر v13 —</div>
+                                    <div style={{marginTop:2,fontWeight:700}}>— ماليه المر v13 —</div>
                                     <div style={{fontSize:8,marginTop:3,color:"#999"}}>أبو زياد للكاش • خدمة على مدار الساعة</div>
                                 </div>
 
@@ -2836,7 +2836,7 @@
                                 <div style={{textAlign:"center",marginBottom:6}}>
                                     <div style={{fontSize:15,fontWeight:900,letterSpacing:0.5}}>🔥 أبو زياد للكاش 🔥</div>
                                     <div style={{fontSize:10,marginTop:2}}>حسابات أبو عدي التاريخية</div>
-                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v13 — نظام التتبع المالي</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>ماليه المر v13 — نظام التتبع المالي</div>
                                 </div>
                                 <hr style={{border:"none",borderTop:"2px solid #000",margin:"6px 0"}}/>
                                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
@@ -2886,7 +2886,7 @@
                                 <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
                                 <div style={{textAlign:"center",fontSize:10,color:"#555"}}>
                                     <div>شكراً لتعاملك معنا! 🙏</div>
-                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v13 —</div>
+                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — ماليه المر v13 —</div>
                                     <div style={{fontSize:8,marginTop:3,color:"#999",letterSpacing:2}}>- - - - - - - - - - - - - - -</div>
                                 </div>
                             </div>
@@ -2939,7 +2939,7 @@
                                 <div style={{textAlign:"center",marginBottom:6}}>
                                     <div style={{fontSize:15,fontWeight:900,letterSpacing:0.5}}>🔥 أبو زياد للكاش 🔥</div>
                                     <div style={{fontSize:10,marginTop:2}}>إيصال حساب عميل</div>
-                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>الحوكر v13 — نظام الحساب الجاري</div>
+                                    <div style={{fontSize:9,color:"#555",marginTop:1}}>ماليه المر v13 — نظام الحساب الجاري</div>
                                 </div>
                                 <hr style={{border:"none",borderTop:"2px solid #000",margin:"6px 0"}}/>
                                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
@@ -2994,7 +2994,7 @@
                                 <hr style={{border:"none",borderTop:"1px dashed #000",margin:"6px 0"}}/>
                                 <div style={{textAlign:"center",fontSize:10,color:"#555"}}>
                                     <div>شكراً لتعاملك معنا! 🙏</div>
-                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — الحوكر v13 —</div>
+                                    <div style={{fontWeight:700,marginTop:2}}>— أبو زياد للكاش — ماليه المر v13 —</div>
                                     <div style={{fontSize:8,marginTop:3,color:"#999",letterSpacing:2}}>- - - - - - - - - - - - - - -</div>
                                 </div>
                             </div>
@@ -4180,9 +4180,9 @@
                 setIsRefreshing(true);
                 setSyncStatus("⏳ جاري التحديث...");
                 try {
-                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings','inventory','dailyBalanceLog'];
+                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings','inventory','dailyBalanceLog','personalLedger','personalLedgerOpenings'];
                     const snapshots = await Promise.all(keys.map(k => db.ref(k).once('value')));
-                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap, invSnap, dblSnap] = snapshots;
+                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap, invSnap, dblSnap, plSnap, ploSnap] = snapshots;
 
                     // transactions
                     const txnData = txnSnap.val();
@@ -4244,6 +4244,18 @@
                         const arr = Array.isArray(dblData) ? dblData.filter(Boolean) : Object.values(dblData).filter(Boolean);
                         setDailyBalanceLog(arr);
                         saveToLocalStorage('dailyBalanceLog', arr);
+                    }
+                    // personalLedger
+                    const plData = plSnap.val();
+                    if (plData) {
+                        const arr = Array.isArray(plData) ? plData.filter(Boolean) : Object.values(plData).filter(Boolean);
+                        setPersonalLedger(arr);
+                        saveToLocalStorage('personalLedger', arr);
+                    }
+                    const ploData = ploSnap.val();
+                    if (ploData) {
+                        setPersonalLedgerOpenings(ploData);
+                        saveToLocalStorage('personalLedgerOpenings', ploData);
                     }
                     // settings
                     const s = settSnap.val();
@@ -4438,6 +4450,14 @@
             const [abuadiPendingAudio, setAbuadiPendingAudio] = useState(null); // base64 audio for next payment
             // ⭐ السجل التاريخي التراكمي لأبو عدي
             const [abuadiHistory, setAbuadiHistory] = useState(() => loadFromLocalStorage('abuadiHistory', [])); // [{dateStr, target, totalPaid, payments, archivedAt}]
+
+            // ⭐ حساباتي الشخصية (Personal Ledger) — مستقل تمامًا عن حسابات العملاء/الجرد/المالية العامة
+            // كل حركة: {id, date:'YYYY-MM-DD', time:'HH:MM', type:'income'|'expense', amount, desc, category, note, createdAt, linkedTxnId}
+            // ⭐ linkedTxnId: null حاليًا — مجهّز مستقبلاً لربط عمليات "قبضت من عميل" بحركة دخل هنا تلقائيًا بدون تغيير السلوك الحالي
+            const [personalLedger, setPersonalLedger] = useState(() => loadFromLocalStorage('personalLedger', []));
+            // رصيد بداية اليوم لكل تاريخ: {'YYYY-MM-DD': amount}
+            const [personalLedgerOpenings, setPersonalLedgerOpenings] = useState(() => loadFromLocalStorage('personalLedgerOpenings', {}));
+            const [personalLedgerSelectedDate, setPersonalLedgerSelectedDate] = useState(() => today());
 
             // ⭐ الحدود الديناميكية القابلة للتعديل — يومي الخطوط متغير، الباقي ثابت افتراضياً
             const [vodDailyLimit,    setVodDailyLimit]    = useState(() => loadFromLocalStorage('vodDailyLimit',    200000)); // ⭐ 200 ألف افتراضي = الحد الصحيح لفودافون كاش
@@ -4722,6 +4742,29 @@
                         }
                     });
 
+                    // ⭐ حساباتي الشخصية — مزامنة فورية
+                    db.ref('personalLedger').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        firebaseLoaded.current = true;
+                        if (data) {
+                            const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                            setPersonalLedger(arr);
+                            saveToLocalStorage('personalLedger', arr);
+                        } else {
+                            setPersonalLedger([]);
+                        }
+                    });
+                    db.ref('personalLedgerOpenings').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        firebaseLoaded.current = true;
+                        if (data) {
+                            setPersonalLedgerOpenings(data);
+                            saveToLocalStorage('personalLedgerOpenings', data);
+                        } else {
+                            setPersonalLedgerOpenings({});
+                        }
+                    });
+
                     // ✅ FIX v23: Real-time listener لأبو عدي — يزامن بين الأدمن والمساعد والمشاهد فورياً
                     db.ref('abuAdi').on('value', (snapshot) => {
                         if (abuAdiWriting.current) return; // ⭐ إصلاح 1 — تجاهل التحديث أثناء الكتابة المحلية
@@ -4807,6 +4850,8 @@
                     db.ref('abuAdi').off();
                     db.ref('abuAdi_history').off();
                     db.ref('settings').off();
+                    db.ref('personalLedger').off();
+                    db.ref('personalLedgerOpenings').off();
                 };
             }, [userRole]);
 
@@ -4947,6 +4992,17 @@
                 saveToLocalStorage('dailyBalanceLog', dailyBalanceLog);
                 if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('dailyBalanceLog').set(dailyBalanceLog); } catch(e){} }
             }, [dailyBalanceLog]);
+
+            // ⭐ حساباتي الشخصية — مزامنة تلقائية مع localStorage و Firebase (أدمن فقط، زي باقي البيانات الحساسة)
+            useEffect(() => {
+                saveToLocalStorage('personalLedger', personalLedger);
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('personalLedger').set(personalLedger); } catch(e){} }
+            }, [personalLedger]);
+
+            useEffect(() => {
+                saveToLocalStorage('personalLedgerOpenings', personalLedgerOpenings);
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('personalLedgerOpenings').set(personalLedgerOpenings); } catch(e){} }
+            }, [personalLedgerOpenings]);
 
             // ✅ FIX v23: Real-time sync لأبو عدي — محمي من Race Condition بـ version counter
             useEffect(() => {
@@ -6613,7 +6669,7 @@ ${knownNumbersText}`;
 
             // التبويبات المتاحة لعمر
             const omarTabs = ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
-            const allTabs  = ["dashboard", "transactions", "people", "lines", "finance", "abuadi", "ai", "jard", "settings"];
+            const allTabs  = ["dashboard", "transactions", "people", "lines", "finance", "personalLedger", "abuadi", "ai", "jard", "settings"];
 
             const tabs = isAdmin ? allTabs : isOmar ? omarTabs : ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
 
@@ -6623,6 +6679,7 @@ ${knownNumbersText}`;
                 {id:"people",      icon:"👥", label:"الأشخاص"},
                 {id:"lines",       icon:"📱", label:"الخطوط"},
                 {id:"finance",     icon:"💰", label:"المالية",  adminOnly: true},
+                {id:"personalLedger", icon:"🧾", label:"حساباتي", adminOnly: true},
                 {id:"abuadi",      icon:"🤝", label:"أبو عدي"},
                 {id:"ai",          icon:"✨", label:"AI"},
                 {id:"jard",        icon:"📊", label:"الجرد",   adminOnly: true},
@@ -6688,7 +6745,7 @@ ${knownNumbersText}`;
                                 V
                             </div>
                             <div>
-                                <div style={{fontSize:16,fontWeight:800,color:"#fff",letterSpacing:"-0.3px"}}>الحوكر</div>
+                                <div style={{fontSize:16,fontWeight:800,color:"#fff",letterSpacing:"-0.3px"}}>ماليه المر</div>
                                 <div style={{display:"flex",alignItems:"center",gap:5}}>
                                     <span className="live-dot" style={{width:5,height:5,borderRadius:"50%",background:syncStatus.includes("✓")||syncStatus.includes("🟢")?"#10b981":"#f59e0b",display:"inline-block"}}/>
                                     <span style={{fontSize:10,color:isAdmin?"#f59e0b":isOmar?"#22d3ee":isAssistant?"#10b981":"#64748b",fontWeight:700}}>{getRoleName()}</span>
@@ -6816,7 +6873,7 @@ ${knownNumbersText}`;
                         </div>
                     )}
 
-                    {/* ⭐ حارس الحوكر */}
+                    {/* ⭐ حارس ماليه المر */}
                     {(isAdmin || isAssistant) && (
                         <HawkerGuardian
                             transactions={transactions} lines={lines} visas={visas}
@@ -8010,7 +8067,7 @@ ${knownNumbersText}`;
                                         const isAvail    = l.available !== false;
                                         const borderColor = isCritical ? "#ef444460" : isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
                                         const availColor  = isAvail ? "#22c55e" : "#ef4444";
-                                        const availLabel  = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const availLabel  = isAvail ? "✅ متاح" : "📴 غير متاح في الموبايل";
                                         const balance     = l.balance || 0;
                                         // دالة لون العداد بناءً على نسبته
                                         const cntColor = (pct) => pct >= 85 ? "#ef4444" : pct >= 65 ? "#f59e0b" : pct >= 40 ? "#22d3ee" : "#7a8fa8";
@@ -8025,7 +8082,7 @@ ${knownNumbersText}`;
                                                         {isWarning  && <span style={{fontSize:10,background:"#f59e0b15",color:"#f59e0b",border:"1px solid #f59e0b40",borderRadius:20,padding:"2px 8px",fontWeight:700}}>⚡ اقترب من الحد</span>}
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                                                        {isAdmin && <button onClick={()=>setLines(p=>p.map(x=>x.id===l.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
+                                                        {isAdmin && <button onClick={()=>setLines(p=>p.map(x=>x.id===l.id?{...x,available:!isAvail}:x))} title={isAvail?"إخفاء الخط من الموبايل (بياناته وسجله هيفضلوا محفوظين)":"إظهار الخط تاني في الموبايل"} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"📴 إخفاء من الموبايل":"✅ إظهار في الموبايل"}</button>}
                                                         {isAdmin && <button onClick={()=>{setEditLineId(l.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
                                                         {isAdmin && <button onClick={()=>{setAdjustModal({sourceId:l.id, sourceName:l.name, sourceType:"line"}); setAdjustForm({target:"transfer", amount:"", reason:""});}} title="تظبيط الرصيد الشهري" style={{background:"#a78bfa15",border:"1px solid #a78bfa30",borderRadius:8,padding:"3px 8px",color:"#a78bfa",cursor:"pointer",fontSize:11}}>⚖️</button>}
                                                         {isAdmin && <button onClick={()=>{
@@ -8099,7 +8156,7 @@ ${knownNumbersText}`;
                                         const isAvail    = v.available !== false;
                                         const borderColor = isCritical ? "#ef444460" : isDanger ? "#ef444440" : isAvail ? "#22c55e60" : "#ef444460";
                                         const availColor  = isAvail ? "#22c55e" : "#ef4444";
-                                        const availLabel  = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const availLabel  = isAvail ? "✅ متاح" : "📴 غير متاح في الموبايل";
                                         const balance     = v.balance || 0;
                                         const cntColor = (pct) => pct >= 85 ? "#ef4444" : pct >= 65 ? "#f59e0b" : pct >= 40 ? "#a78bfa" : "#7a8fa8";
                                         const alertClass = isCritical ? "line-card limit-critical" : isWarning ? "line-card limit-warning" : "line-card";
@@ -8113,7 +8170,7 @@ ${knownNumbersText}`;
                                                         {isWarning  && <span style={{fontSize:10,background:"#f59e0b15",color:"#f59e0b",border:"1px solid #f59e0b40",borderRadius:20,padding:"2px 8px",fontWeight:700}}>⚡ اقترب من الحد</span>}
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                                                        {isAdmin && <button onClick={()=>setVisas(p=>p.map(x=>x.id===v.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
+                                                        {isAdmin && <button onClick={()=>setVisas(p=>p.map(x=>x.id===v.id?{...x,available:!isAvail}:x))} title={isAvail?"إخفاء الفيزا من الموبايل (بياناتها وسجلها هيفضلوا محفوظين)":"إظهار الفيزا تاني في الموبايل"} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"📴 إخفاء من الموبايل":"✅ إظهار في الموبايل"}</button>}
                                                         {isAdmin && <button onClick={()=>{setEditLineId(v.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
                                                         {isAdmin && <button onClick={()=>{setAdjustModal({sourceId:v.id, sourceName:v.name, sourceType:"visa"}); setAdjustForm({target:"transfer", amount:"", reason:""});}} title="تظبيط الرصيد الشهري" style={{background:"#a78bfa15",border:"1px solid #a78bfa30",borderRadius:8,padding:"3px 8px",color:"#a78bfa",cursor:"pointer",fontSize:11}}>⚖️</button>}
                                                         {isAdmin && <button onClick={()=>{
@@ -8190,7 +8247,7 @@ ${knownNumbersText}`;
                                         const isAvail    = ip.available !== false;
                                         const borderColor = isCritical ? "#ef444460" : isDanger ? "#ef444440" : isAvail ? "#10b98160" : "#ef444460";
                                         const availColor  = isAvail ? "#22c55e" : "#ef4444";
-                                        const availLabel  = isAvail ? "✅ متاح" : "🔴 مش متاح";
+                                        const availLabel  = isAvail ? "✅ متاح" : "📴 غير متاح في الموبايل";
                                         const balance     = ip.balance || 0;
                                         const cntColor = (pct) => pct >= 85 ? "#ef4444" : pct >= 65 ? "#f59e0b" : pct >= 40 ? "#10b981" : "#7a8fa8";
                                         const alertClass = isCritical ? "line-card limit-critical" : isWarning ? "line-card limit-warning" : "line-card";
@@ -8205,7 +8262,7 @@ ${knownNumbersText}`;
                                                         {isWarning  && <span style={{fontSize:10,background:"#f59e0b15",color:"#f59e0b",border:"1px solid #f59e0b40",borderRadius:20,padding:"2px 8px",fontWeight:700}}>⚡ اقترب من الحد</span>}
                                                     </div>
                                                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                                                        {isAdmin && <button onClick={()=>setInstaPays(p=>p.map(x=>x.id===ip.id?{...x,available:!isAvail}:x))} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"إيقاف":"تشغيل"}</button>}
+                                                        {isAdmin && <button onClick={()=>setInstaPays(p=>p.map(x=>x.id===ip.id?{...x,available:!isAvail}:x))} title={isAvail?"إخفاء إنستا باي من الموبايل (بياناته وسجله هيفضلوا محفوظين)":"إظهار إنستا باي تاني في الموبايل"} style={{background: isAvail?"#ef444420":"#22c55e20",border:`1px solid ${isAvail?"#ef444440":"#22c55e40"}`,borderRadius:8,padding:"3px 8px",color: isAvail?"#ef4444":"#22c55e",cursor:"pointer",fontSize:11,fontWeight:700}}>{isAvail?"📴 إخفاء من الموبايل":"✅ إظهار في الموبايل"}</button>}
                                                         {isAdmin && <button onClick={()=>{setEditLineId(ip.id);setModal("editLine");}} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✏️</button>}
                                                         {isAdmin && <button onClick={()=>{
                                                             if(window.confirm(`هل تريد حذف "${ip.name}" نهائياً؟`)){
@@ -8415,6 +8472,16 @@ ${knownNumbersText}`;
                         })()}
 
                         {/* ABU ADI SCREEN */}
+                        {tab==="personalLedger" && isAdmin && (
+                            <PersonalLedgerScreen
+                                entries={personalLedger} setEntries={setPersonalLedger}
+                                openings={personalLedgerOpenings} setOpenings={setPersonalLedgerOpenings}
+                                selectedDate={personalLedgerSelectedDate} setSelectedDate={setPersonalLedgerSelectedDate}
+                                showToast={showToast}
+                                formatNum={formatNum}
+                            />
+                        )}
+
                         {tab==="abuadi" && (
                             <AbuAdiScreen
                                 target={abuadiTarget}
@@ -8492,6 +8559,8 @@ ${knownNumbersText}`;
                             inventory={inventory} setInventory={setInventory}
                             abuadiTarget={abuadiTarget} abuadiPayments={abuadiPayments}
                             abuadiDate={abuadiDate} abuadiHistory={abuadiHistory}
+                            personalLedger={personalLedger} personalLedgerOpenings={personalLedgerOpenings}
+                            setPersonalLedger={setPersonalLedger} setPersonalLedgerOpenings={setPersonalLedgerOpenings}
                             setLines={setLines} setVisas={setVisas} setInstaPays={setInstaPays}
                             setTransactions={setTransactions} setPeople={setPeople}
                             setCapital={setCapital} setFinanceLogs={setFinanceLogs}
@@ -9832,6 +9901,7 @@ ${knownNumbersText}`;
                                 { id:"tab-people", icon:"👥", label:"الذهاب للعملاء", keywords:"people customers", run:()=>setTab("people") },
                                 { id:"tab-lines", icon:"📱", label:"الذهاب للخطوط", keywords:"lines", run:()=>setTab("lines") },
                                 ...(isAdmin ? [{ id:"tab-finance", icon:"💰", label:"الذهاب للمالية", keywords:"finance", run:()=>setTab("finance") }] : []),
+                                ...(isAdmin ? [{ id:"tab-personal-ledger", icon:"🧾", label:"الذهاب لحساباتي الشخصية", keywords:"personal ledger حساباتي فلوسي", run:()=>setTab("personalLedger") }] : []),
                                 { id:"tab-abuadi", icon:"📒", label:"الذهاب لدفتر أبو عدي", keywords:"abuadi", run:()=>setTab("abuadi") },
                                 { id:"tab-ai", icon:"🤖", label:"الذهاب للمساعد الذكي", keywords:"ai chat", run:()=>setTab("ai") },
                                 ...(isAdmin ? [{ id:"tab-jard", icon:"📦", label:"الذهاب للجرد", keywords:"jard inventory", run:()=>setTab("jard") }] : []),
@@ -9932,6 +10002,274 @@ ${knownNumbersText}`;
                     <div id="thermal-receipt-print" aria-hidden="true"/>
 
                     </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // ⭐ حساباتي الشخصية (Personal Ledger)
+        // مستقلة تمامًا عن حسابات العملاء/الجرد/المالية العامة.
+        // كل حركة فيها linkedTxnId (حاليًا null دايمًا) — مجهّزة مستقبلًا لو
+        // حبينا نربط عملية "قبضت من عميل" بحركة دخل هنا تلقائيًا، من غير
+        // ما نغيّر سلوك سجل العمليات الحالي أو نكرّر المبالغ.
+        // ══════════════════════════════════════════════════════════════
+        function PersonalLedgerScreen({ entries, setEntries, openings, setOpenings, selectedDate, setSelectedDate, showToast, formatNum }) {
+            function pad2(n){ return String(n).padStart(2,"0"); }
+            function nowTimeStr(){ const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+            function shiftDate(dateStr, days){
+                const d = new Date(dateStr+"T00:00:00");
+                d.setDate(d.getDate()+days);
+                return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+            }
+            function dayLabel(dateStr){
+                const days=["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+                try { const d = new Date(dateStr+"T00:00:00"); return `${days[d.getDay()]} ${dateStr}`; }
+                catch(e){ return dateStr; }
+            }
+
+            const [form, setForm] = useState({ type:"expense", amount:"", desc:"", category:"", note:"", time: nowTimeStr() });
+            const [editId, setEditId] = useState(null);
+            const [openingInput, setOpeningInput] = useState("");
+            const [showOpeningEdit, setShowOpeningEdit] = useState(false);
+            const [reportMode, setReportMode] = useState("day"); // day | week | month
+
+            const safeEntries = Array.isArray(entries) ? entries : [];
+            const safeOpenings = openings || {};
+
+            // ── إيجاد آخر رصيد ختامي قبل تاريخ معيّن (لو مفيش رصيد بداية محفوظ لليوم ده) ──
+            function findPriorClosingBalance(dateStr){
+                const allDates = new Set([...Object.keys(safeOpenings), ...safeEntries.map(e=>e.date)]);
+                const priorDates = [...allDates].filter(d => d && d < dateStr).sort();
+                if (!priorDates.length) return 0;
+                const lastDate = priorDates[priorDates.length-1];
+                const opening = safeOpenings[lastDate] !== undefined ? Number(safeOpenings[lastDate]) : findPriorClosingBalance(lastDate);
+                const dayEntries = safeEntries.filter(e=>e.date===lastDate);
+                const income = dayEntries.filter(e=>e.type==="income").reduce((s,e)=>s+Number(e.amount||0),0);
+                const expense = dayEntries.filter(e=>e.type==="expense").reduce((s,e)=>s+Number(e.amount||0),0);
+                return opening + income - expense;
+            }
+
+            const hasExplicitOpening = safeOpenings[selectedDate] !== undefined;
+            const openingBalance = hasExplicitOpening ? Number(safeOpenings[selectedDate]) : findPriorClosingBalance(selectedDate);
+
+            const dayEntries = safeEntries
+                .filter(e=>e.date===selectedDate)
+                .sort((a,b)=> (a.time||"").localeCompare(b.time||"") || String(a.createdAt||"").localeCompare(String(b.createdAt||"")));
+            const totalIncome  = dayEntries.filter(e=>e.type==="income").reduce((s,e)=>s+Number(e.amount||0),0);
+            const totalExpense = dayEntries.filter(e=>e.type==="expense").reduce((s,e)=>s+Number(e.amount||0),0);
+            const netChange = totalIncome - totalExpense;
+            const currentBalance = openingBalance + netChange;
+
+            function resetForm(){ setForm({ type:"expense", amount:"", desc:"", category:"", note:"", time: nowTimeStr() }); setEditId(null); }
+
+            function saveEntry(){
+                const amt = parseFloat(form.amount);
+                if (!form.desc || !form.desc.trim()) { showToast("اكتب وصف الحركة", "error"); return; }
+                if (!amt || isNaN(amt) || amt <= 0) { showToast("المبلغ لازم يكون رقم أكبر من صفر", "error"); return; }
+
+                if (form.type === "expense") {
+                    const otherEntries = dayEntries.filter(e => editId ? e.id !== editId : true);
+                    const runningBefore = openingBalance + otherEntries.reduce((s,e)=> s + (e.type==="income"?Number(e.amount||0):-Number(e.amount||0)), 0);
+                    if (runningBefore - amt < 0) {
+                        showToast("⚠️ المصروف ده هيخلي رصيدك سالب — اتسجل على أي حال", "info");
+                    }
+                }
+
+                if (editId) {
+                    setEntries(prev => prev.map(e => e.id===editId ? { ...e, type:form.type, amount:amt, desc:form.desc.trim(), category:(form.category||"").trim()||null, note:(form.note||"").trim(), time:form.time||nowTimeStr() } : e));
+                    showToast("✅ تم تعديل الحركة");
+                } else {
+                    const newEntry = {
+                        id: Date.now() + "_" + Math.random().toString(36).slice(2,7),
+                        date: selectedDate,
+                        time: form.time || nowTimeStr(),
+                        type: form.type,
+                        amount: amt,
+                        desc: form.desc.trim(),
+                        category: (form.category||"").trim() || null,
+                        note: (form.note||"").trim(),
+                        createdAt: new Date().toISOString(),
+                        linkedTxnId: null,
+                    };
+                    setEntries(prev => [...(prev||[]), newEntry]);
+                    showToast(form.type==="income" ? "✅ تم تسجيل الدخل" : "✅ تم تسجيل المصروف");
+                }
+                resetForm();
+            }
+
+            function startEdit(entry){
+                setEditId(entry.id);
+                setForm({ type: entry.type, amount: String(entry.amount), desc: entry.desc, category: entry.category||"", note: entry.note||"", time: entry.time||nowTimeStr() });
+            }
+
+            function deleteEntry(entry){
+                if (window.confirm(`هل تريد حذف حركة "${entry.desc}" (${formatNum(entry.amount)} ج)؟`)) {
+                    setEntries(prev => (prev||[]).filter(e=>e.id!==entry.id));
+                    if (editId===entry.id) resetForm();
+                    showToast("🗑️ تم حذف الحركة");
+                }
+            }
+
+            function saveOpening(){
+                const amt = parseFloat(openingInput);
+                if (isNaN(amt) || amt < 0) { showToast("رصيد بداية اليوم لازم يكون رقم صحيح", "error"); return; }
+                setOpenings(prev => ({ ...(prev||{}), [selectedDate]: amt }));
+                setShowOpeningEdit(false);
+                setOpeningInput("");
+                showToast("✅ تم حفظ رصيد بداية اليوم");
+            }
+
+            // ── تقارير أسبوعية/شهرية بسيطة (نافذة متحركة تنتهي عند اليوم المختار) ──
+            function rangeSummary(days){
+                const endD = new Date(selectedDate+"T00:00:00");
+                const startD = new Date(endD); startD.setDate(startD.getDate()-(days-1));
+                const startStr = `${startD.getFullYear()}-${pad2(startD.getMonth()+1)}-${pad2(startD.getDate())}`;
+                const rangeEntries = safeEntries.filter(e=> e.date >= startStr && e.date <= selectedDate);
+                const inc = rangeEntries.filter(e=>e.type==="income").reduce((s,e)=>s+Number(e.amount||0),0);
+                const exp = rangeEntries.filter(e=>e.type==="expense").reduce((s,e)=>s+Number(e.amount||0),0);
+                return { startStr, inc, exp, net: inc-exp, count: rangeEntries.length };
+            }
+            const weekSummary  = rangeSummary(7);
+            const monthSummary = rangeSummary(30);
+            const activeRange = reportMode==="week" ? weekSummary : reportMode==="month" ? monthSummary : null;
+
+            const inputStyle = {width:"100%",background:"var(--bg-input)",border:"1px solid var(--border-dim)",borderRadius:8,padding:"8px 10px",color:"var(--text-bright)",fontSize:13,boxSizing:"border-box"};
+            const labelStyle = {fontSize:11,color:"#7a8fa8",marginBottom:4,display:"block",fontWeight:600};
+
+            return (
+                <div style={{padding:"0 2px 24px"}}>
+                    {/* ── رأس الصفحة + التنقل بين الأيام ── */}
+                    <div style={{background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:14,padding:14,marginBottom:12}}>
+                        <div style={{fontSize:15,fontWeight:700,color:"#22d3ee",marginBottom:10}}>🧾 حساباتي الشخصية</div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                            <button onClick={()=>setSelectedDate(shiftDate(selectedDate,-1))} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"8px 12px",color:"#fff",cursor:"pointer",fontSize:14}}>◀</button>
+                            <div style={{flex:1,textAlign:"center"}}>
+                                <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} style={{...inputStyle,textAlign:"center"}} />
+                                <div style={{fontSize:11,color:"#7a8fa8",marginTop:4}}>{dayLabel(selectedDate)}</div>
+                            </div>
+                            <button onClick={()=>setSelectedDate(shiftDate(selectedDate,1))} style={{background:"#1e293b",border:"none",borderRadius:8,padding:"8px 12px",color:"#fff",cursor:"pointer",fontSize:14}}>▶</button>
+                            {selectedDate!==today() && <button onClick={()=>setSelectedDate(today())} style={{background:"#22d3ee20",border:"1px solid #22d3ee40",borderRadius:8,padding:"8px 10px",color:"#22d3ee",cursor:"pointer",fontSize:11,fontWeight:700}}>النهاردة</button>}
+                        </div>
+
+                        {/* ── رصيد بداية اليوم ── */}
+                        {!showOpeningEdit ? (
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-input)",borderRadius:10,padding:"8px 12px"}}>
+                                <div>
+                                    <div style={{fontSize:10,color:"#7a8fa8"}}>رصيد بداية اليوم {hasExplicitOpening ? "" : "(محسوب تلقائيًا من الأمس)"}</div>
+                                    <div style={{fontSize:15,fontWeight:700,color:"#c8d6e8"}}>{formatNum(openingBalance)} ج</div>
+                                </div>
+                                <button onClick={()=>{setOpeningInput(String(openingBalance)); setShowOpeningEdit(true);}} style={{background:"#a78bfa15",border:"1px solid #a78bfa30",borderRadius:8,padding:"6px 10px",color:"#a78bfa",cursor:"pointer",fontSize:11,fontWeight:700}}>✏️ تعديل</button>
+                            </div>
+                        ) : (
+                            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                                <input type="number" value={openingInput} onChange={e=>setOpeningInput(e.target.value)} placeholder="رصيد بداية اليوم" style={inputStyle} />
+                                <button onClick={saveOpening} style={{background:"#22c55e20",border:"1px solid #22c55e40",borderRadius:8,padding:"8px 12px",color:"#22c55e",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>حفظ</button>
+                                <button onClick={()=>setShowOpeningEdit(false)} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:8,padding:"8px 12px",color:"#ef4444",cursor:"pointer",fontSize:12,whiteSpace:"nowrap"}}>إلغاء</button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── الملخص اليومي ── */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                        <div style={{background:"var(--bg-card)",border:"1px solid #22c55e30",borderRadius:12,padding:10}}>
+                            <div style={{fontSize:10,color:"#7a8fa8"}}>💚 إجمالي الدخل</div>
+                            <div style={{fontSize:16,fontWeight:700,color:"#22c55e"}}>{formatNum(totalIncome)} ج</div>
+                        </div>
+                        <div style={{background:"var(--bg-card)",border:"1px solid #ef444430",borderRadius:12,padding:10}}>
+                            <div style={{fontSize:10,color:"#7a8fa8"}}>💸 إجمالي المصروفات</div>
+                            <div style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>{formatNum(totalExpense)} ج</div>
+                        </div>
+                        <div style={{background:"var(--bg-card)",border:"1px solid #3b82f630",borderRadius:12,padding:10}}>
+                            <div style={{fontSize:10,color:"#7a8fa8"}}>📈 صافي الحركة</div>
+                            <div style={{fontSize:16,fontWeight:700,color: netChange>=0?"#3b82f6":"#ef4444"}}>{netChange>=0?"+":""}{formatNum(netChange)} ج</div>
+                        </div>
+                        <div style={{background:"var(--bg-card)",border:"1px solid #22d3ee30",borderRadius:12,padding:10}}>
+                            <div style={{fontSize:10,color:"#7a8fa8"}}>💰 الرصيد الحالي</div>
+                            <div style={{fontSize:16,fontWeight:700,color: currentBalance>=0?"#22d3ee":"#ef4444"}}>{formatNum(currentBalance)} ج</div>
+                        </div>
+                    </div>
+
+                    {/* ── تقارير أسبوعية / شهرية ── */}
+                    <div style={{background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:12,padding:10,marginBottom:12}}>
+                        <div style={{display:"flex",gap:6,marginBottom: reportMode!=="day" ? 10 : 0}}>
+                            <button onClick={()=>setReportMode("day")} style={{flex:1,background:reportMode==="day"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:8,padding:8,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>يوم</button>
+                            <button onClick={()=>setReportMode("week")} style={{flex:1,background:reportMode==="week"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:8,padding:8,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>آخر 7 أيام</button>
+                            <button onClick={()=>setReportMode("month")} style={{flex:1,background:reportMode==="month"?"linear-gradient(135deg,#3b82f6,#2563eb)":"#1e293b",border:"none",borderRadius:8,padding:8,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>آخر 30 يوم</button>
+                        </div>
+                        {activeRange && (
+                            <div style={{fontSize:12,color:"#c8d6e8",lineHeight:1.9}}>
+                                <div>من {activeRange.startStr} إلى {selectedDate} — {activeRange.count} حركة</div>
+                                <div>💚 دخل: <b style={{color:"#22c55e"}}>{formatNum(activeRange.inc)} ج</b> &nbsp;|&nbsp; 💸 مصروف: <b style={{color:"#ef4444"}}>{formatNum(activeRange.exp)} ج</b></div>
+                                <div>📈 صافي: <b style={{color: activeRange.net>=0?"#3b82f6":"#ef4444"}}>{activeRange.net>=0?"+":""}{formatNum(activeRange.net)} ج</b></div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── فورم إضافة/تعديل حركة ── */}
+                    <div style={{background:"var(--bg-card)",border:"1px solid var(--border-dim)",borderRadius:12,padding:12,marginBottom:12}}>
+                        <div style={{fontSize:13,fontWeight:700,color:"#c8d6e8",marginBottom:10}}>{editId ? "✏️ تعديل حركة" : "➕ حركة جديدة"}</div>
+                        <div style={{display:"flex",gap:8,marginBottom:10}}>
+                            <button onClick={()=>setForm(f=>({...f,type:"income"}))} style={{flex:1,background: form.type==="income" ? "#22c55e25" : "#1e293b", border:`1px solid ${form.type==="income"?"#22c55e60":"transparent"}`, borderRadius:8,padding:10,color: form.type==="income"?"#22c55e":"#7a8fa8",cursor:"pointer",fontSize:13,fontWeight:700}}>💚 دخل</button>
+                            <button onClick={()=>setForm(f=>({...f,type:"expense"}))} style={{flex:1,background: form.type==="expense" ? "#ef444425" : "#1e293b", border:`1px solid ${form.type==="expense"?"#ef444460":"transparent"}`, borderRadius:8,padding:10,color: form.type==="expense"?"#ef4444":"#7a8fa8",cursor:"pointer",fontSize:13,fontWeight:700}}>💸 مصروف</button>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                            <div>
+                                <label style={labelStyle}>المبلغ (ج)</label>
+                                <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={inputStyle} />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>الوقت</label>
+                                <input type="time" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} style={inputStyle} />
+                            </div>
+                        </div>
+                        <div style={{marginBottom:8}}>
+                            <label style={labelStyle}>الوصف</label>
+                            <input type="text" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="مثال: كشري، مواصلات، قبضت من فلان..." style={inputStyle} />
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                            <div>
+                                <label style={labelStyle}>التصنيف (اختياري)</label>
+                                <input type="text" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} placeholder="أكل، مواصلات..." style={inputStyle} />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>ملاحظة (اختياري)</label>
+                                <input type="text" value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="ملاحظة" style={inputStyle} />
+                            </div>
+                        </div>
+                        <div style={{display:"flex",gap:8}}>
+                            <button onClick={saveEntry} style={{flex:1,background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:10,padding:12,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>{editId ? "💾 حفظ التعديل" : "➕ إضافة الحركة"}</button>
+                            {editId && <button onClick={resetForm} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:10,padding:"12px 16px",color:"#ef4444",cursor:"pointer",fontSize:13,fontWeight:700}}>إلغاء</button>}
+                        </div>
+                    </div>
+
+                    {/* ── قائمة حركات اليوم (Timeline) ── */}
+                    <div style={{fontSize:13,fontWeight:700,color:"#c8d6e8",marginBottom:8}}>📋 حركات {dayLabel(selectedDate)} ({dayEntries.length})</div>
+                    {dayEntries.length === 0 ? (
+                        <div style={{textAlign:"center",padding:"24px 12px",color:"#7a8fa8",fontSize:13,background:"var(--bg-card)",borderRadius:12,border:"1px dashed var(--border-dim)"}}>لا توجد حركات في هذا اليوم بعد</div>
+                    ) : (
+                        dayEntries.map(entry => {
+                            const isIncome = entry.type === "income";
+                            const color = isIncome ? "#22c55e" : "#ef4444";
+                            return (
+                                <div key={entry.id} style={{background:"var(--bg-card)",border:`1px solid ${color}30`,borderRadius:12,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                                    <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+                                        <div style={{fontSize:18}}>{isIncome ? "💚" : "💸"}</div>
+                                        <div style={{minWidth:0}}>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#c8d6e8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{entry.desc}</div>
+                                            <div style={{fontSize:10,color:"#7a8fa8"}}>
+                                                {entry.time || ""} {entry.category ? `· ${entry.category}` : ""}{entry.note ? ` · ${entry.note}` : ""}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                                        <div style={{fontSize:14,fontWeight:700,color}}>{isIncome?"+":"-"}{formatNum(entry.amount)}</div>
+                                        <button onClick={()=>startEdit(entry)} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:14}}>✏️</button>
+                                        <button onClick={()=>deleteEntry(entry)} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:14}}>🗑️</button>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
             );
         }
@@ -11371,6 +11709,7 @@ ${debtors.slice(0,5).map(p => {
         function BackupRestoreScreen({
             lines, visas, instaPays, transactions, people,
             capital, financeLogs, dailyBalanceLog, setDailyBalanceLog, inventory, setInventory, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
+            personalLedger, personalLedgerOpenings, setPersonalLedger, setPersonalLedgerOpenings,
             setLines, setVisas, setInstaPays, setTransactions, setPeople,
             setCapital, setFinanceLogs, setAbuadiTarget, setAbuadiPayments, setAbuadiDate, setAbuadiHistory,
             db, auth, firebaseReady, isAdmin, showToast, saveToLocalStorage, setShowAuditLog,
@@ -11444,7 +11783,7 @@ ${debtors.slice(0,5).map(p => {
                     _meta: {
                         version: BACKUP_VERSION,
                         createdAt: new Date().toISOString(),
-                        appName: "Hawker - فودافون كاش",
+                        appName: "ماليه المر - فودافون كاش",
                     },
                     lines,
                     visas,
@@ -11457,6 +11796,8 @@ ${debtors.slice(0,5).map(p => {
                     inventory: inventory || { cash: 0, owedToOthers: 0, note: "" },
                     abuAdi: { target: abuadiTarget, payments: abuadiPayments, date: abuadiDate },
                     abuAdiHistory: abuadiHistory || [],
+                    personalLedger: personalLedger || [],
+                    personalLedgerOpenings: personalLedgerOpenings || {},
                     settings: {
                         lastResetDay: (() => { try { return localStorage.getItem("lastResetDay"); } catch(e){ return null; } })(),
                         warnedSources: (() => { try { return JSON.parse(localStorage.getItem("warnedSources") || "[]"); } catch(e){ return []; } })(),
@@ -11466,7 +11807,7 @@ ${debtors.slice(0,5).map(p => {
 
             function validateBackup(obj) {
                 if (!obj || typeof obj !== "object") return "الملف غير صالح — ليس JSON صحيح";
-                if (!obj._meta || obj._meta.appName !== "Hawker - فودافون كاش") return "هذا الملف ليس نسخة احتياطية لتطبيق الحوكر";
+                if (!obj._meta || obj._meta.appName !== "ماليه المر - فودافون كاش") return "هذا الملف ليس نسخة احتياطية لتطبيق ماليه المر";
                 if (!Array.isArray(obj.lines)) return "بيانات الخطوط مفقودة أو تالفة";
                 if (!Array.isArray(obj.visas)) return "بيانات الفيزا مفقودة أو تالفة";
                 if (!Array.isArray(obj.transactions)) return "بيانات المعاملات مفقودة أو تالفة";
@@ -11611,6 +11952,12 @@ ${debtors.slice(0,5).map(p => {
                     if (Array.isArray(obj.abuAdiHistory)) {
                         setAbuadiHistory(obj.abuAdiHistory);
                     }
+                    if (Array.isArray(obj.personalLedger) && setPersonalLedger) {
+                        setPersonalLedger(obj.personalLedger);
+                    }
+                    if (obj.personalLedgerOpenings && setPersonalLedgerOpenings) {
+                        setPersonalLedgerOpenings(obj.personalLedgerOpenings);
+                    }
 
                     // 2. تحديث localStorage
                     const keys = ["lines","visas","instaPays","transactions","people","capital","financeLogs","dailyBalanceLog"];
@@ -11622,6 +11969,12 @@ ${debtors.slice(0,5).map(p => {
                     }
                     if (Array.isArray(obj.abuAdiHistory)) {
                         saveToLocalStorage("abuadiHistory", obj.abuAdiHistory);
+                    }
+                    if (Array.isArray(obj.personalLedger)) {
+                        saveToLocalStorage("personalLedger", obj.personalLedger);
+                    }
+                    if (obj.personalLedgerOpenings) {
+                        saveToLocalStorage("personalLedgerOpenings", obj.personalLedgerOpenings);
                     }
                     if (obj.settings) {
                         try {
@@ -11644,6 +11997,8 @@ ${debtors.slice(0,5).map(p => {
                             db.ref("dailyBalanceLog").set(obj.dailyBalanceLog || []),
                             db.ref("capital").set(typeof obj.capital === "number" ? obj.capital : 0),
                             db.ref("abuAdi").set(obj.abuAdi || {}),
+                            db.ref("personalLedger").set(obj.personalLedger || []),
+                            db.ref("personalLedgerOpenings").set(obj.personalLedgerOpenings || {}),
                             ...historyWrites,
                             ...((obj.people || []).map(p => db.ref("customers").child(String(p.id)).set(p)))
                         ]);
@@ -12087,6 +12442,7 @@ ${debtors.slice(0,5).map(p => {
                                         { label: "رأس المال", val: `${(confirmModal.data.capital||0).toLocaleString()} ج`, icon: "💰" },
                                         { label: "السجلات المالية", val: (confirmModal.data.financeLogs||[]).length, icon: "📊" },
                                         { label: "سجل الرصيد اليومي", val: (confirmModal.data.dailyBalanceLog||[]).length, icon: "📆" },
+                                        { label: "حساباتي الشخصية", val: (confirmModal.data.personalLedger||[]).length, icon: "🧾" },
                                     ].map((item, i) => (
                                         <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#c8d6e8", paddingBottom: 4 }}>
                                             <span>{item.icon} {item.label}</span>
