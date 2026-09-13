@@ -1024,9 +1024,18 @@
             box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5) !important;
             padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
             display: flex;
-            justify-content: space-around;
+            justify-content: flex-start !important;
             align-items: center;
             gap: 2px;
+            overflow-x: auto !important;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x proximity;
+            scrollbar-width: none;
+        }
+
+        .hawker-bottom-nav::-webkit-scrollbar {
+            display: none;
         }
 
         .nav-tab-btn {
@@ -1043,10 +1052,11 @@
             font-size: 10px !important;
             font-weight: 500 !important;
             cursor: pointer !important;
-            min-width: 44px !important;
+            min-width: 60px !important;
+            width: 60px !important;
             transition: all var(--transition) !important;
-            flex: 1 !important;
-            max-width: 72px !important;
+            flex: 0 0 auto !important;
+            scroll-snap-align: center;
         }
 
         .nav-tab-btn.active {
@@ -4313,6 +4323,17 @@
             const [firebaseUser, setFirebaseUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
             const [tab, setTab] = useState("dashboard");
+            const bottomNavRef = React.useRef(null);
+
+            // ⭐ لما التاب يتغيّر (حتى لو من الـ Command Palette أو أي مكان تاني)،
+            // نتأكد إن الزرار النشط في شريط التنقل السفلي (اللي بقى قابل للتمرير) يبقى ظاهر للمستخدم
+            useEffect(() => {
+                if (!bottomNavRef.current) return;
+                const activeBtn = bottomNavRef.current.querySelector(`[data-tab-id="${tab}"]`);
+                if (activeBtn) {
+                    activeBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                }
+            }, [tab]);
 
             // ✅ FIX: تعريف الصلاحيات هنا أول حاجة عشان يكون متاح في كل الـ useEffects
             const isAdmin     = userRole === "admin";
@@ -8833,10 +8854,10 @@ ${knownNumbersText}`;
                         ⌘
                     </button>
 
-                    {/* Bottom Nav — Mobile Only (hidden on desktop via CSS) */}
-                    <div className="hawker-bottom-nav">
+                    {/* Bottom Nav — Mobile Only (hidden on desktop via CSS), قابل للتمرير أفقياً عشان توصل لكل الخيارات */}
+                    <div className="hawker-bottom-nav" ref={bottomNavRef}>
                         {displayTabs.map((item,i)=>(
-                            <button key={item.id} onClick={()=>setTab(item.id)} className={`nav-tab-btn${tab===item.id?" active":""}`}
+                            <button key={item.id} data-tab-id={item.id} onClick={()=>setTab(item.id)} className={`nav-tab-btn${tab===item.id?" active":""}`}
                                 style={{position:"relative"}}>
                                 <span className="nav-icon" style={{
                                     filter: tab===item.id?"drop-shadow(0 0 6px rgba(34,211,238,0.8))":"none",
