@@ -3508,6 +3508,164 @@
         }
 
         // ══════════════════════════════════════════════════════════════
+        //  💎  NetWorthHistoryModal — سجل صافي الفلوس اليومي + مقارنة شهرية
+        //  بيوريك كل يوم كان صافي فلوسك (الجرد) كام، مجمّعين حسب السنة والشهر،
+        //  ومقارنة كل شهر بالشهر اللي قبله (زاد ولا نقص وبقد ايه).
+        // ══════════════════════════════════════════════════════════════
+        function NetWorthHistoryModal({ log = [], onClose, formatNum, maskNum, privacyMode }) {
+            const [openGroups, setOpenGroups] = useState({});
+            const [view, setView] = useState("monthly"); // "monthly" | "daily"
+            const monthNames = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+            function monthLabel(m) {
+                if (!m) return "غير محدد";
+                const [y, mo] = m.split("-");
+                return `${monthNames[parseInt(mo,10)-1] || mo} ${y}`;
+            }
+
+            // تجميع حسب السنة → الشهر (نفس منطق سجل الرصيد اليومي)
+            const groups = React.useMemo(() => {
+                const byYear = {};
+                const sorted = [...log].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+                sorted.forEach(entry => {
+                    const year = (entry.date || "----").slice(0, 4);
+                    const month = entry.monthDate || (entry.date ? entry.date.slice(0, 7) : "");
+                    if (!byYear[year]) byYear[year] = {};
+                    if (!byYear[year][month]) byYear[year][month] = [];
+                    byYear[year][month].push(entry);
+                });
+                return byYear;
+            }, [log]);
+
+            // ملخص شهري: آخر (إقفال) صافي فلوس في كل شهر + الفرق عن الشهر اللي قبله زمنياً
+            const monthlySummary = React.useMemo(() => {
+                const byMonth = {};
+                log.forEach(entry => {
+                    const month = entry.monthDate || (entry.date ? entry.date.slice(0, 7) : "");
+                    if (!month) return;
+                    if (!byMonth[month]) byMonth[month] = [];
+                    byMonth[month].push(entry);
+                });
+                const months = Object.keys(byMonth).sort(); // تصاعدي عشان نقارن كل شهر بالي قبله
+                let prevClosing = null;
+                const rows = months.map(month => {
+                    const entries = [...byMonth[month]].sort((a,b) => (a.date||"").localeCompare(b.date||""));
+                    const closing = entries[entries.length - 1]; // آخر يوم متسجل في الشهر
+                    const opening = entries[0];
+                    const closingNW = closing?.netWorth ?? 0;
+                    const diff = prevClosing !== null ? closingNW - prevClosing : null;
+                    const row = {
+                        month,
+                        days: entries.length,
+                        closingNW,
+                        openingNW: opening?.netWorth ?? 0,
+                        diff,
+                    };
+                    prevClosing = closingNW;
+                    return row;
+                });
+                return rows.reverse(); // نعرض الأحدث الأول
+            }, [log]);
+
+            function toggle(key) {
+                setOpenGroups(p => ({ ...p, [key]: !p[key] }));
+            }
+
+            const years = Object.keys(groups).sort().reverse();
+
+            return (
+                <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9997,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+                    <div onClick={e=>e.stopPropagation()} style={{width:"min(94vw,520px)",maxHeight:"85vh",background:"var(--bg-card,#0a1628)",border:"1px solid var(--border-dim,#1e3a5f)",borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",direction:"rtl"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:16,borderBottom:"1px solid var(--border-dim,#1e3a5f)"}}>
+                            <div style={{fontSize:15,fontWeight:800,color:"var(--text-bright,#e2e8f0)"}}>💎 سجل صافي الفلوس (الجرد)</div>
+                            <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text-mid,#94a3b8)",fontSize:18,cursor:"pointer"}}>✕</button>
+                        </div>
+                        <div style={{padding:"8px 16px",fontSize:11,color:"#64748b",borderBottom:"1px solid var(--border-dim,#1e3a5f)"}}>
+                            كل يوم بيتسجّل تلقائياً صافي فلوسك — كده تقدر تقارن كل شهر بالشهر اللي قبله وتعرف زدت ولا نقصت.
+                        </div>
+
+                        {/* Tabs: شهري / يومي */}
+                        <div style={{display:"flex",gap:8,padding:"10px 16px 0 16px"}}>
+                            <button onClick={()=>setView("monthly")} style={{flex:1,padding:10,background: view==="monthly" ? "#3b82f6" : "#0f1e3d",border:`1px solid ${view==="monthly"?"#3b82f6":"#1e3a5f"}`,borderRadius:8,color: view==="monthly" ? "#fff" : "#94a3b8",fontSize:13,fontWeight:700,cursor:"pointer"}}>📆 مقارنة شهرية</button>
+                            <button onClick={()=>setView("daily")} style={{flex:1,padding:10,background: view==="daily" ? "#3b82f6" : "#0f1e3d",border:`1px solid ${view==="daily"?"#3b82f6":"#1e3a5f"}`,borderRadius:8,color: view==="daily" ? "#fff" : "#94a3b8",fontSize:13,fontWeight:700,cursor:"pointer"}}>📅 يوم بيوم</button>
+                        </div>
+
+                        <div style={{overflowY:"auto",padding:12,flex:1}}>
+                            {log.length === 0 && (
+                                <div style={{textAlign:"center",color:"var(--text-dim,#475569)",padding:30,fontSize:13}}>
+                                    لسه مفيش سجلات — هتتسجل تلقائياً أول ما يعدي أول يوم كامل على التطبيق
+                                </div>
+                            )}
+
+                            {/* ═══ عرض المقارنة الشهرية ═══ */}
+                            {view === "monthly" && monthlySummary.map(row => (
+                                <div key={row.month} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,marginBottom:8,padding:"12px 14px"}}>
+                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{monthLabel(row.month)}</div>
+                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{row.days} يوم مسجّل</div>
+                                        </div>
+                                        <div style={{textAlign:"left"}}>
+                                            <div style={{fontSize:16,fontWeight:900,color: row.closingNW>=0 ? "#10b981" : "#ef4444"}}>{maskNum(row.closingNW, privacyMode)} ج</div>
+                                            {row.diff !== null && (
+                                                <div style={{fontSize:11,fontWeight:700,color: row.diff>=0 ? "#10b981" : "#ef4444"}}>
+                                                    {row.diff >= 0 ? "▲ +" : "▼ "}{maskNum(row.diff, privacyMode)} ج عن الشهر اللي فات
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* ═══ عرض يوم بيوم (زي سجل الرصيد اليومي) ═══ */}
+                            {view === "daily" && years.map(year => {
+                                const months = Object.keys(groups[year]).sort().reverse();
+                                return (
+                                    <div key={year} style={{marginBottom:14}}>
+                                        <div style={{fontSize:13,fontWeight:800,color:"#3b82f6",marginBottom:8,paddingRight:4}}>📅 {year}</div>
+                                        {months.map(month => {
+                                            const entries = groups[year][month];
+                                            const key = `${year}-${month}`;
+                                            const isOpen = !!openGroups[key];
+                                            const closingEntry = entries[0]; // الأحدث في الشهر (بعد الترتيب التنازلي)
+                                            return (
+                                                <div key={key} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,marginBottom:8,overflow:"hidden"}}>
+                                                    <div onClick={()=>toggle(key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",cursor:"pointer"}}>
+                                                        <div>
+                                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{monthLabel(month)}</div>
+                                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{entries.length} يوم مسجّل</div>
+                                                        </div>
+                                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                                            <span style={{fontSize:13,fontWeight:700,color: (closingEntry?.netWorth||0) >= 0 ? "#10b981" : "#ef4444"}}>{maskNum(closingEntry?.netWorth||0, privacyMode)} ج</span>
+                                                            <span style={{color:"#64748b",fontSize:12}}>{isOpen ? "▲" : "▼"}</span>
+                                                        </div>
+                                                    </div>
+                                                    {isOpen && (
+                                                        <div style={{borderTop:"1px solid #1e3a5f"}}>
+                                                            {entries.map(e => (
+                                                                <div key={e.date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid #14294a"}}>
+                                                                    <div style={{fontSize:12,color:"#94a3b8"}}>{e.date}</div>
+                                                                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                                                                        <span style={{fontSize:10,color:"#10b981"}}>أصول {maskNum(e.assets||0, privacyMode)}</span>
+                                                                        <span style={{fontSize:10,color:"#ef4444"}}>خصوم {maskNum(e.liabilities||0, privacyMode)}</span>
+                                                                        <span style={{fontSize:12,fontWeight:700,color: (e.netWorth||0)>=0?"#10b981":"#ef4444"}}>💎 {maskNum(e.netWorth||0, privacyMode)} ج</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
         //  ⚡  QuickAddModal — إضافة عملية سريعة بـ 3 حقول
         // ══════════════════════════════════════════════════════════════
         function QuickAddModal({ sources, onSave, onClose, showToast, commissionSettings, transactions = [], people = [] }) {
@@ -3707,7 +3865,11 @@
                     String(t.amount).includes(q) ||
                     (t.notes||"").includes(q) ||
                     (t.date||"").includes(q)
-                ).slice(0,8);
+                ).sort((a,b)=>{
+                    const dtA = `${a.date||""} ${a.time||"00:00"}`;
+                    const dtB = `${b.date||""} ${b.time||"00:00"}`;
+                    return dtB.localeCompare(dtA);
+                }).slice(0,8);
                 const persons = people.filter(p=>
                     (p.personName||"").includes(q)||
                     (p.phone||"").includes(q)
@@ -4116,7 +4278,7 @@
                             <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
                                 <div style={{fontSize:12,color:"#3d4f65",fontWeight:700,marginBottom:8}}>📋 العمليات ({todayTxns.length})</div>
                                 {todayTxns.length===0 && <div style={{color:"#3d4f65",fontSize:12,textAlign:"center",padding:8}}>لا توجد عمليات اليوم</div>}
-                                {todayTxns.slice(0,10).map(t=>(
+                                {[...todayTxns].sort((a,b)=>(a.time||"").localeCompare(b.time||"")).slice(0,10).map(t=>(
                                     <div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a2235",fontSize:12}}>
                                         <span style={{color:"#7a8fa8"}}>{t.time||""} — {t.personName}</span>
                                         <span style={{color:"#22d3ee",fontWeight:700}}>{formatNum(t.amount)} ج</span>
@@ -4169,6 +4331,7 @@
             const [financeLogs, setFinanceLogs] = useState(() => loadFromLocalStorage('financeLogs', []));
             // ⭐ سجل الرصيد اليومي — لقطة تلقائية كل يوم (تاريخ + رأس المال + مكسب/مصروف اليوم) تتراكم لسنين
             const [dailyBalanceLog, setDailyBalanceLog] = useState(() => loadFromLocalStorage('dailyBalanceLog', []));
+            const [netWorthLog, setNetWorthLog] = useState(() => loadFromLocalStorage('netWorthLog', []));
             const [fawriBalance, setFawriBalance] = useState(() => loadFromLocalStorage('fawriBalance', 0));
             
             const [syncStatus, setSyncStatus] = useState("✓ جاهز");
@@ -4180,9 +4343,9 @@
                 setIsRefreshing(true);
                 setSyncStatus("⏳ جاري التحديث...");
                 try {
-                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings','inventory','dailyBalanceLog','personalLedger','personalLedgerOpenings'];
+                    const keys = ['transactions','lines','visas','instaPays','customers','capital','financeLogs','settings','inventory','dailyBalanceLog','netWorthLog','personalLedger','personalLedgerOpenings'];
                     const snapshots = await Promise.all(keys.map(k => db.ref(k).once('value')));
-                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap, invSnap, dblSnap, plSnap, ploSnap] = snapshots;
+                    const [txnSnap, linesSnap, visasSnap, instaSnap, custSnap, capSnap, logsSnap, settSnap, invSnap, dblSnap, nwlSnap, plSnap, ploSnap] = snapshots;
 
                     // transactions
                     const txnData = txnSnap.val();
@@ -4244,6 +4407,13 @@
                         const arr = Array.isArray(dblData) ? dblData.filter(Boolean) : Object.values(dblData).filter(Boolean);
                         setDailyBalanceLog(arr);
                         saveToLocalStorage('dailyBalanceLog', arr);
+                    }
+                    // netWorthLog
+                    const nwlData = nwlSnap.val();
+                    if (nwlData) {
+                        const arr = Array.isArray(nwlData) ? nwlData.filter(Boolean) : Object.values(nwlData).filter(Boolean);
+                        setNetWorthLog(arr);
+                        saveToLocalStorage('netWorthLog', arr);
                     }
                     // personalLedger
                     const plData = plSnap.val();
@@ -4742,6 +4912,18 @@
                         }
                     });
 
+                    db.ref('netWorthLog').on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        firebaseLoaded.current = true;
+                        if (data) {
+                            const arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                            setNetWorthLog(arr);
+                            saveToLocalStorage('netWorthLog', arr);
+                        } else {
+                            setNetWorthLog([]);
+                        }
+                    });
+
                     // ⭐ حساباتي الشخصية — مزامنة فورية
                     db.ref('personalLedger').on('value', (snapshot) => {
                         const data = snapshot.val();
@@ -4993,6 +5175,11 @@
                 if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('dailyBalanceLog').set(dailyBalanceLog); } catch(e){} }
             }, [dailyBalanceLog]);
 
+            useEffect(() => {
+                saveToLocalStorage('netWorthLog', netWorthLog);
+                if (isAdmin && auth.currentUser && firebaseReady) { try { db.ref('netWorthLog').set(netWorthLog); } catch(e){} }
+            }, [netWorthLog]);
+
             // ⭐ حساباتي الشخصية — مزامنة تلقائية مع localStorage و Firebase (أدمن فقط، زي باقي البيانات الحساسة)
             useEffect(() => {
                 saveToLocalStorage('personalLedger', personalLedger);
@@ -5061,6 +5248,44 @@
                             try { db.ref('dailyBalanceLog').set(updated); } catch(e) {}
                         }
                         saveToLocalStorage('dailyBalanceLog', updated);
+                        return updated;
+                    });
+
+                    // 💎 سجل صافي الفلوس (الجرد) — بنسجّل تلقائياً صافي فلوس اليوم اللي فات
+                    // عشان تقدر بعدين تقارن كل شهر بالشهر اللي قبله من شاشة الجرد
+                    setNetWorthLog(prev => {
+                        if (prev.some(d => d.date === lastResetDay)) return prev; // مسجل بالفعل
+                        const personNet = (p) => {
+                            if (!p.moves || p.moves.length === 0) return 0;
+                            const d = p.moves.filter(m => m.type === "debit").reduce((s, m) => s + (m.amount||0), 0);
+                            const c = p.moves.filter(m => m.type === "credit").reduce((s, m) => s + (m.amount||0), 0);
+                            return d - c;
+                        };
+                        const linesTotal     = lines.reduce((s,l)=>s+(l.balance||0),0);
+                        const visasTotal     = visas.reduce((s,v)=>s+(v.balance||0),0);
+                        const instaPaysTotal = instaPays.reduce((s,ip)=>s+(ip.balance||0),0);
+                        const peopleOwedToMe = people.reduce((s,p)=>s+Math.max(0, personNet(p)),0);
+                        const peopleIOwe     = people.reduce((s,p)=>s+Math.max(0,-personNet(p)),0);
+                        const abuAdiIOwe     = abuadiTarget || 0;
+                        const cashOnHand     = inventory.cash || 0;
+                        const owedToOthers   = inventory.owedToOthers || 0;
+
+                        const totalAssets = cashOnHand + linesTotal + visasTotal + instaPaysTotal + peopleOwedToMe;
+                        const totalLiabilities = abuAdiIOwe + owedToOthers + peopleIOwe;
+                        const netWorth = totalAssets - totalLiabilities;
+
+                        const entry = {
+                            date: lastResetDay,
+                            monthDate: lastResetDay.slice(0, 7),
+                            netWorth,
+                            assets: totalAssets,
+                            liabilities: totalLiabilities,
+                        };
+                        const updated = [entry, ...prev].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+                        if (auth.currentUser && db) {
+                            try { db.ref('netWorthLog').set(updated); } catch(e) {}
+                        }
+                        saveToLocalStorage('netWorthLog', updated);
                         return updated;
                     });
 
@@ -7312,7 +7537,11 @@ ${knownNumbersText}`;
                                 })()}
 
                                 <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>آخر العمليات</div>
-                                {transactions.slice(0,5).map(t=>(
+                                {[...transactions].sort((a,b)=>{
+                                    const dtA = `${a.date||""} ${a.time||"00:00"}`;
+                                    const dtB = `${b.date||""} ${b.time||"00:00"}`;
+                                    return dtB.localeCompare(dtA) || String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+                                }).slice(0,5).map(t=>(
                                     <div key={t.id} style={{background:"linear-gradient(135deg,#0f1e3d,#0a1628)",border:"1px solid #1e3a5f",borderRadius:14,padding:14,marginBottom:10}}>
                                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                                             <div>
@@ -7510,6 +7739,11 @@ ${knownNumbersText}`;
                                         if (opStartDate && t.date && t.date < opStartDate) return false;
                                         if (opEndDate   && t.date && t.date > opEndDate)   return false;
                                         return true;
+                                    }).sort((a,b)=>{
+                                        // ⭐ ترتيب دقيق بالتاريخ والوقت الفعليين للعملية (مش بترتيب الإضافة)
+                                        const dtA = `${a.date||""} ${a.time||"00:00"}`;
+                                        const dtB = `${b.date||""} ${b.time||"00:00"}`;
+                                        return dtB.localeCompare(dtA) || String(b.createdAt||"").localeCompare(String(a.createdAt||""));
                                     });
 
                                     // ══ بطاقة الإحصاء السريع ══
@@ -8102,7 +8336,7 @@ ${knownNumbersText}`;
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
                                                         <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{maskNum(lStats.usedTodayTransfer, privacyMode)}</b> / {formatNum(vodDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(lStats.usedMonthTransfer, privacyMode)}</b> / {formatNum(linesMonthlyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(lStats.usedMonthTransfer, privacyMode)}</b> — باقي <b>{maskNum(Math.max(0, linesMonthlyLimit - lStats.usedMonthTransfer), privacyMode)}</b></span>
                                                     </div>
                                                     <ProgressBar used={lStats.usedTodayTransfer} limit={vodDailyLimit} color="#f59e0b" showPct={false}/>
                                                     <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthTransfer} limit={linesMonthlyLimit} color="#f59e0b" showPct={true}/></div>
@@ -8111,7 +8345,7 @@ ${knownNumbersText}`;
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
                                                         <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{maskNum(lStats.usedTodayReceive, privacyMode)}</b> / {formatNum(vodDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(lStats.usedMonthReceive, privacyMode)}</b> / {formatNum(linesMonthlyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(lStats.usedMonthReceive, privacyMode)}</b> — باقي <b>{maskNum(Math.max(0, linesMonthlyLimit - lStats.usedMonthReceive), privacyMode)}</b></span>
                                                     </div>
                                                     <ProgressBar used={lStats.usedTodayReceive} limit={vodDailyLimit} color="#22d3ee" showPct={false}/>
                                                     <div style={{marginTop:3}}><ProgressBar used={lStats.usedMonthReceive} limit={linesMonthlyLimit} color="#22d3ee" showPct={true}/></div>
@@ -8189,7 +8423,7 @@ ${knownNumbersText}`;
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
                                                         <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{maskNum(vStats.usedTodayTransfer, privacyMode)}</b> / {formatNum(visaDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(vStats.usedMonthTransfer, privacyMode)}</b> / {formatNum(visaMonthlyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(vStats.usedMonthTransfer, privacyMode)}</b> — باقي <b>{maskNum(Math.max(0, visaMonthlyLimit - vStats.usedMonthTransfer), privacyMode)}</b></span>
                                                     </div>
                                                     <ProgressBar used={vStats.usedTodayTransfer} limit={visaDailyLimit} color="#f59e0b"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthTransfer} limit={visaMonthlyLimit} color="#f59e0b" showPct={true}/></div>
@@ -8197,7 +8431,7 @@ ${knownNumbersText}`;
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
                                                         <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{maskNum(vStats.usedTodayReceive, privacyMode)}</b> / {formatNum(visaDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(vStats.usedMonthReceive, privacyMode)}</b> / {formatNum(visaMonthlyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(vStats.usedMonthReceive, privacyMode)}</b> — باقي <b>{maskNum(Math.max(0, visaMonthlyLimit - vStats.usedMonthReceive), privacyMode)}</b></span>
                                                     </div>
                                                     <ProgressBar used={vStats.usedTodayReceive} limit={visaDailyLimit} color="#a78bfa"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={vStats.usedMonthReceive} limit={visaMonthlyLimit} color="#a78bfa" showPct={true}/></div>
@@ -8280,7 +8514,7 @@ ${knownNumbersText}`;
                                                 <div style={{marginBottom:6}}>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
                                                         <span>💸 اليوم: <b style={{color:cntColor(dtPct)}}>{maskNum(ipStats.usedTodayTransfer, privacyMode)}</b> / {formatNum(instapayDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(ipStats.usedMonthTransfer, privacyMode)}</b> / {formatNum(instapayMonthlyLimit)}</span>
+                                                        <span style={{color:cntColor(mtPct)}}>شهري: <b>{maskNum(ipStats.usedMonthTransfer, privacyMode)}</b> — باقي <b>{maskNum(Math.max(0, instapayMonthlyLimit - ipStats.usedMonthTransfer), privacyMode)}</b></span>
                                                     </div>
                                                     <ProgressBar used={ipStats.usedTodayTransfer} limit={instapayDailyLimit} color="#f59e0b"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthTransfer} limit={instapayMonthlyLimit} color="#f59e0b" showPct={true}/></div>
@@ -8288,7 +8522,7 @@ ${knownNumbersText}`;
                                                 <div>
                                                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#7a8fa8",marginBottom:2}}>
                                                         <span>📥 اليوم: <b style={{color:cntColor(drPct)}}>{maskNum(ipStats.usedTodayReceive, privacyMode)}</b> / {formatNum(instapayDailyLimit)}</span>
-                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(ipStats.usedMonthReceive, privacyMode)}</b> / {formatNum(instapayMonthlyLimit)}</span>
+                                                        <span style={{color:cntColor(mrPct)}}>شهري: <b>{maskNum(ipStats.usedMonthReceive, privacyMode)}</b> — باقي <b>{maskNum(Math.max(0, instapayMonthlyLimit - ipStats.usedMonthReceive), privacyMode)}</b></span>
                                                     </div>
                                                     <ProgressBar used={ipStats.usedTodayReceive} limit={instapayDailyLimit} color="#10b981"/>
                                                     <div style={{marginTop:3}}><ProgressBar used={ipStats.usedMonthReceive} limit={instapayMonthlyLimit} color="#10b981" showPct={true}/></div>
@@ -8415,6 +8649,8 @@ ${knownNumbersText}`;
                                         <div style={{fontSize:32,fontWeight:900,color:netWorth>=0?"#10b981":"#ef4444",margin:"10px 0"}}>{formatNum(netWorth)} ج</div>
                                         <div style={{fontSize:11,color:"#64748b"}}>إجمالي اللي معاك ناقص إجمالي اللي عليك</div>
                                     </div>
+
+                                    <button onClick={()=>setModal("netWorthHistory")} style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:"10px 12px",color:"#94a3b8",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>💎 سجل ومقارنة صافي الفلوس شهر بشهر</button>
 
                                     {/* إدخال الكاش الفعلي واللي عليك لناس برة النظام */}
                                     <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:14,padding:14,marginBottom:18}}>
@@ -8556,6 +8792,7 @@ ${knownNumbersText}`;
                             transactions={transactions} people={people}
                             capital={capital} financeLogs={financeLogs}
                             dailyBalanceLog={dailyBalanceLog} setDailyBalanceLog={setDailyBalanceLog}
+                            netWorthLog={netWorthLog} setNetWorthLog={setNetWorthLog}
                             inventory={inventory} setInventory={setInventory}
                             abuadiTarget={abuadiTarget} abuadiPayments={abuadiPayments}
                             abuadiDate={abuadiDate} abuadiHistory={abuadiHistory}
@@ -9718,6 +9955,17 @@ ${knownNumbersText}`;
                     {modal==="dailyBalanceHistory" && (
                         <DailyBalanceHistoryModal
                             log={dailyBalanceLog}
+                            onClose={()=>setModal(null)}
+                            formatNum={formatNum}
+                            maskNum={maskNum}
+                            privacyMode={privacyMode}
+                        />
+                    )}
+
+                    {/* MODAL: سجل ومقارنة صافي الفلوس (الجرد) شهر بشهر */}
+                    {modal==="netWorthHistory" && (
+                        <NetWorthHistoryModal
+                            log={netWorthLog}
                             onClose={()=>setModal(null)}
                             formatNum={formatNum}
                             maskNum={maskNum}
@@ -11708,7 +11956,7 @@ ${debtors.slice(0,5).map(p => {
 
         function BackupRestoreScreen({
             lines, visas, instaPays, transactions, people,
-            capital, financeLogs, dailyBalanceLog, setDailyBalanceLog, inventory, setInventory, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
+            capital, financeLogs, dailyBalanceLog, setDailyBalanceLog, netWorthLog, setNetWorthLog, inventory, setInventory, abuadiTarget, abuadiPayments, abuadiDate, abuadiHistory,
             personalLedger, personalLedgerOpenings, setPersonalLedger, setPersonalLedgerOpenings,
             setLines, setVisas, setInstaPays, setTransactions, setPeople,
             setCapital, setFinanceLogs, setAbuadiTarget, setAbuadiPayments, setAbuadiDate, setAbuadiHistory,
@@ -11793,6 +12041,7 @@ ${debtors.slice(0,5).map(p => {
                     capital,
                     financeLogs,
                     dailyBalanceLog: dailyBalanceLog || [],
+                    netWorthLog: netWorthLog || [],
                     inventory: inventory || { cash: 0, owedToOthers: 0, note: "" },
                     abuAdi: { target: abuadiTarget, payments: abuadiPayments, date: abuadiDate },
                     abuAdiHistory: abuadiHistory || [],
@@ -11943,6 +12192,9 @@ ${debtors.slice(0,5).map(p => {
                     if (Array.isArray(obj.dailyBalanceLog) && setDailyBalanceLog) {
                         setDailyBalanceLog(obj.dailyBalanceLog);
                     }
+                    if (Array.isArray(obj.netWorthLog) && setNetWorthLog) {
+                        setNetWorthLog(obj.netWorthLog);
+                    }
                     setInventory(obj.inventory || { cash: 0, owedToOthers: 0, note: "" });
                     if (obj.abuAdi) {
                         setAbuadiTarget(obj.abuAdi.target || 0);
@@ -11960,7 +12212,7 @@ ${debtors.slice(0,5).map(p => {
                     }
 
                     // 2. تحديث localStorage
-                    const keys = ["lines","visas","instaPays","transactions","people","capital","financeLogs","dailyBalanceLog"];
+                    const keys = ["lines","visas","instaPays","transactions","people","capital","financeLogs","dailyBalanceLog","netWorthLog"];
                     keys.forEach(k => { if (obj[k] !== undefined) saveToLocalStorage(k, obj[k]); });
                     if (obj.abuAdi) {
                         saveToLocalStorage("abuadiTarget", obj.abuAdi.target || 0);
@@ -11995,6 +12247,7 @@ ${debtors.slice(0,5).map(p => {
                             db.ref("transactions").set(obj.transactions || []),
                             db.ref("financeLogs").set(obj.financeLogs || []),
                             db.ref("dailyBalanceLog").set(obj.dailyBalanceLog || []),
+                            db.ref("netWorthLog").set(obj.netWorthLog || []),
                             db.ref("capital").set(typeof obj.capital === "number" ? obj.capital : 0),
                             db.ref("abuAdi").set(obj.abuAdi || {}),
                             db.ref("personalLedger").set(obj.personalLedger || []),
@@ -12442,6 +12695,7 @@ ${debtors.slice(0,5).map(p => {
                                         { label: "رأس المال", val: `${(confirmModal.data.capital||0).toLocaleString()} ج`, icon: "💰" },
                                         { label: "السجلات المالية", val: (confirmModal.data.financeLogs||[]).length, icon: "📊" },
                                         { label: "سجل الرصيد اليومي", val: (confirmModal.data.dailyBalanceLog||[]).length, icon: "📆" },
+                                        { label: "سجل صافي الفلوس (الجرد)", val: (confirmModal.data.netWorthLog||[]).length, icon: "💎" },
                                         { label: "حساباتي الشخصية", val: (confirmModal.data.personalLedger||[]).length, icon: "🧾" },
                                     ].map((item, i) => (
                                         <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#c8d6e8", paddingBottom: 4 }}>
