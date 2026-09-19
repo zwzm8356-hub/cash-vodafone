@@ -1598,6 +1598,18 @@
             const dayName = days[d.getDay()];
             return `${dayName} ${parts[0]}/${parts[1]}/${parts[2]}`;
         }
+        // 📅 تاريخ + اسم اليوم (+ الساعة لو موجودة) — مثال: "الخميس 2026/09/17 14:30"
+        function formatDateWithDay(dateStr) {
+            if (!dateStr) return "";
+            const str = String(dateStr).trim();
+            const m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]+(\d{1,2}:\d{2}))?/);
+            if (!m) return str;
+            const y = +m[1], mo = +m[2], d = +m[3];
+            const dt = new Date(y, mo - 1, d); // تاريخ محلي — من غير مشاكل UTC
+            if (isNaN(dt.getTime())) return str;
+            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+            return `${days[dt.getDay()]} ${y}/${String(mo).padStart(2,"0")}/${String(d).padStart(2,"0")}${m[4] ? " " + m[4] : ""}`;
+        }
 
         // ⭐ دالة حساب آمنة — بدون eval أو Function() — تحل العمليات الحسابية مع أولوية صحيحة
         // ✅ إصلاح: يدعم أولوية العمليات (* و / قبل + و -) والأقواس
@@ -2967,7 +2979,7 @@
                                         <tr><td style={{color:"#555",paddingBottom:3}}>إجمالي المحوَّل</td><td style={{textAlign:"left",fontWeight:700,color:"#991b1b"}}>{Number(totalD).toLocaleString("ar-EG")} ج</td></tr>
                                         <tr><td style={{color:"#555",paddingBottom:3}}>إجمالي ما سدَّد</td><td style={{textAlign:"left",fontWeight:700,color:"#166534"}}>{Number(totalC).toLocaleString("ar-EG")} ج</td></tr>
                                         <tr><td style={{color:"#555",paddingBottom:3}}>عدد الحركات</td><td style={{textAlign:"left"}}>{moves.length}</td></tr>
-                                        {lastMove && <tr><td style={{color:"#555",paddingBottom:3}}>آخر حركة</td><td style={{textAlign:"left",fontSize:10}}>{lastMove.date||"—"} — {lastMove.type==="debit"?"حوّل":"سدّد"}</td></tr>}
+                                        {lastMove && <tr><td style={{color:"#555",paddingBottom:3}}>آخر حركة</td><td style={{textAlign:"left",fontSize:10}}>{formatDateWithDay(lastMove.date)||"—"} — {lastMove.type==="debit"?"حوّل":"سدّد"}</td></tr>}
                                         <tr style={{borderTop:"2px solid #000"}}>
                                             <td style={{fontWeight:900,paddingTop:4}}>رصيدك الحالي</td>
                                             <td style={{textAlign:"left",fontWeight:900,fontSize:13,color:balance>0?"#991b1b":balance<0?"#166534":"#555"}}>
@@ -3518,147 +3530,371 @@
         }
 
         // ══════════════════════════════════════════════════════════════
-        //  💎  NetWorthHistoryModal — سجل صافي الفلوس اليومي + مقارنة شهرية
-        //  بيوريك كل يوم كان صافي فلوسك (الجرد) كام، مجمّعين حسب السنة والشهر،
-        //  ومقارنة كل شهر بالشهر اللي قبله (زاد ولا نقص وبقد ايه).
+        //  💾  الجرد اليدوي — أنت اللي بتقفل الجرد وأنت اللي بتحدد التاريخ
+        //  المكسب/الخسارة = صافي الفلوس في الجرد ده − صافي الفلوس في الجرد اللي قبله
+        //  (+ سحوبات − إضافات رأس مال لو كتبتهم عشان الحساب يبقى دقيق)
         // ══════════════════════════════════════════════════════════════
-        function NetWorthHistoryModal({ log = [], onClose, formatNum, maskNum, privacyMode }) {
+        const JARD_MONTH_NAMES = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+        function jardMonthLabel(m) {
+            if (!m) return "غير محدد";
+            const [y, mo] = m.split("-");
+            return `${JARD_MONTH_NAMES[parseInt(mo,10)-1] || mo} ${y}`;
+        }
+        // بيرجّع الجرد مترتب من الأقدم للأحدث، ومعاه المكسب/الخسارة لكل جرد
+        function computeJardChain(log = []) {
+            const sorted = (log || []).filter(e => e && e.date).sort((a, b) => a.date.localeCompare(b.date));
+            return sorted.map((e, i) => {
+                const prev = i > 0 ? sorted[i - 1] : null;
+                const adj = (Number(e.withdrawn) || 0) - (Number(e.injected) || 0);
+                const profit = prev ? (Number(e.netWorth) || 0) - (Number(prev.netWorth) || 0) + adj : null;
+                return { ...e, prevDate: prev ? prev.date : null, prevNetWorth: prev ? (Number(prev.netWorth) || 0) : null, profit };
+            });
+        }
+        function JardProfitBadge({ profit, fmt, size = 12 }) {
+            if (profit === null || profit === undefined) {
+                return <span style={{fontSize:size-1,color:"#64748b",fontWeight:700}}>📌 نقطة البداية</span>;
+            }
+            if (Math.abs(profit) < 0.005) {
+                return <span style={{fontSize:size,fontWeight:700,color:"#94a3b8"}}>⚖️ متعادل</span>;
+            }
+            const up = profit > 0;
+            return (
+                <span style={{fontSize:size,fontWeight:800,color: up ? "#10b981" : "#ef4444"}}>
+                    {up ? "▲ مكسب " : "▼ خسارة "}{fmt(Math.abs(profit))} ج
+                </span>
+            );
+        }
+
+        function JardCloseCard({ snapshot, log = [], setLog, showToast, formatNum, onOpenHistory }) {
+            const [date, setDate] = useState(() => today());
+            const [note, setNote] = useState("");
+            const [injected, setInjected] = useState("");
+            const [withdrawn, setWithdrawn] = useState("");
+            const [showAdj, setShowAdj] = useState(false);
+            const [result, setResult] = useState(null);
+
+            const chain = React.useMemo(() => computeJardChain(log), [log]);
+            const last = chain.length ? chain[chain.length - 1] : null;
+            const existing = date ? chain.find(e => e.date === date) : null;
+            const liveDiff = last ? snapshot.netWorth - (Number(last.netWorth) || 0) : null;
+            const fmt = (n) => formatNum(n);
+
+            function handleSave() {
+                if (!date) { showToast("اختار التاريخ الأول", "error"); return; }
+                if (date > today()) { showToast("مينفعش تحفظ جرد بتاريخ في المستقبل", "error"); return; }
+                if (existing && !window.confirm(`فيه جرد محفوظ ليوم ${date} (صافي ${formatNum(existing.netWorth || 0)} ج).\nتستبدله بالأرقام الحالية؟`)) return;
+                const b = snapshot.breakdown || {};
+                const entry = {
+                    date,
+                    monthDate: date.slice(0, 7),
+                    netWorth: snapshot.netWorth || 0,
+                    assets: snapshot.assets || 0,
+                    liabilities: snapshot.liabilities || 0,
+                    breakdown: {
+                        cash: b.cash || 0, lines: b.lines || 0, visas: b.visas || 0, instaPays: b.instaPays || 0,
+                        peopleOwedToMe: b.peopleOwedToMe || 0, abuAdi: b.abuAdi || 0,
+                        peopleIOwe: b.peopleIOwe || 0, owedToOthers: b.owedToOthers || 0,
+                    },
+                    manual: true,
+                    savedAt: nowStr(),
+                    note: note.trim(),
+                    injected: parseFloat(injected) || 0,
+                    withdrawn: parseFloat(withdrawn) || 0,
+                };
+                const newLog = [entry, ...(log || []).filter(e => e && e.date !== date)]
+                    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+                setLog(newLog);
+                setResult(computeJardChain(newLog).find(e => e.date === date) || null);
+                setNote(""); setInjected(""); setWithdrawn("");
+                showToast(`تم حفظ جرد يوم ${date} ✅`);
+            }
+
+            const inputStyle = {width:"100%",background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:8,padding:"8px 10px",color:"#fff",fontSize:14,marginTop:4,boxSizing:"border-box"};
+
+            // ── نافذة النتيجة بعد القفل ──
+            const renderResult = () => {
+                if (!result) return null;
+                const p = result.profit;
+                const isFirst = p === null;
+                const isZero = !isFirst && Math.abs(p) < 0.005;
+                const up = !isFirst && p > 0;
+                const color = isFirst ? "#3b82f6" : isZero ? "#94a3b8" : up ? "#10b981" : "#ef4444";
+                const bg = isFirst ? "#0f1e3d" : isZero ? "#1e293b" : up ? "#0f3d1e" : "#3d0f0f";
+                const days = result.prevDate ? Math.round((new Date(result.date) - new Date(result.prevDate)) / 86400000) : 0;
+                const adj = (Number(result.withdrawn) || 0) - (Number(result.injected) || 0);
+                const RRow = ({label, value, c, bold}) => (
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #14294a",fontSize:13}}>
+                        <span style={{color:"#94a3b8"}}>{label}</span>
+                        <span style={{fontWeight: bold ? 900 : 700, color: c || "#e2e8f0"}}>{value}</span>
+                    </div>
+                );
+                return (
+                    <div onClick={()=>setResult(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+                        <div onClick={e=>e.stopPropagation()} style={{width:"min(94vw,420px)",maxHeight:"88vh",overflowY:"auto",background:"#0a1628",border:`1px solid ${color}55`,borderRadius:18,padding:20}}>
+                            <div style={{textAlign:"center",fontSize:12,color:"#94a3b8",marginBottom:10}}>تم قفل جرد يوم {result.date} ✅</div>
+                            <div style={{background:`linear-gradient(135deg,${bg},#0a1628)`,border:`1px solid ${color}55`,borderRadius:16,padding:"18px 14px",textAlign:"center",marginBottom:14}}>
+                                {isFirst ? (
+                                    <>
+                                        <div style={{fontSize:34}}>📌</div>
+                                        <div style={{fontSize:18,fontWeight:900,color,marginTop:6}}>ده أول جرد ليك</div>
+                                        <div style={{fontSize:12,color:"#94a3b8",marginTop:6,lineHeight:1.7}}>هيبقى نقطة البداية. المكسب أو الخسارة هيظهروا من الجرد اللي بعده.</div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div style={{fontSize:34}}>{isZero ? "⚖️" : up ? "🎉" : "📉"}</div>
+                                        <div style={{fontSize:14,fontWeight:700,color,marginTop:4}}>{isZero ? "متعادل — مفيش فرق" : up ? "المكسب" : "الخسارة"}</div>
+                                        {!isZero && <div style={{fontSize:32,fontWeight:900,color,margin:"6px 0"}}>{fmt(Math.abs(p))} ج</div>}
+                                        <div style={{fontSize:11,color:"#94a3b8"}}>من جرد {result.prevDate} لحد {result.date}{days > 0 ? ` (${days} يوم)` : ""}</div>
+                                    </>
+                                )}
+                            </div>
+                            <div style={{marginBottom:14}}>
+                                <RRow label="💎 صافي فلوسك في الجرد ده" value={`${fmt(result.netWorth || 0)} ج`} c={(result.netWorth||0)>=0?"#10b981":"#ef4444"} />
+                                {!isFirst && <RRow label={`💎 صافي الجرد اللي قبله (${result.prevDate})`} value={`${fmt(result.prevNetWorth || 0)} ج`} />}
+                                {!isFirst && <RRow label="الفرق في صافي الفلوس" value={`${(result.netWorth||0)-(result.prevNetWorth||0) >= 0 ? "+" : "−"}${fmt(Math.abs((result.netWorth||0)-(result.prevNetWorth||0)))} ج`} />}
+                                {!isFirst && (Number(result.withdrawn)||0) > 0 && <RRow label="＋ سحوبات شخصية (رجعناها للمكسب)" value={`${fmt(result.withdrawn)} ج`} />}
+                                {!isFirst && (Number(result.injected)||0) > 0 && <RRow label="－ رأس مال ضفته (شلناه من المكسب)" value={`${fmt(result.injected)} ج`} />}
+                                {!isFirst && adj !== 0 && <RRow label="المكسب/الخسارة بعد التعديل" value={`${p >= 0 ? "+" : "−"}${fmt(Math.abs(p))} ج`} c={color} bold />}
+                            </div>
+                            <div style={{display:"flex",gap:8}}>
+                                <button onClick={()=>setResult(null)} style={{flex:1,padding:11,background:"#3b82f6",border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:800,cursor:"pointer"}}>تمام</button>
+                                <button onClick={()=>{ setResult(null); onOpenHistory && onOpenHistory(); }} style={{flex:1,padding:11,background:"#1e293b",border:"1px solid #334155",borderRadius:10,color:"#94a3b8",fontSize:13,fontWeight:700,cursor:"pointer"}}>📅 السجل</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:14,padding:14,marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#e2e8f0",marginBottom:4}}>💾 اقفل الجرد واحفظه</div>
+                    <div style={{fontSize:11,color:"#64748b",lineHeight:1.7,marginBottom:10}}>
+                        بيحفظ أرقامك الحالية على التاريخ اللي تختاره، وبعدها يقولك مكسبت ولا خسرت من آخر جرد.
+                    </div>
+
+                    <label style={{fontSize:11,color:"#64748b"}}>📅 تاريخ الجرد</label>
+                    <input type="date" value={date} max={today()} onChange={e=>setDate(e.target.value)} style={inputStyle}/>
+                    {existing && (
+                        <div style={{fontSize:11,color:"#f59e0b",marginTop:6}}>⚠️ فيه جرد محفوظ اليوم ده — الحفظ هيستبدله.</div>
+                    )}
+                    {date && date !== today() && (
+                        <div style={{fontSize:11,color:"#64748b",marginTop:6}}>ملحوظة: هيتسجل أرقامك الحالية على تاريخ {date}.</div>
+                    )}
+
+                    <div style={{marginTop:10}}>
+                        <label style={{fontSize:11,color:"#64748b"}}>📝 ملاحظة (اختياري)</label>
+                        <input type="text" value={note} onChange={e=>setNote(e.target.value)} placeholder="مثلاً: جرد نهاية الأسبوع" style={{...inputStyle,fontSize:13}}/>
+                    </div>
+
+                    <button onClick={()=>setShowAdj(v=>!v)} style={{background:"none",border:"none",color:"#3b82f6",fontSize:12,fontWeight:700,cursor:"pointer",padding:"10px 0 0 0"}}>
+                        {showAdj ? "▲ إخفاء" : "▼"} سحبت أو ضفت فلوس من جيبك من آخر جرد؟
+                    </button>
+                    {showAdj && (
+                        <div style={{marginTop:6}}>
+                            <div style={{fontSize:10,color:"#64748b",lineHeight:1.7,marginBottom:6}}>
+                                لو سحبت فلوس لنفسك أو ضفت رأس مال جديد، اكتبهم هنا عشان المكسب يتحسب صح (من غير ما السحب يتعد خسارة، ولا الإضافة تتعد مكسب).
+                            </div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                                <div>
+                                    <label style={{fontSize:11,color:"#64748b"}}>💸 سحبت لنفسي</label>
+                                    <input type="number" inputMode="decimal" value={withdrawn} onChange={e=>setWithdrawn(e.target.value)} placeholder="0" style={inputStyle}/>
+                                </div>
+                                <div>
+                                    <label style={{fontSize:11,color:"#64748b"}}>➕ رأس مال ضفته</label>
+                                    <input type="number" inputMode="decimal" value={injected} onChange={e=>setInjected(e.target.value)} placeholder="0" style={inputStyle}/>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <button onClick={handleSave} style={{width:"100%",marginTop:12,padding:12,background:"linear-gradient(135deg,#059669,#10b981)",border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:800,cursor:"pointer"}}>
+                        💾 احفظ جرد {date || "..."}
+                    </button>
+
+                    {last && (
+                        <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #334155",fontSize:11,color:"#94a3b8",lineHeight:1.9}}>
+                            <div>آخر جرد محفوظ: <b style={{color:"#e2e8f0"}}>{last.date}</b> — صافي {fmt(last.netWorth || 0)} ج</div>
+                            <div>من وقتها لحد دلوقتي: <JardProfitBadge profit={liveDiff} fmt={fmt} size={12}/> <span style={{color:"#475569"}}>(قبل تعديلات السحب والإضافة)</span></div>
+                        </div>
+                    )}
+                    {renderResult()}
+                </div>
+            );
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  💎  NetWorthHistoryModal — سجل الجرد: سنين / شهور / أيام
+        //  كل جرد بيتحفظ يدوي، وكل سنة/شهر/يوم بيبان عليه مكسب ولا خسارة
+        // ══════════════════════════════════════════════════════════════
+        function NetWorthHistoryModal({ log = [], onClose, onDelete, maskNum, privacyMode }) {
+            const [view, setView] = useState("months"); // "years" | "months" | "days"
+            const [yearFilter, setYearFilter] = useState(null);
             const [openGroups, setOpenGroups] = useState({});
-            const [view, setView] = useState("monthly"); // "monthly" | "daily"
-            const monthNames = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
-            function monthLabel(m) {
-                if (!m) return "غير محدد";
-                const [y, mo] = m.split("-");
-                return `${monthNames[parseInt(mo,10)-1] || mo} ${y}`;
+            const fmt = (n) => maskNum(n, privacyMode);
+
+            // الجرد مترتب تصاعدي + المكسب لكل جرد
+            const chain = React.useMemo(() => computeJardChain(log), [log]);
+
+            const summarize = (entries) => {
+                const withProfit = entries.filter(e => e.profit !== null);
+                return {
+                    days: entries.length,
+                    closingNW: entries.length ? (Number(entries[entries.length - 1].netWorth) || 0) : 0,
+                    profit: withProfit.length ? withProfit.reduce((s, e) => s + e.profit, 0) : null,
+                };
+            };
+
+            const yearRows = React.useMemo(() => {
+                const by = {};
+                chain.forEach(e => { const y = e.date.slice(0, 4); (by[y] = by[y] || []).push(e); });
+                return Object.keys(by).sort().reverse().map(y => ({ year: y, ...summarize(by[y]) }));
+            }, [chain]);
+
+            const monthRows = React.useMemo(() => {
+                const by = {};
+                chain.forEach(e => { const m = e.date.slice(0, 7); (by[m] = by[m] || []).push(e); });
+                return Object.keys(by).sort().reverse().map(m => ({ month: m, ...summarize(by[m]) }));
+            }, [chain]);
+
+            const dayGroups = React.useMemo(() => {
+                const by = {};
+                [...chain].reverse().forEach(e => {
+                    const y = e.date.slice(0, 4), m = e.date.slice(0, 7);
+                    if (!by[y]) by[y] = {};
+                    if (!by[y][m]) by[y][m] = [];
+                    by[y][m].push(e); // الأحدث الأول
+                });
+                return by;
+            }, [chain]);
+
+            const total = React.useMemo(() => summarize(chain).profit, [chain]);
+            const visibleMonths = yearFilter ? monthRows.filter(r => r.month.startsWith(yearFilter)) : monthRows;
+            const visibleYears = Object.keys(dayGroups).sort().reverse().filter(y => !yearFilter || y === yearFilter);
+
+            function toggle(key) { setOpenGroups(p => ({ ...p, [key]: !p[key] })); }
+            function confirmDelete(e) {
+                if (!onDelete) return;
+                if (window.confirm(`تحذف جرد يوم ${e.date}؟\n(صافي ${fmt(e.netWorth || 0)} ج — مش هيأثر على باقي بيانات التطبيق)`)) onDelete(e.date);
             }
 
-            // تجميع حسب السنة → الشهر (نفس منطق سجل الرصيد اليومي)
-            const groups = React.useMemo(() => {
-                const byYear = {};
-                const sorted = [...log].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-                sorted.forEach(entry => {
-                    const year = (entry.date || "----").slice(0, 4);
-                    const month = entry.monthDate || (entry.date ? entry.date.slice(0, 7) : "");
-                    if (!byYear[year]) byYear[year] = {};
-                    if (!byYear[year][month]) byYear[year][month] = [];
-                    byYear[year][month].push(entry);
-                });
-                return byYear;
-            }, [log]);
-
-            // ملخص شهري: آخر (إقفال) صافي فلوس في كل شهر + الفرق عن الشهر اللي قبله زمنياً
-            const monthlySummary = React.useMemo(() => {
-                const byMonth = {};
-                log.forEach(entry => {
-                    const month = entry.monthDate || (entry.date ? entry.date.slice(0, 7) : "");
-                    if (!month) return;
-                    if (!byMonth[month]) byMonth[month] = [];
-                    byMonth[month].push(entry);
-                });
-                const months = Object.keys(byMonth).sort(); // تصاعدي عشان نقارن كل شهر بالي قبله
-                let prevClosing = null;
-                const rows = months.map(month => {
-                    const entries = [...byMonth[month]].sort((a,b) => (a.date||"").localeCompare(b.date||""));
-                    const closing = entries[entries.length - 1]; // آخر يوم متسجل في الشهر
-                    const opening = entries[0];
-                    const closingNW = closing?.netWorth ?? 0;
-                    const diff = prevClosing !== null ? closingNW - prevClosing : null;
-                    const row = {
-                        month,
-                        days: entries.length,
-                        closingNW,
-                        openingNW: opening?.netWorth ?? 0,
-                        diff,
-                    };
-                    prevClosing = closingNW;
-                    return row;
-                });
-                return rows.reverse(); // نعرض الأحدث الأول
-            }, [log]);
-
-            function toggle(key) {
-                setOpenGroups(p => ({ ...p, [key]: !p[key] }));
-            }
-
-            const years = Object.keys(groups).sort().reverse();
+            const tabBtn = (id, label) => (
+                <button onClick={()=>setView(id)} style={{flex:1,padding:10,background: view===id ? "#3b82f6" : "#0f1e3d",border:`1px solid ${view===id?"#3b82f6":"#1e3a5f"}`,borderRadius:8,color: view===id ? "#fff" : "#94a3b8",fontSize:12,fontWeight:700,cursor:"pointer"}}>{label}</button>
+            );
+            const card = {background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,marginBottom:8};
 
             return (
                 <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9997,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-                    <div onClick={e=>e.stopPropagation()} style={{width:"min(94vw,520px)",maxHeight:"85vh",background:"var(--bg-card,#0a1628)",border:"1px solid var(--border-dim,#1e3a5f)",borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",direction:"rtl"}}>
+                    <div onClick={e=>e.stopPropagation()} style={{width:"min(94vw,520px)",maxHeight:"85vh",background:"var(--bg-card,#0a1628)",border:"1px solid var(--border-dim,#1e3a5f)",borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:16,borderBottom:"1px solid var(--border-dim,#1e3a5f)"}}>
-                            <div style={{fontSize:15,fontWeight:800,color:"var(--text-bright,#e2e8f0)"}}>💎 سجل صافي الفلوس (الجرد)</div>
+                            <div style={{fontSize:15,fontWeight:800,color:"var(--text-bright,#e2e8f0)"}}>💎 سجل الجرد — مكسب وخسارة</div>
                             <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text-mid,#94a3b8)",fontSize:18,cursor:"pointer"}}>✕</button>
                         </div>
-                        <div style={{padding:"8px 16px",fontSize:11,color:"#64748b",borderBottom:"1px solid var(--border-dim,#1e3a5f)"}}>
-                            كل يوم بيتسجّل تلقائياً صافي فلوسك — كده تقدر تقارن كل شهر بالشهر اللي قبله وتعرف زدت ولا نقصت.
+
+                        {chain.length > 0 && (
+                            <div style={{padding:"10px 16px",borderBottom:"1px solid var(--border-dim,#1e3a5f)",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,color:"#94a3b8"}}>
+                                <span>الإجمالي من أول جرد ({chain.length} جرد)</span>
+                                <JardProfitBadge profit={total} fmt={fmt} size={13}/>
+                            </div>
+                        )}
+
+                        <div style={{display:"flex",gap:8,padding:"10px 16px 0 16px"}}>
+                            {tabBtn("years", "🗓️ السنين")}
+                            {tabBtn("months", "📆 الشهور")}
+                            {tabBtn("days", "📅 الأيام")}
                         </div>
 
-                        {/* Tabs: شهري / يومي */}
-                        <div style={{display:"flex",gap:8,padding:"10px 16px 0 16px"}}>
-                            <button onClick={()=>setView("monthly")} style={{flex:1,padding:10,background: view==="monthly" ? "#3b82f6" : "#0f1e3d",border:`1px solid ${view==="monthly"?"#3b82f6":"#1e3a5f"}`,borderRadius:8,color: view==="monthly" ? "#fff" : "#94a3b8",fontSize:13,fontWeight:700,cursor:"pointer"}}>📆 مقارنة شهرية</button>
-                            <button onClick={()=>setView("daily")} style={{flex:1,padding:10,background: view==="daily" ? "#3b82f6" : "#0f1e3d",border:`1px solid ${view==="daily"?"#3b82f6":"#1e3a5f"}`,borderRadius:8,color: view==="daily" ? "#fff" : "#94a3b8",fontSize:13,fontWeight:700,cursor:"pointer"}}>📅 يوم بيوم</button>
-                        </div>
+                        {yearFilter && (
+                            <div style={{padding:"8px 16px 0 16px"}}>
+                                <button onClick={()=>setYearFilter(null)} style={{background:"#1e293b",border:"1px solid #334155",borderRadius:20,padding:"4px 12px",color:"#94a3b8",fontSize:11,fontWeight:700,cursor:"pointer"}}>سنة {yearFilter} ✕ عرض الكل</button>
+                            </div>
+                        )}
 
                         <div style={{overflowY:"auto",padding:12,flex:1}}>
-                            {log.length === 0 && (
-                                <div style={{textAlign:"center",color:"var(--text-dim,#475569)",padding:30,fontSize:13}}>
-                                    لسه مفيش سجلات — هتتسجل تلقائياً أول ما يعدي أول يوم كامل على التطبيق
+                            {chain.length === 0 && (
+                                <div style={{textAlign:"center",color:"var(--text-dim,#475569)",padding:30,fontSize:13,lineHeight:1.9}}>
+                                    لسه مفيش جرد محفوظ.<br/>اقفل أول جرد من زرار 💾 في شاشة الجرد.
                                 </div>
                             )}
 
-                            {/* ═══ عرض المقارنة الشهرية ═══ */}
-                            {view === "monthly" && monthlySummary.map(row => (
-                                <div key={row.month} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,marginBottom:8,padding:"12px 14px"}}>
+                            {/* ═══ السنين ═══ */}
+                            {view === "years" && yearRows.map(row => (
+                                <div key={row.year} onClick={()=>{ setYearFilter(row.year); setView("months"); }} style={{...card,padding:"12px 14px",cursor:"pointer"}}>
                                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                                         <div>
-                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{monthLabel(row.month)}</div>
-                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{row.days} يوم مسجّل</div>
+                                            <div style={{fontSize:15,fontWeight:800,color:"#e2e8f0"}}>{row.year}</div>
+                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{row.days} جرد — اضغط تشوف شهورها</div>
                                         </div>
                                         <div style={{textAlign:"left"}}>
-                                            <div style={{fontSize:16,fontWeight:900,color: row.closingNW>=0 ? "#10b981" : "#ef4444"}}>{maskNum(row.closingNW, privacyMode)} ج</div>
-                                            {row.diff !== null && (
-                                                <div style={{fontSize:11,fontWeight:700,color: row.diff>=0 ? "#10b981" : "#ef4444"}}>
-                                                    {row.diff >= 0 ? "▲ +" : "▼ "}{maskNum(row.diff, privacyMode)} ج عن الشهر اللي فات
-                                                </div>
-                                            )}
+                                            <div style={{fontSize:14,fontWeight:900,color: row.closingNW>=0 ? "#10b981" : "#ef4444"}}>{fmt(row.closingNW)} ج</div>
+                                            <div><JardProfitBadge profit={row.profit} fmt={fmt} size={12}/></div>
                                         </div>
                                     </div>
                                 </div>
                             ))}
 
-                            {/* ═══ عرض يوم بيوم (زي سجل الرصيد اليومي) ═══ */}
-                            {view === "daily" && years.map(year => {
-                                const months = Object.keys(groups[year]).sort().reverse();
+                            {/* ═══ الشهور ═══ */}
+                            {view === "months" && visibleMonths.map(row => (
+                                <div key={row.month} onClick={()=>{ setOpenGroups({ [row.month]: true }); setYearFilter(row.month.slice(0,4)); setView("days"); }} style={{...card,padding:"12px 14px",cursor:"pointer"}}>
+                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                        <div>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{jardMonthLabel(row.month)}</div>
+                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{row.days} جرد — اضغط تشوف الأيام</div>
+                                        </div>
+                                        <div style={{textAlign:"left"}}>
+                                            <div style={{fontSize:14,fontWeight:900,color: row.closingNW>=0 ? "#10b981" : "#ef4444"}}>{fmt(row.closingNW)} ج</div>
+                                            <div><JardProfitBadge profit={row.profit} fmt={fmt} size={12}/></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* ═══ الأيام (سنة ← شهر ← يوم) ═══ */}
+                            {view === "days" && visibleYears.map(year => {
+                                const months = Object.keys(dayGroups[year]).sort().reverse();
                                 return (
                                     <div key={year} style={{marginBottom:14}}>
                                         <div style={{fontSize:13,fontWeight:800,color:"#3b82f6",marginBottom:8,paddingRight:4}}>📅 {year}</div>
                                         {months.map(month => {
-                                            const entries = groups[year][month];
-                                            const key = `${year}-${month}`;
-                                            const isOpen = !!openGroups[key];
-                                            const closingEntry = entries[0]; // الأحدث في الشهر (بعد الترتيب التنازلي)
+                                            const entries = dayGroups[year][month]; // الأحدث الأول
+                                            const isOpen = !!openGroups[month];
+                                            const sum = summarize([...entries].reverse());
                                             return (
-                                                <div key={key} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,marginBottom:8,overflow:"hidden"}}>
-                                                    <div onClick={()=>toggle(key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",cursor:"pointer"}}>
+                                                <div key={month} style={{...card,overflow:"hidden"}}>
+                                                    <div onClick={()=>toggle(month)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",cursor:"pointer"}}>
                                                         <div>
-                                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{monthLabel(month)}</div>
-                                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{entries.length} يوم مسجّل</div>
+                                                            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{jardMonthLabel(month)}</div>
+                                                            <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{entries.length} جرد</div>
                                                         </div>
-                                                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                                                            <span style={{fontSize:13,fontWeight:700,color: (closingEntry?.netWorth||0) >= 0 ? "#10b981" : "#ef4444"}}>{maskNum(closingEntry?.netWorth||0, privacyMode)} ج</span>
+                                                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                                            <JardProfitBadge profit={sum.profit} fmt={fmt} size={12}/>
                                                             <span style={{color:"#64748b",fontSize:12}}>{isOpen ? "▲" : "▼"}</span>
                                                         </div>
                                                     </div>
                                                     {isOpen && (
                                                         <div style={{borderTop:"1px solid #1e3a5f"}}>
                                                             {entries.map(e => (
-                                                                <div key={e.date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid #14294a"}}>
-                                                                    <div style={{fontSize:12,color:"#94a3b8"}}>{e.date}</div>
-                                                                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                                                                        <span style={{fontSize:10,color:"#10b981"}}>أصول {maskNum(e.assets||0, privacyMode)}</span>
-                                                                        <span style={{fontSize:10,color:"#ef4444"}}>خصوم {maskNum(e.liabilities||0, privacyMode)}</span>
-                                                                        <span style={{fontSize:12,fontWeight:700,color: (e.netWorth||0)>=0?"#10b981":"#ef4444"}}>💎 {maskNum(e.netWorth||0, privacyMode)} ج</span>
+                                                                <div key={e.date} style={{padding:"9px 14px",borderBottom:"1px solid #14294a"}}>
+                                                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                                                                        <div style={{fontSize:12,color:"#e2e8f0",fontWeight:700}}>
+                                                                            {e.date}
+                                                                            {!e.manual && <span style={{fontSize:9,color:"#64748b",marginRight:6,fontWeight:500}}>(تلقائي)</span>}
+                                                                        </div>
+                                                                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                                                            <span style={{fontSize:12,fontWeight:700,color:(e.netWorth||0)>=0?"#10b981":"#ef4444"}}>💎 {fmt(e.netWorth||0)} ج</span>
+                                                                            {onDelete && <button onClick={()=>confirmDelete(e)} title="حذف الجرد" style={{background:"none",border:"none",color:"#64748b",fontSize:14,cursor:"pointer",padding:0}}>🗑️</button>}
+                                                                        </div>
                                                                     </div>
+                                                                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
+                                                                        <div style={{fontSize:10,color:"#64748b"}}>أصول {fmt(e.assets||0)} • خصوم {fmt(e.liabilities||0)}</div>
+                                                                        <JardProfitBadge profit={e.profit} fmt={fmt} size={11}/>
+                                                                    </div>
+                                                                    {((Number(e.withdrawn)||0) > 0 || (Number(e.injected)||0) > 0) && (
+                                                                        <div style={{fontSize:10,color:"#64748b",marginTop:3}}>
+                                                                            {(Number(e.withdrawn)||0) > 0 && <span>💸 سحب {fmt(e.withdrawn)} ج  </span>}
+                                                                            {(Number(e.injected)||0) > 0 && <span>➕ رأس مال {fmt(e.injected)} ج</span>}
+                                                                        </div>
+                                                                    )}
+                                                                    {e.note && <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>📝 {e.note}</div>}
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -5272,43 +5508,7 @@
                         return updated;
                     });
 
-                    // 💎 سجل صافي الفلوس (الجرد) — بنسجّل تلقائياً صافي فلوس اليوم اللي فات
-                    // عشان تقدر بعدين تقارن كل شهر بالشهر اللي قبله من شاشة الجرد
-                    setNetWorthLog(prev => {
-                        if (prev.some(d => d.date === lastResetDay)) return prev; // مسجل بالفعل
-                        const personNet = (p) => {
-                            if (!p.moves || p.moves.length === 0) return 0;
-                            const d = p.moves.filter(m => m.type === "debit").reduce((s, m) => s + (m.amount||0), 0);
-                            const c = p.moves.filter(m => m.type === "credit").reduce((s, m) => s + (m.amount||0), 0);
-                            return d - c;
-                        };
-                        const linesTotal     = lines.reduce((s,l)=>s+(l.balance||0),0);
-                        const visasTotal     = visas.reduce((s,v)=>s+(v.balance||0),0);
-                        const instaPaysTotal = instaPays.reduce((s,ip)=>s+(ip.balance||0),0);
-                        const peopleOwedToMe = people.reduce((s,p)=>s+Math.max(0, personNet(p)),0);
-                        const peopleIOwe     = people.reduce((s,p)=>s+Math.max(0,-personNet(p)),0);
-                        const abuAdiIOwe     = abuadiTarget || 0;
-                        const cashOnHand     = inventory.cash || 0;
-                        const owedToOthers   = inventory.owedToOthers || 0;
-
-                        const totalAssets = cashOnHand + linesTotal + visasTotal + instaPaysTotal + peopleOwedToMe;
-                        const totalLiabilities = abuAdiIOwe + owedToOthers + peopleIOwe;
-                        const netWorth = totalAssets - totalLiabilities;
-
-                        const entry = {
-                            date: lastResetDay,
-                            monthDate: lastResetDay.slice(0, 7),
-                            netWorth,
-                            assets: totalAssets,
-                            liabilities: totalLiabilities,
-                        };
-                        const updated = [entry, ...prev].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-                        if (auth.currentUser && db) {
-                            try { db.ref('netWorthLog').set(updated); } catch(e) {}
-                        }
-                        saveToLocalStorage('netWorthLog', updated);
-                        return updated;
-                    });
+                    // 💎 سجل الجرد (netWorthLog): اتقفل الحفظ التلقائي — الجرد بيتحفظ يدوي من شاشة الجرد (زرار 💾) بالتاريخ اللي تختاره
 
                     setLines(p=>p.map(l=>({...l,usedTodayTransfer:0,usedTodayReceive:0})));
                     setVisas(p=>p.map(v=>({...v,usedTodayTransfer:0,usedTodayReceive:0})));
@@ -7960,7 +8160,7 @@ ${knownNumbersText}`;
                                                     </div>
                                                     <div style={{fontSize:11,color:"#475569",marginTop:2}}>
                                                         {(person.moves||[]).length} حركة
-                                                        {person.moves?.length > 0 && ` • آخر: ${formatDateOnly(person.moves[person.moves.length-1].date)}`}
+                                                        {person.moves?.length > 0 && ` • آخر: ${formatDateWithDay(person.moves[person.moves.length-1].date)}`}
                                                     </div>
                                                 </div>
                                                 {/* الرصيد الحالي */}
@@ -8113,7 +8313,7 @@ ${knownNumbersText}`;
                                             <div style={{fontSize:12,fontWeight:700,color:"#7a8fa8",marginBottom:8}}>📱 آخر عمليات فودافون كاش</div>
                                             {personTxns.map(t=>(
                                                 <div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a2235",fontSize:12}}>
-                                                    <span style={{color:"#94a3b8"}}>{t.date} — {t.type==="transfer"?"💸 تحويل":t.type==="receive"?"📥 استلام":"💳"}</span>
+                                                    <span style={{color:"#94a3b8"}}>{formatDateWithDay(t.date)} — {t.type==="transfer"?"💸 تحويل":t.type==="receive"?"📥 استلام":"💳"}</span>
                                                     <span style={{color:"#22d3ee",fontWeight:700}}>{formatNum(t.amount)} ج</span>
                                                 </div>
                                             ))}
@@ -8232,7 +8432,7 @@ ${knownNumbersText}`;
                                                                                 ? (m.type==="debit" ? "🔄 سحب/استرجاع" : "➕ دفعة جمعية")
                                                                                 : (m.type==="debit" ? "💸 حوّل منه" : "✅ سدّد")} — {maskNum(m.amount, privacyMode)} ج
                                                                         </div>
-                                                                        <div style={{fontSize:10,color:"#475569",marginTop:1}}>{m.note} • {formatDateOnly(m.date)}</div>
+                                                                        <div style={{fontSize:10,color:"#475569",marginTop:1}}>{m.note} • {formatDateWithDay(m.date)}</div>
                                                                     </div>
                                                                     <div style={{textAlign:"left",marginRight:8}}>
                                                                         <div style={{fontSize:12,fontWeight:800,color:m.running>0?"#f59e0b":m.running<0?"#10b981":"#64748b"}}>
@@ -8671,7 +8871,19 @@ ${knownNumbersText}`;
                                         <div style={{fontSize:11,color:"#64748b"}}>إجمالي اللي معاك ناقص إجمالي اللي عليك</div>
                                     </div>
 
-                                    <button onClick={()=>setModal("netWorthHistory")} style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:"10px 12px",color:"#94a3b8",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>💎 سجل ومقارنة صافي الفلوس شهر بشهر</button>
+                                    <JardCloseCard
+                                        snapshot={{
+                                            netWorth: Math.round(netWorth * 100) / 100,
+                                            assets: Math.round(totalAssets * 100) / 100,
+                                            liabilities: Math.round(totalLiabilities * 100) / 100,
+                                            breakdown: { cash: cashOnHand, lines: linesTotal, visas: visasTotal, instaPays: instaPaysTotal, peopleOwedToMe, abuAdi: abuAdiIOwe, peopleIOwe, owedToOthers },
+                                        }}
+                                        log={netWorthLog} setLog={setNetWorthLog}
+                                        showToast={showToast} formatNum={formatNum}
+                                        onOpenHistory={()=>setModal("netWorthHistory")}
+                                    />
+
+                                    <button onClick={()=>setModal("netWorthHistory")} style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:12,padding:"10px 12px",color:"#94a3b8",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>💎 سجل الجرد — سنين وشهور وأيام (مكسب / خسارة)</button>
 
                                     {/* إدخال الكاش الفعلي واللي عليك لناس برة النظام */}
                                     <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:14,padding:14,marginBottom:18}}>
@@ -9988,7 +10200,7 @@ ${knownNumbersText}`;
                         <NetWorthHistoryModal
                             log={netWorthLog}
                             onClose={()=>setModal(null)}
-                            formatNum={formatNum}
+                            onDelete={(date)=>{ setNetWorthLog(prev => prev.filter(e => e && e.date !== date)); showToast("اتحذف الجرد 🗑️"); }}
                             maskNum={maskNum}
                             privacyMode={privacyMode}
                         />
