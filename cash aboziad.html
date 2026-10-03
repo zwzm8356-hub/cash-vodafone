@@ -6,7 +6,7 @@
 
     <!-- ══ PWA Core ══ -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#05070f">
+    <meta name="theme-color" content="#0c0d1a">
     <meta name="background-color" content="#05070f">
     <meta name="application-name" content="ماليه المر">
     <meta name="description" content="مدير التحويلات والمالية — فودافون كاش">
@@ -1231,6 +1231,54 @@
             scroll-behavior: smooth;
         }
     </style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Noto+Emoji:wght@400;600&display=swap" rel="stylesheet">
+<style id="theme-iris">
+/* ═══ ثيم "آيريس": واجهة عصرية — حبر غامق + بنفسجي/أزرق، كروت كبيرة، نافيجيشن عايم، أيقونات خطية ═══ */
+html:not([data-theme]) {
+  --bg-void:#0c0d1a; --bg-deep:#101224; --bg-card:#15172b; --bg-card2:#1b1e38; --bg-input:#12142a;
+  --border-dim:#262a4d; --border-glow:#3a4080;
+  --text-bright:#f2f3ff; --text-mid:#9aa0c8; --text-dim:#626895;
+  --accent-cyan:#a99dff; --accent-blue:#7b6cff; --accent-gold:#ffc65c; --accent-violet:#c4a8ff;
+  --accent-green:#34d6a0; --accent-red:#ff6b86;
+  --glass-bg:rgba(16,18,36,.78); --glass-blur:blur(22px); --shadow-deep:0 18px 48px rgba(3,4,14,.6);
+  --radius-card:24px; --radius-btn:16px;
+}
+html:not([data-theme]) body {
+  background:radial-gradient(ellipse 800px 520px at 90% -10%,rgba(123,108,255,.20),transparent 62%),
+             radial-gradient(ellipse 700px 520px at -5% 105%,rgba(52,214,160,.10),transparent 60%),#0c0d1a !important;
+  color:var(--text-bright); -webkit-tap-highlight-color:transparent; }
+html:not([data-theme]) body, html:not([data-theme]) button, html:not([data-theme]) input, html:not([data-theme]) select, html:not([data-theme]) textarea { font-family:'Tajawal','Noto Emoji',sans-serif !important; }
+html:not([data-theme]) .premium-amount, html:not([data-theme]) .count-animate, html:not([data-theme]) .kpi-card, html:not([data-theme]) .stat-card, html:not([data-theme]) .dashboard-summary-card { font-weight:600; letter-spacing:-.2px; }
+html:not([data-theme]) .hawker-header { background:rgba(12,13,26,.72) !important; backdrop-filter:blur(22px) saturate(1.4); -webkit-backdrop-filter:blur(22px) saturate(1.4);
+  border-bottom:1px solid rgba(255,255,255,.06) !important; box-shadow:none !important; }
+html:not([data-theme]) .hawker-bottom-nav { left:12px !important; right:12px !important; bottom:12px !important; width:auto !important; border-radius:30px !important;
+  background:rgba(21,23,43,.82) !important; backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+  border:1px solid rgba(255,255,255,.08) !important; box-shadow:0 16px 40px rgba(3,4,14,.65) !important; }
+html:not([data-theme]) .hawker-main-body { padding-bottom:96px; }
+html:not([data-theme]) .hawker-sidebar { background:rgba(16,18,36,.92) !important; border-color:rgba(255,255,255,.06) !important; }
+html:not([data-theme]) .glass-card-premium, html:not([data-theme]) .kpi-card, html:not([data-theme]) .stat-card, html:not([data-theme]) .dashboard-summary-card, html:not([data-theme]) .txn-card, html:not([data-theme]) .line-card {
+  border-radius:24px; border:1px solid rgba(255,255,255,.07);
+  background:linear-gradient(160deg,rgba(32,36,70,.75),rgba(21,23,43,.9)) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 14px 34px rgba(3,4,14,.45); }
+html:not([data-theme]) input, html:not([data-theme]) select, html:not([data-theme]) textarea, html:not([data-theme]) .neuro-input { border-radius:16px !important; background:#12142a !important; border:1px solid #2a2e55 !important; color:#f2f3ff; }
+html:not([data-theme]) input:focus, html:not([data-theme]) select:focus, html:not([data-theme]) textarea:focus { outline:none; border-color:#7b6cff !important; box-shadow:0 0 0 4px rgba(123,108,255,.20); }
+html:not([data-theme]) button { border-radius:16px; transition:transform .12s ease, filter .12s ease; }
+html:not([data-theme]) button:active { transform:scale(.97); }
+html:not([data-theme]) :focus-visible { outline:2px solid #a99dff; outline-offset:2px; }
+html:not([data-theme]) ::-webkit-scrollbar-thumb { background:#3a4080; border-radius:8px; }
+html:not([data-theme]) [style*="background: rgb(13, 17, 32)"],html:not([data-theme]) [style*="background: rgb(15, 30, 61)"],html:not([data-theme]) [style*="background: rgb(10, 22, 40)"],html:not([data-theme]) [style*="background: rgb(10, 15, 30)"],html:not([data-theme]) [style*="background: rgb(10, 12, 22)"],html:not([data-theme]) [style*="background: rgb(10, 14, 26)"],html:not([data-theme]) [style*="background: rgb(17, 24, 39)"]{ background:#15172b !important; border-radius:20px; }
+html:not([data-theme]) [style*="linear-gradient(135deg, rgb(15, 30, 61)"], html:not([data-theme]) [style*="linear-gradient(135deg, rgb(13, 17, 32)"] { background:linear-gradient(155deg,#242867,#15172b) !important; border-radius:24px; }
+html:not([data-theme]) [style*="background: rgb(30, 41, 59)"], html:not([data-theme]) [style*="background: rgb(26, 34, 53)"] { background:#1f2347 !important; }
+html:not([data-theme]) [style*="rgb(30, 58, 95)"], html:not([data-theme]) [style*="rgb(26, 34, 53)"], html:not([data-theme]) [style*="rgb(51, 65, 85)"] { border-color:rgba(255,255,255,.09) !important; }
+html:not([data-theme]) [style*="linear-gradient(135deg, rgb(59, 130, 246)"] { background:linear-gradient(135deg,#8b7bff,#5b6cff) !important; color:#fff !important; border:none !important; box-shadow:0 10px 26px rgba(91,108,255,.38); }
+html:not([data-theme]) [style*="color: rgb(59, 130, 246)"], html:not([data-theme]) [style*="color: rgb(34, 211, 238)"] { color:#a99dff !important; }
+html:not([data-theme]) [style*="color: rgb(226, 232, 240)"], html:not([data-theme]) [style*="color: rgb(200, 214, 232)"] { color:#f2f3ff !important; }
+html:not([data-theme]) [style*="color: rgb(148, 163, 184)"] { color:#b6bce0 !important; }
+html:not([data-theme]) [style*="color: rgb(100, 116, 139)"], html:not([data-theme]) [style*="color: rgb(122, 143, 168)"] { color:#8e94bf !important; }
+html:not([data-theme]) [style*="color: rgb(71, 85, 105)"], html:not([data-theme]) [style*="color: rgb(61, 79, 101)"] { color:#626895 !important; }
+html:not([data-theme]) [style*="color: rgb(16, 185, 129)"] { color:#34d6a0 !important; }
+html:not([data-theme]) [style*="color: rgb(239, 68, 68)"] { color:#ff6b86 !important; }
+</style>
 </head>
 <body>
     <div id="root" role="main" aria-label="تطبيق ماليه المر — مدير فودافون كاش"></div>
@@ -1401,7 +1449,7 @@
 
         const initialInstaPays = [];
 
-        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "personalLedger", "abuadi", "ai", "jard", "settings"];
+        const TABS_ORDER = ["dashboard", "transactions", "people", "lines", "finance", "personalLedger", "abuadi", "jard", "settings"];
 
         // ══════════════════════════════════════════════════════════════════
         //  🔑  generateUniqueId — ID فريد 100% لا يتكرر أبداً حتى في نفس الـ ms
@@ -4724,6 +4772,7 @@
             const [modal, setModal] = useState(null);
             const [editLineId, setEditLineId] = useState(null);
             const [selectedPersonId, setSelectedPersonId] = useState(null);
+            const [monthFrom, setMonthFrom] = useState(""); // فلتر 'من تاريخ' لكشف الشهور
             const [filter, setFilter] = useState("all");
             const [searchQ, setSearchQ] = useState("");
             const [toast, setToast] = useState(null);
@@ -7044,11 +7093,46 @@ ${knownNumbersText}`;
             const dailyLogs = monthlyLogs.filter(l => l.logType === "daily");
             const monthlyFinanceLogs = monthlyLogs.filter(l => l.logType === "monthly");
             
-            const currentLogs = financeTab === "daily" ? dailyLogs : monthlyFinanceLogs;
+            const currentLogs = financeTab === "daily" ? dailyLogs : monthlyLogs; // ⭐ الشهري = اليومي + الشهري
             
             const monthIncome = currentLogs.filter(l => l.type === "income").reduce((s, l) => s + l.amount, 0);
             const monthExpense = currentLogs.filter(l => l.type === "expense").reduce((s, l) => s + l.amount, 0);
+            // ⭐ صافي الشهر للداشبورد: دايماً الشهر الحالي (يومي + شهري) — مش بيتغير بتاب المالية أو الشهر المعروض
+            const dashMonthLogs = financeLogs.filter(l => (l.monthDate || (l.date ? String(l.date).slice(0,7) : null)) === thisMonth);
+            const dashNetMonth = dashMonthLogs.reduce((x, l) => x + (l.type === "income" ? 1 : -1) * (l.amount||0), 0);
             const netMonthProfit = monthIncome - monthExpense;
+
+            // ⭐ ملخص كل يوم: دخل / خرج / صافي (محفوظ تلقائياً مع كل عملية)
+            const finDayRows = (() => {
+                const map = {};
+                currentLogs.forEach(l => {
+                    const d = normalizeDateStr(l.date);
+                    if (!d) return;
+                    if (!map[d]) map[d] = { date: d, inc: 0, exp: 0, n: 0 };
+                    if (l.type === "income") map[d].inc += (l.amount||0); else map[d].exp += (l.amount||0);
+                    map[d].n++;
+                });
+                if (financeTab === "monthly") { // الشهري: كل أيام الشهر من أوله لآخره
+                    const [yy, mm] = viewMonth.split("-").map(Number);
+                    const last = (viewMonth === thisMonth) ? new Date().getDate() : new Date(yy, mm, 0).getDate();
+                    for (let i = 1; i <= last; i++) {
+                        const d = `${yy}-${String(mm).padStart(2,"0")}-${String(i).padStart(2,"0")}`;
+                        if (!map[d]) map[d] = { date: d, inc: 0, exp: 0, n: 0 };
+                    }
+                }
+                return Object.values(map).sort((x, y) => x.date < y.date ? -1 : 1);
+            })();
+            // ⭐ سجل الشهور: كل شهر اتقفل محفوظ بإجماليه، والشهر الجديد بيبدأ من صفر
+            const finMonthRows = (() => {
+                const map = {};
+                financeLogs.forEach(l => {
+                    const m = l.monthDate || (l.date ? String(l.date).slice(0,7) : null);
+                    if (!m) return;
+                    if (!map[m]) map[m] = { m, inc: 0, exp: 0 };
+                    if (l.type === "income") map[m].inc += (l.amount||0); else map[m].exp += (l.amount||0);
+                });
+                return Object.values(map).sort((x, y) => x.m < y.m ? 1 : -1);
+            })();
 
             // ⭐ كل الشهور اللي فيها بيانات فعلاً (من السجلات + من سجل الرصيد اليومي) — لعرضها في التنقل
             const availableFinanceMonths = React.useMemo(() => {
@@ -7082,8 +7166,8 @@ ${knownNumbersText}`;
             // ══ 🧠 الرادار الذكي — Smart Insights ══
             const smartInsights = React.useMemo(() => generateSmartInsights({
                 todayTxns, warningSources, alertSources, oldDebtors, totalDebt,
-                netMonthProfit, liquidityForecast, performanceBoard, capital
-            }), [todayTxns, warningSources, alertSources, oldDebtors, totalDebt, netMonthProfit, liquidityForecast, performanceBoard, capital]);
+                netMonthProfit: dashNetMonth, liquidityForecast, performanceBoard, capital
+            }), [todayTxns, warningSources, alertSources, oldDebtors, totalDebt, dashNetMonth, liquidityForecast, performanceBoard, capital]);
 
             const selectedPerson = selectedPersonId ? people.find(p => p.id === selectedPersonId) : null;
 
@@ -7114,10 +7198,10 @@ ${knownNumbersText}`;
             const canViewDashboard = true;
 
             // التبويبات المتاحة لعمر
-            const omarTabs = ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
-            const allTabs  = ["dashboard", "transactions", "people", "lines", "finance", "personalLedger", "abuadi", "ai", "jard", "settings"];
+            const omarTabs = ["dashboard", "transactions", "people", "lines", "abuadi"];
+            const allTabs  = ["dashboard", "transactions", "people", "lines", "finance", "personalLedger", "abuadi", "jard", "settings"];
 
-            const tabs = isAdmin ? allTabs : isOmar ? omarTabs : ["dashboard", "transactions", "people", "lines", "abuadi", "ai"];
+            const tabs = isAdmin ? allTabs : isOmar ? omarTabs : ["dashboard", "transactions", "people", "lines", "abuadi"];
 
             const displayTabs = [
                 {id:"dashboard",   icon:"🏠", label:"الرئيسية"},
@@ -7127,7 +7211,6 @@ ${knownNumbersText}`;
                 {id:"finance",     icon:"💰", label:"المالية",  adminOnly: true},
                 {id:"personalLedger", icon:"🧾", label:"حساباتي", adminOnly: true},
                 {id:"abuadi",      icon:"🤝", label:"أبو عدي"},
-                {id:"ai",          icon:"✨", label:"AI"},
                 {id:"jard",        icon:"📊", label:"الجرد",   adminOnly: true},
                 {id:"settings",    icon:"⚙️", label:"إعدادات", adminOnly: true}
             ].filter(t => tabs.includes(t.id) && (!t.adminOnly || isAdmin));
@@ -7525,7 +7608,7 @@ ${knownNumbersText}`;
                                         {label:"عمليات اليوم",value:todayTxns.length,icon:"📊",color:"#22d3ee",sub:"عملية منجزة",grad:"135deg,#0d1e3a,#0f2747"},
                                         {label:"رأس المال",value:maskNum(capital, privacyMode)+" ج",icon:"👑",color:"#f59e0b",sub:"إجمالي",grad:"135deg,#1a1200,#1f1800"},
                                         {label:"الديون الباقية",value:maskNum(totalDebt, privacyMode)+" ج",icon:"💳",color:"#ef4444",sub:"مستحقة",grad:"135deg,#1a0505,#200808"},
-                                        {label:"صافي الشهر",value:maskNum(netMonthProfit, privacyMode)+" ج",icon:"📈",color:"#a78bfa",sub:"أرباح",grad:"135deg,#0e0a1f,#130d25"},
+                                        {label:"صافي الشهر",value:maskNum(dashNetMonth, privacyMode)+" ج",icon:"📈",color:"#a78bfa",sub:"أرباح",grad:"135deg,#0e0a1f,#130d25"},
                                     ].map((c,i)=>(
                                         <div key={i} className="kpi-card card-entry" style={{
                                             background:`linear-gradient(${c.grad})`,
@@ -8285,6 +8368,55 @@ ${knownNumbersText}`;
                                     );
                                 })()}
 
+                                {/* ⭐ ملخص شهري لكل عميل مع الإجمالي */}
+                                {(() => {
+                                    const all = (selectedPerson.moves||[]).filter(m => !monthFrom || normalizeDateStr(m.date) >= monthFrom);
+                                    const byMonth = {};
+                                    all.forEach(m => {
+                                        const key = normalizeDateStr(m.date).slice(0,7) || "بدون تاريخ";
+                                        if (!byMonth[key]) byMonth[key] = {d:0,c:0,n:0};
+                                        if (m.type==="debit") byMonth[key].d += (m.amount||0); else byMonth[key].c += (m.amount||0);
+                                        byMonth[key].n++;
+                                    });
+                                    const keys = Object.keys(byMonth).sort();
+                                    const tD = keys.reduce((x,k)=>x+byMonth[k].d,0);
+                                    const tC = keys.reduce((x,k)=>x+byMonth[k].c,0);
+                                    const cell = {padding:"7px 4px",textAlign:"center",fontSize:12};
+                                    return (
+                                        <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 10px",marginBottom:14}}>
+                                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8}}>
+                                                <div style={{fontSize:13,fontWeight:700,color:"#94a3b8"}}>🗓️ الحساب شهر بشهر</div>
+                                                <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#7a8fa8"}}>
+                                                    من <input type="date" value={monthFrom} onChange={e=>setMonthFrom(e.target.value)}
+                                                        style={{background:"#0a1628",border:"1px solid #1e3a5f",borderRadius:6,color:"#e2e8f0",fontSize:11,padding:"3px 4px"}}/>
+                                                    {monthFrom && <button onClick={()=>setMonthFrom("")} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:13}}>✕</button>}
+                                                </div>
+                                            </div>
+                                            {keys.length===0 ? <div style={{textAlign:"center",color:"#475569",fontSize:12,padding:10}}>لا توجد حركات</div> : (
+                                            <table style={{width:"100%",borderCollapse:"collapse"}}>
+                                                <thead><tr style={{color:"#64748b",fontSize:10,borderBottom:"1px solid #1e3a5f"}}>
+                                                    <th style={cell}>الشهر</th><th style={cell}>حوّل منك</th><th style={cell}>أعطاك</th><th style={cell}>الصافي</th>
+                                                </tr></thead>
+                                                <tbody>
+                                                    {keys.map(k=>{const r=byMonth[k]; const net=r.d-r.c; return (
+                                                        <tr key={k} style={{borderBottom:"1px solid #1a2235"}}>
+                                                            <td style={{...cell,color:"#cbd5e1",fontWeight:700}}>{k}<div style={{fontSize:9,color:"#475569"}}>{r.n} حركة</div></td>
+                                                            <td style={{...cell,color:"#ef4444",fontWeight:700}}>{formatNum(r.d)}</td>
+                                                            <td style={{...cell,color:"#10b981",fontWeight:700}}>{formatNum(r.c)}</td>
+                                                            <td style={{...cell,color:net>0?"#ef4444":"#10b981",fontWeight:800}}>{formatNum(Math.abs(net))}{net>0?" عليه":net<0?" له":""}</td>
+                                                        </tr>);})}
+                                                    <tr style={{background:"#0f1e3d"}}>
+                                                        <td style={{...cell,color:"#fff",fontWeight:900}}>الإجمالي</td>
+                                                        <td style={{...cell,color:"#ef4444",fontWeight:900}}>{formatNum(tD)}</td>
+                                                        <td style={{...cell,color:"#10b981",fontWeight:900}}>{formatNum(tC)}</td>
+                                                        <td style={{...cell,color:tD-tC>0?"#ef4444":"#10b981",fontWeight:900}}>{formatNum(Math.abs(tD-tC))}{tD-tC>0?" عليه":tD-tC<0?" له":""}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>)}
+                                        </div>
+                                    );
+                                })()}
+
                                 {/* أزرار إضافة حركة */}
                                 {canEditPeople && (
                                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
@@ -8810,12 +8942,49 @@ ${knownNumbersText}`;
                                     <button onClick={()=>setModal("addFinance")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,padding:14,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>➕ عملية {financeTab === "daily" ? "يومية" : "شهرية"}</button>
                                 )}
 
+                                {/* ⭐ حساب كل يوم: دخل / خرج / صافي + اسم اليوم */}
+                                <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 10px",marginBottom:14}}>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:8}}>📅 {financeTab==="daily"?"الأيام":"الشهر يوم بيوم"} — {monthLabel(viewMonth)}</div>
+                                    {finDayRows.length===0 ? <div style={{textAlign:"center",color:"#475569",fontSize:12,padding:10}}>لا توجد عمليات</div> : (
+                                    <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:300}}>
+                                        <thead><tr style={{color:"#64748b",fontSize:10,borderBottom:"1px solid #1e3a5f"}}>
+                                            <th style={{padding:"6px 4px",textAlign:"right"}}>اليوم</th><th>دخل</th><th>خرج</th><th>الصافي</th></tr></thead>
+                                        <tbody>
+                                            {finDayRows.map(r=>{const net=r.inc-r.exp; return (
+                                                <tr key={r.date} style={{borderBottom:"1px solid #1a2235",opacity:r.n?1:0.45}}>
+                                                    <td style={{padding:"6px 4px",fontSize:11,color:"#cbd5e1",fontWeight:700,whiteSpace:"nowrap"}}>{formatDateWithDay(r.date)}</td>
+                                                    <td style={{textAlign:"center",fontSize:12,color:"#10b981",fontWeight:700}}>{maskNum(r.inc, privacyMode)}</td>
+                                                    <td style={{textAlign:"center",fontSize:12,color:"#ef4444",fontWeight:700}}>{maskNum(r.exp, privacyMode)}</td>
+                                                    <td style={{textAlign:"center",fontSize:12,fontWeight:800,color:net>=0?"#10b981":"#ef4444"}}>{maskNum(net, privacyMode)}</td>
+                                                </tr>);})}
+                                            <tr style={{background:"#0f1e3d"}}>
+                                                <td style={{padding:"7px 4px",fontSize:12,color:"#fff",fontWeight:900}}>الإجمالي</td>
+                                                <td style={{textAlign:"center",fontSize:12,color:"#10b981",fontWeight:900}}>{maskNum(monthIncome, privacyMode)}</td>
+                                                <td style={{textAlign:"center",fontSize:12,color:"#ef4444",fontWeight:900}}>{maskNum(monthExpense, privacyMode)}</td>
+                                                <td style={{textAlign:"center",fontSize:12,fontWeight:900,color:netMonthProfit>=0?"#10b981":"#ef4444"}}>{maskNum(netMonthProfit, privacyMode)}</td>
+                                            </tr>
+                                        </tbody></table></div>)}
+                                </div>
+
+                                {/* ⭐ سجل الشهور المحفوظة */}
+                                <div style={{background:"#0d1120",border:"1px solid #1e3a5f",borderRadius:12,padding:"12px 10px",marginBottom:14}}>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:8}}>🗂️ سجل الشهور المحفوظة</div>
+                                    {finMonthRows.map(r=>{const net=r.inc-r.exp; return (
+                                        <div key={r.m} onClick={()=>setFinanceViewMonth(r.m)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 4px",borderBottom:"1px solid #1a2235",cursor:"pointer",fontSize:12}}>
+                                            <span style={{color:"#cbd5e1",fontWeight:700}}>{r.m===thisMonth?"🟢":"🔒"} {monthLabel(r.m)}</span>
+                                            <span style={{color:"#10b981"}}>{maskNum(r.inc, privacyMode)}</span>
+                                            <span style={{color:"#ef4444"}}>{maskNum(r.exp, privacyMode)}</span>
+                                            <span style={{fontWeight:800,color:net>=0?"#10b981":"#ef4444"}}>{maskNum(net, privacyMode)}</span>
+                                        </div>);})}
+                                    <div style={{fontSize:10,color:"#475569",marginTop:6,textAlign:"center"}}>دخل / خرج / صافي — اضغط على شهر لعرضه • الشهر الجديد بيبدأ من صفر لوحده</div>
+                                </div>
+
                                 <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>📜 السجل</div>
                                 {currentLogs.length > 0 ? (
                                     currentLogs.map(log => (
                                         <div key={log.id} style={{background:"#0f1e3d",border:"1px solid #1e3a5f",borderRadius:12,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                                             <div>
-                                                <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{log.desc}</div>
+                                                <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{log.desc}{financeTab==="monthly" && log.logType==="daily" && <span style={{fontSize:9,color:"#3b82f6",marginRight:6}}> • يومي</span>}</div>
                                                 <div style={{fontSize:11,color:"#475569",marginTop:2}}>{formatDateOnly(log.date)}</div>
                                             </div>
                                             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -10384,7 +10553,6 @@ ${knownNumbersText}`;
                                 ...(isAdmin ? [{ id:"tab-finance", icon:"💰", label:"الذهاب للمالية", keywords:"finance", run:()=>setTab("finance") }] : []),
                                 ...(isAdmin ? [{ id:"tab-personal-ledger", icon:"🧾", label:"الذهاب لحساباتي الشخصية", keywords:"personal ledger حساباتي فلوسي", run:()=>setTab("personalLedger") }] : []),
                                 { id:"tab-abuadi", icon:"📒", label:"الذهاب لدفتر أبو عدي", keywords:"abuadi", run:()=>setTab("abuadi") },
-                                { id:"tab-ai", icon:"🤖", label:"الذهاب للمساعد الذكي", keywords:"ai chat", run:()=>setTab("ai") },
                                 ...(isAdmin ? [{ id:"tab-jard", icon:"📦", label:"الذهاب للجرد", keywords:"jard inventory", run:()=>setTab("jard") }] : []),
                                 { id:"tab-settings", icon:"⚙️", label:"الذهاب للإعدادات", keywords:"settings", run:()=>setTab("settings") },
                                 ...(canAddTxn ? [{ id:"quick-add", icon:"⚡", label:"إضافة عملية سريعة", keywords:"add new transaction", hint:"سريع", run:()=>setShowQuickAdd(true) }] : []),
